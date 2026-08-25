@@ -50,8 +50,29 @@ export default function App() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [activeSessionSlotId, setActiveSessionSlotId] = useState<string>("auto");
   const [voiceEnabled, setVoiceEnabled] = useState<boolean>(true);
-  const [theme, setTheme] = useState<"dark" | "light">("dark");
+  const [theme, setTheme] = useState<"dark" | "light">(() => {
+    if (typeof window !== "undefined") {
+      const saved = localStorage.getItem("app_theme");
+      if (saved === "light" || saved === "dark") return saved;
+    }
+    return "dark";
+  });
   const [isCardsModalOpen, setIsCardsModalOpen] = useState(false);
+
+  // Sync theme to root DOM and localStorage
+  useEffect(() => {
+    if (typeof document !== "undefined") {
+      document.documentElement.setAttribute("data-theme", theme);
+      if (theme === "light") {
+        document.documentElement.classList.remove("dark");
+        document.documentElement.classList.add("light");
+      } else {
+        document.documentElement.classList.remove("light");
+        document.documentElement.classList.add("dark");
+      }
+      localStorage.setItem("app_theme", theme);
+    }
+  }, [theme]);
 
   // Core Datasets with guaranteed initial default arrays/objects
   const [students, setStudents] = useState<Student[]>([]);
@@ -447,7 +468,12 @@ export default function App() {
   return (
     <div
       dir="rtl"
-      className="min-h-screen bg-[#090e17] text-slate-100 font-['Tajawal',sans-serif] selection:bg-amber-500 selection:text-black"
+      data-theme={theme}
+      className={`min-h-screen ${
+        theme === "light"
+          ? "bg-slate-100 text-slate-900"
+          : "bg-[#090e17] text-slate-100"
+      } font-['Tajawal',sans-serif] selection:bg-amber-500 selection:text-black transition-colors duration-200`}
     >
       {/* 1. Auth Overlay (Login) */}
       {!currentUser && (
@@ -605,6 +631,8 @@ export default function App() {
                 <SettingsTab
                   currentUser={currentUser}
                   groupPrices={groupPrices}
+                  theme={theme}
+                  onToggleTheme={() => setTheme(theme === "dark" ? "light" : "dark")}
                   onChangePassword={handleChangePassword}
                   onUpdateGroupPrice={handleUpdateGroupPrice}
                 />

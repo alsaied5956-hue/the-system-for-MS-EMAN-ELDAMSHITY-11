@@ -2,19 +2,154 @@
 
 @layer base {
   :root {
-    --bg-dark: #070a11;
-    --card-bg: rgba(18, 25, 38, 0.85);
+    --bg-main: #090e17;
+    --card-bg: #0f172a;
     --card-border: rgba(212, 175, 55, 0.2);
-    --primary-gold: #e6c667;
-    --gold-gradient: linear-gradient(135deg, #bf953f 0%, #fcf6ba 25%, #b38728 50%, #fbf5b7 75%, #aa771c 100%);
+    --text-main: #f8fafc;
+    --text-muted: #94a3b8;
   }
 
   [data-theme="light"] {
-    --bg-dark: #f1f5f9;
-    --card-bg: rgba(255, 255, 255, 0.95);
-    --card-border: rgba(180, 135, 30, 0.3);
-    --primary-gold: #a8791c;
+    --bg-main: #f8fafc;
+    --card-bg: #ffffff;
+    --card-border: rgba(180, 135, 30, 0.25);
+    --text-main: #0f172a;
+    --text-muted: #475569;
   }
+}
+
+/* =========================================================================
+   LIGHT THEME OVERRIDES (Comprehensive high-contrast clean daylight styling)
+   ========================================================================= */
+[data-theme="light"] body,
+[data-theme="light"] div[dir="rtl"] {
+  background-color: #f1f5f9 !important;
+  color: #0f172a !important;
+}
+
+[data-theme="light"] .bg-\[\#090e17\],
+[data-theme="light"] .bg-\[\#070a11\],
+[data-theme="light"] .bg-\[\#0b0f19\] {
+  background-color: #f1f5f9 !important;
+  color: #0f172a !important;
+}
+
+[data-theme="light"] .bg-\[\#0d131f\],
+[data-theme="light"] .bg-\[\#0d131f\]\/95,
+[data-theme="light"] .bg-slate-900,
+[data-theme="light"] .bg-slate-900\/90,
+[data-theme="light"] .bg-slate-900\/80,
+[data-theme="light"] .bg-slate-900\/60,
+[data-theme="light"] .bg-slate-900\/50,
+[data-theme="light"] .bg-slate-950,
+[data-theme="light"] .bg-slate-950\/90,
+[data-theme="light"] .bg-slate-950\/80 {
+  background-color: #ffffff !important;
+  color: #0f172a !important;
+  border-color: #e2e8f0 !important;
+  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.05), 0 1px 2px -1px rgba(0, 0, 0, 0.05);
+}
+
+[data-theme="light"] .bg-slate-800,
+[data-theme="light"] .bg-slate-800\/90,
+[data-theme="light"] .bg-slate-800\/80,
+[data-theme="light"] .bg-slate-800\/70,
+[data-theme="light"] .bg-slate-800\/60,
+[data-theme="light"] .bg-slate-800\/50 {
+  background-color: #f8fafc !important;
+  color: #1e293b !important;
+  border-color: #cbd5e1 !important;
+}
+
+[data-theme="light"] input,
+[data-theme="light"] select,
+[data-theme="light"] textarea {
+  background-color: #ffffff !important;
+  color: #0f172a !important;
+  border-color: #cbd5e1 !important;
+}
+
+[data-theme="light"] input::placeholder,
+[data-theme="light"] textarea::placeholder {
+  color: #94a3b8 !important;
+}
+
+[data-theme="light"] .text-slate-100,
+[data-theme="light"] .text-slate-200,
+[data-theme="light"] .text-white {
+  color: #0f172a !important;
+}
+
+[data-theme="light"] .text-slate-300,
+[data-theme="light"] .text-slate-400 {
+  color: #475569 !important;
+}
+
+[data-theme="light"] .border-slate-800,
+[data-theme="light"] .border-slate-700,
+[data-theme="light"] .border-slate-600 {
+  border-color: #e2e8f0 !important;
+}
+
+[data-theme="light"] .border-amber-500\/20,
+[data-theme="light"] .border-amber-500\/30 {
+  border-color: rgba(217, 119, 6, 0.35) !important;
+}
+
+[data-theme="light"] .text-amber-400,
+[data-theme="light"] .text-amber-300 {
+  color: #b45309 !important;
+}
+
+[data-theme="light"] .bg-amber-500\/10,
+[data-theme="light"] .bg-amber-500\/20 {
+  background-color: #fef3c7 !important;
+  color: #92400e !important;
+  border-color: #fde68a !important;
+}
+
+[data-theme="light"] .bg-emerald-500\/10,
+[data-theme="light"] .bg-emerald-500\/20 {
+  background-color: #ecfdf5 !important;
+  color: #065f46 !important;
+  border-color: #a7f3d0 !important;
+}
+
+[data-theme="light"] .text-emerald-400 {
+  color: #047857 !important;
+}
+
+[data-theme="light"] .bg-rose-500\/10,
+[data-theme="light"] .bg-rose-500\/20 {
+  background-color: #fff1f2 !important;
+  color: #9f1239 !important;
+  border-color: #fecdd3 !important;
+}
+
+[data-theme="light"] .text-rose-400 {
+  color: #be123c !important;
+}
+
+[data-theme="light"] .bg-cyan-500\/10,
+[data-theme="light"] .bg-cyan-500\/20 {
+  background-color: #ecfeff !important;
+  color: #155e75 !important;
+  border-color: #a5f3fc !important;
+}
+
+[data-theme="light"] .text-cyan-400 {
+  color: #0e7490 !important;
+}
+
+[data-theme="light"] .bg-purple-500\/10,
+[data-theme="light"] .bg-purple-500\/20 {
+  background-color: #faf5ff !important;
+  color: #6b21a8 !important;
+  border-color: #e9d5ff !important;
+}
+
+[data-theme="light"] .text-purple-400 {
+  color: #7e22ce !important;
 }
 
 /* Custom Scrollbar */
@@ -23,14 +158,14 @@
   height: 6px;
 }
 ::-webkit-scrollbar-track {
-  background: rgba(0, 0, 0, 0.2);
+  background: rgba(0, 0, 0, 0.1);
 }
 ::-webkit-scrollbar-thumb {
-  background: rgba(212, 175, 55, 0.35);
+  background: rgba(212, 175, 55, 0.4);
   border-radius: 4px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(212, 175, 55, 0.6);
+  background: rgba(212, 175, 55, 0.7);
 }
 
 /* Print Specific Rules for Flawless PDF & Grade Separation */
@@ -121,4 +256,3 @@
 .glow-gold {
   animation: pulseGlow 3s infinite ease-in-out;
 }
-

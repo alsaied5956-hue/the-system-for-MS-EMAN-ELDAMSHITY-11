@@ -53,10 +53,27 @@ export const INITIAL_SYSTEM_DATA: SystemData = {
   activeSessionSlotId: "auto",
 };
 
+// Memory cache for zero-latency in-app access
+let memoryCachedData: SystemData | null = null;
+let lastSyncedDataHash: string = "";
+let debounceSyncTimer: ReturnType<typeof setTimeout> | null = null;
+
+/**
+ * Fast string hash for detecting meaningful changes
+ */
+function getQuickHash(data: SystemData): string {
+  try {
+    return `${data.students.length}_${Object.keys(data.attendanceToday || {}).length}_${Object.keys(data.payments || {}).length}_${data.usersList.length}_${data.activeSessionSlotId}`;
+  } catch {
+    return String(Date.now());
+  }
+}
+
 /**
  * Load local data from LocalStorage immediately for zero-delay startup
  */
 export function loadLocalData(): SystemData {
+  if (memoryCachedData) return memoryCachedData;
   if (typeof window === "undefined") return INITIAL_SYSTEM_DATA;
 
   try {
@@ -64,7 +81,7 @@ export function loadLocalData(): SystemData {
     if (raw) {
       const parsed = JSON.parse(raw);
       const todayKey = getTodayKey();
-      return {
+      const loaded: SystemData = {
         students: Array.isArray(parsed.students) ? parsed.students : [],
         attendanceHistory: parsed.attendanceHistory || {},
         attendanceToday: parsed.attendanceHistory?.[todayKey] || parsed.attendanceToday || {},
@@ -75,18 +92,22 @@ export function loadLocalData(): SystemData {
         groupPrices: { ...DEFAULT_GRADE_PRICES, ...(parsed.groupPrices || {}) },
         activeSessionSlotId: parsed.activeSessionSlotId || "auto",
       };
+      memoryCachedData = loaded;
+      return loaded;
     }
   } catch (e) {
     console.error("Error loading local data:", e);
   }
 
+  memoryCachedData = INITIAL_SYSTEM_DATA;
   return INITIAL_SYSTEM_DATA;
 }
 
 /**
- * Save data to browser LocalStorage as high-speed instant cache
+ * Save data to browser LocalStorage as high-speed instant cache (0ms latency)
  */
 export function saveToLocalStorage(data: SystemData): void {
+  memoryCachedData = data;
   if (typeof window === "undefined") return;
   try {
     const todayKey = getTodayKey();
@@ -95,7 +116,6 @@ export function saveToLocalStorage(data: SystemData): void {
 
     const serialized = JSON.stringify(data);
     localStorage.setItem(STORAGE_KEY, serialized);
-    localStorage.setItem("center_data", serialized);
   } catch (e) {
     console.error("Local storage save error:", e);
   }
@@ -119,29 +139,39 @@ function cleanForFirestore(obj: unknown): unknown {
 }
 
 /**
- * Sync entire system data state to Firestore cloud database
+ * Sync entire system data state to Firestore cloud database with debouncing to eliminate lag
  */
-export async function syncDataToCloud(data: SystemData): Promise<void> {
-  // Always save locally first for instant offline responsiveness
+export function syncDataToCloud(data: SystemData): void {
+  // 1. Instant local persistence (0ms latency)
   saveToLocalStorage(data);
 
-  if (typeof window !== "undefined" && navigator.onLine) {
-    try {
-      const todayKey = getTodayKey();
-      if (!data.attendanceHistory) data.attendanceHistory = {};
-      data.attendanceHistory[todayKey] = data.attendanceToday || {};
-
-      const systemDocRef = doc(db, "system_state", "main_center_data");
-      const cleaned = cleanForFirestore({
-        ...data,
-        updatedAt: new Date().toISOString(),
-      });
-
-      await setDoc(systemDocRef, cleaned as Record<string, unknown>, { merge: true });
-    } catch (e) {
-      console.warn("Cloud sync to Firestore failed, kept locally:", e);
-    }
+  // 2. Debounce cloud network push by 300ms to eliminate UI stutter during typing or consecutive barcode scans
+  if (debounceSyncTimer) {
+    clearTimeout(debounceSyncTimer);
   }
+
+  debounceSyncTimer = setTimeout(async () => {
+    if (typeof window !== "undefined" && navigator.onLine) {
+      try {
+        const todayKey = getTodayKey();
+        if (!data.attendanceHistory) data.attendanceHistory = {};
+        data.attendanceHistory[todayKey] = data.attendanceToday || {};
+
+        const dataHash = JSON.stringify(data);
+        lastSyncedDataHash = dataHash;
+
+        const systemDocRef = doc(db, "system_state", "main_center_data");
+        const cleaned = cleanForFirestore({
+          ...data,
+          updatedAt: new Date().toISOString(),
+        });
+
+        await setDoc(systemDocRef, cleaned as Record<string, unknown>, { merge: true });
+      } catch (e) {
+        console.warn("Cloud sync to Firestore failed, kept locally:", e);
+      }
+    }
+  }, 300);
 }
 
 export function loadInitialData(): SystemData {
@@ -150,7 +180,7 @@ export function loadInitialData(): SystemData {
 
 /**
  * Real-time continuous listener to Firestore cloud database
- * Updates local UI and LocalStorage instantaneously whenever any device writes data
+ * Updates local UI only when genuine changes from other devices arrive
  */
 export function subscribeToCloudData(
   onUpdate: (data: SystemData) => void,
@@ -182,6 +212,13 @@ export function subscribeToCloudData(
               merged.attendanceToday = merged.attendanceHistory[todayKey];
             }
 
+            const incomingHash = JSON.stringify(merged);
+            // Skip updating state if the incoming snapshot is our own local write echo
+            if (incomingHash === lastSyncedDataHash) {
+              return;
+            }
+
+            lastSyncedDataHash = incomingHash;
             saveToLocalStorage(merged);
             onUpdate(merged);
           }
