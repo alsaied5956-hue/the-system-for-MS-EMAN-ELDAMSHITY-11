@@ -1,0 +1,124 @@
+@import "tailwindcss";
+
+@layer base {
+  :root {
+    --bg-dark: #070a11;
+    --card-bg: rgba(18, 25, 38, 0.85);
+    --card-border: rgba(212, 175, 55, 0.2);
+    --primary-gold: #e6c667;
+    --gold-gradient: linear-gradient(135deg, #bf953f 0%, #fcf6ba 25%, #b38728 50%, #fbf5b7 75%, #aa771c 100%);
+  }
+
+  [data-theme="light"] {
+    --bg-dark: #f1f5f9;
+    --card-bg: rgba(255, 255, 255, 0.95);
+    --card-border: rgba(180, 135, 30, 0.3);
+    --primary-gold: #a8791c;
+  }
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.2);
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(212, 175, 55, 0.35);
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(212, 175, 55, 0.6);
+}
+
+/* Print Specific Rules for Flawless PDF & Grade Separation */
+@media print {
+  html, body {
+    background: #ffffff !important;
+    color: #000000 !important;
+    overflow: visible !important;
+    height: auto !important;
+  }
+
+  * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+  
+  .no-print {
+    display: none !important;
+  }
+
+  .print-only {
+    display: block !important;
+  }
+
+  /* Reset fixed modal overlay for print */
+  .fixed.inset-0 {
+    position: static !important;
+    background: transparent !important;
+    backdrop-filter: none !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    overflow: visible !important;
+  }
+
+  #printable-report-document {
+    box-shadow: none !important;
+    max-width: 100% !important;
+    width: 100% !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    background: #ffffff !important;
+  }
+
+  #printable-certificate {
+    box-shadow: none !important;
+    max-width: 100% !important;
+    margin: 0 auto !important;
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+  }
+
+  .page-break-grade {
+    page-break-after: always !important;
+    break-after: page !important;
+    margin-bottom: 2rem !important;
+  }
+
+  .page-break-grade:last-child {
+    page-break-after: avoid !important;
+    break-after: avoid !important;
+  }
+
+  .page-break-avoid {
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+  }
+
+  table {
+    width: 100% !important;
+    border-collapse: collapse !important;
+  }
+
+  th, td {
+    border: 1px solid #cbd5e1 !important;
+    color: #0f172a !important;
+  }
+}
+
+@keyframes pulseGlow {
+  0%, 100% {
+    box-shadow: 0 0 15px rgba(230, 198, 103, 0.2);
+  }
+  50% {
+    box-shadow: 0 0 30px rgba(230, 198, 103, 0.5);
+  }
+}
+
+.glow-gold {
+  animation: pulseGlow 3s infinite ease-in-out;
+}
+

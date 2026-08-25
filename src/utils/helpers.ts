@@ -1,0 +1,191 @@
+import { GradeName, GRADE_ORDER, Student, SessionSlot } from "../types";
+
+export const SCHOOL_WHATSAPP_PHONE = "201070642904";
+export const TEACHER_NAME = "الأستاذة إيمان الدمشيتي";
+
+// Base default monthly prices per grade
+export const DEFAULT_GRADE_PRICES: Record<GradeName, number> = {
+  "الصف الرابع الابتدائي": 100,
+  "الصف الخامس الابتدائي": 100,
+  "الصف السادس الابتدائي": 120,
+  "الصف الأول الإعدادي": 140,
+  "الصف الثاني الإعدادي": 150,
+  "الصف الثالث الإعدادي": 160,
+  "الصف الأول الثانوي": 180,
+  "الصف الثاني الثانوي": 200,
+  "الصف الثالث الثانوي": 220,
+};
+
+// Safe Local Date Key (YYYY-MM-DD) avoiding UTC shifts
+export function getTodayKey(): string {
+  const d = new Date();
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+export function getCurrentMonthKey(): string {
+  const d = new Date();
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, "0");
+  return `${year}-${month}`;
+}
+
+export function formatTimeArabic(d = new Date()): string {
+  try {
+    return d.toLocaleTimeString("ar-EG", {
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: true,
+    });
+  } catch {
+    return d.toLocaleTimeString();
+  }
+}
+
+export function formatArabicDate(dateStr?: string): string {
+  try {
+    const d = dateStr ? new Date(dateStr) : new Date();
+    return d.toLocaleDateString("ar-EG", {
+      weekday: "long",
+      year: "numeric",
+      month: "long",
+      day: "numeric",
+    });
+  } catch {
+    return dateStr || "";
+  }
+}
+
+// Convert Arabic digits to English, remove non-digits, and normalize Egypt WhatsApp
+export function cleanPhoneNumber(phone?: string): string {
+  if (!phone) return "";
+  const arabicDigits = ["٠", "١", "٢", "٣", "٤", "٥", "٦", "٧", "٨", "٩"];
+  let normalized = String(phone);
+  for (let i = 0; i < 10; i++) {
+    normalized = normalized.split(arabicDigits[i]).join(String(i));
+  }
+  let digits = normalized.replace(/\D/g, "");
+  if (digits.startsWith("0")) {
+    digits = "2" + digits;
+  } else if (!digits.startsWith("2") && digits.length === 10) {
+    digits = "20" + digits;
+  }
+  return digits;
+}
+
+export function getWhatsAppMode(): "web" | "app" {
+  try {
+    const saved = localStorage.getItem("aiman_whatsapp_mode");
+    if (saved === "app") return "app";
+    return "web"; // Default to Google Chrome WhatsApp Web
+  } catch {
+    return "web";
+  }
+}
+
+export function setWhatsAppMode(mode: "web" | "app"): void {
+  try {
+    localStorage.setItem("aiman_whatsapp_mode", mode);
+  } catch (e) {
+    console.error("Failed to save whatsapp mode:", e);
+  }
+}
+
+export function openWhatsApp(phone: string, message: string, forceMode?: "web" | "app"): void {
+  const cleanPhone = cleanPhoneNumber(phone);
+  if (!cleanPhone) return;
+  const encodedMsg = encodeURIComponent(message);
+
+  const mode = forceMode || getWhatsAppMode();
+
+  let url = "";
+  if (mode === "web") {
+    // Opens WhatsApp Web directly inside a Google Chrome browser tab
+    url = `https://web.whatsapp.com/send?phone=${cleanPhone}&text=${encodedMsg}`;
+  } else {
+    // Opens WhatsApp Desktop application
+    url = `https://wa.me/${cleanPhone}?text=${encodedMsg}`;
+  }
+
+  // Open in a new Google Chrome tab
+  window.open(url, "_blank", "noopener,noreferrer");
+}
+
+export function getGradeIndex(grade: GradeName): number {
+  const idx = GRADE_ORDER.indexOf(grade);
+  return idx === -1 ? 999 : idx;
+}
+
+export function sortStudentsByGradeAndName(students: Student[]): Student[] {
+  return [...students].sort((a, b) => {
+    const gDiff = getGradeIndex(a.groupGrade) - getGradeIndex(b.groupGrade);
+    if (gDiff !== 0) return gDiff;
+    return (a.name || "").localeCompare(b.name || "", "ar");
+  });
+}
+
+export function getExamAverage(student: Student): number {
+  if (!student.totalExamScores || student.totalExamScores.length === 0) return 0;
+  const sum = student.totalExamScores.reduce((acc, curr) => acc + curr, 0);
+  return Math.round(sum / student.totalExamScores.length);
+}
+
+export function getAbsenceRate(student: Student): number {
+  const total = (student.totalAttendanceDays || 0) + (student.totalAbsentDays || 0);
+  if (total === 0) return 0;
+  return Math.round(((student.totalAbsentDays || 0) / total) * 100);
+}
+
+export function getAttendanceRate(student: Student): number {
+  const total = (student.totalAttendanceDays || 0) + (student.totalAbsentDays || 0);
+  if (total === 0) return 100;
+  return Math.round(((student.totalAttendanceDays || 0) / total) * 100);
+}
+
+// Pre-defined common session slots
+export const PREDEFINED_SESSION_SLOTS: SessionSlot[] = [
+  { id: "auto", label: "⚡ تلقائي حسب الوقت الحالي", startHour: 0, startMinute: 0, lateThresholdMinute: 15, endHour: 23, endMinute: 59 },
+  { id: "slot_1pm", label: "الحصة: 1:00 م (سماح حتى 1:15 م)", startHour: 13, startMinute: 0, lateThresholdMinute: 15, endHour: 14, endMinute: 0 },
+  { id: "slot_2pm", label: "الحصة: 2:00 م (سماح حتى 2:15 م)", startHour: 14, startMinute: 0, lateThresholdMinute: 15, endHour: 15, endMinute: 0 },
+  { id: "slot_3pm", label: "الحصة: 3:00 م (سماح حتى 3:15 م)", startHour: 15, startMinute: 0, lateThresholdMinute: 15, endHour: 16, endMinute: 0 },
+  { id: "slot_4pm", label: "الحصة: 4:00 م (سماح حتى 4:15 م)", startHour: 16, startMinute: 0, lateThresholdMinute: 15, endHour: 17, endMinute: 0 },
+  { id: "slot_5pm", label: "الحصة: 5:00 م (سماح حتى 5:15 م)", startHour: 17, startMinute: 0, lateThresholdMinute: 15, endHour: 18, endMinute: 0 },
+  { id: "slot_6pm", label: "الحصة: 6:00 م (سماح حتى 6:15 م)", startHour: 18, startMinute: 0, lateThresholdMinute: 15, endHour: 19, endMinute: 0 },
+  { id: "slot_7pm", label: "الحصة: 7:00 م (سماح حتى 7:15 م)", startHour: 19, startMinute: 0, lateThresholdMinute: 15, endHour: 20, endMinute: 0 },
+  { id: "slot_8pm", label: "الحصة: 8:00 م (سماح حتى 8:15 م)", startHour: 20, startMinute: 0, lateThresholdMinute: 15, endHour: 21, endMinute: 0 },
+];
+
+/**
+ * Determine if arrival time is "حضور" (on-time) or "تأخير" (late) based on session slot.
+ * As requested by user:
+ * - 1:00 PM session: Window from 12:45 to 1:15 is considered on-time. After 1:15 is Late.
+ * - 2:00 PM session: Window from 1:45 to 2:15 is on-time. After 2:15 is Late.
+ * - 3:00 PM session: Window from 2:45 to 3:15 is on-time. After 3:15 is Late.
+ */
+export function evaluateAttendanceStatus(now: Date, slotId: string): "حضور" | "تأخير" {
+  if (slotId === "auto") {
+    // Look at the closest hour:
+    // If minutes are between 45 of previous hour up to 15 of current hour -> on time.
+    // If minutes are between 16 and 44 -> late.
+    const minutes = now.getMinutes();
+    if (minutes <= 15 || minutes >= 45) {
+      return "حضور";
+    }
+    return "تأخير";
+  }
+
+  const slot = PREDEFINED_SESSION_SLOTS.find((s) => s.id === slotId);
+  if (!slot) return "حضور";
+
+  const currentMinutesFromMidnight = now.getHours() * 60 + now.getMinutes();
+  const sessionStartMinutesFromMidnight = slot.startHour * 60 + slot.startMinute;
+  const lateThresholdMinutesFromMidnight = sessionStartMinutesFromMidnight + slot.lateThresholdMinute;
+
+  // On time if arriving before or up to late threshold (e.g. up to 1:15 PM for a 1:00 PM slot)
+  if (currentMinutesFromMidnight <= lateThresholdMinutesFromMidnight) {
+    return "حضور";
+  }
+  return "تأخير";
+}
