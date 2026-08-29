@@ -1,9 +1,10 @@
 import React, { useState } from "react";
 import { Student } from "../types";
 import { openWhatsApp, SCHOOL_WHATSAPP_PHONE, sortStudentsByGradeAndName } from "../utils/helpers";
+import { enqueuePendingWhatsAppMessage } from "../utils/storage";
 import { playBeep } from "../utils/audio";
 import { StudentSearchBox } from "./StudentSearchBox";
-import { FileCheck2, Send, Sparkles, UserCheck } from "lucide-react";
+import { FileCheck2, Send, Sparkles, UserCheck, MessageSquare, Clock } from "lucide-react";
 
 interface ExamGradesTabProps {
   students: Student[];
@@ -59,9 +60,26 @@ export const ExamGradesTab: React.FC<ExamGradesTabProps> = ({
 
     const msg = `نتيجة اختبار الرياضيات 📐\nالامتحان: (${examTitle})\nاسم الطالب: ${selectedStudent.name}\nالصف: ${selectedStudent.groupGrade}\nالدرجة: ${scoreNum} من ${maxNum} (${percentage}%)\nالتقييم: ${evaluation}\nمع تحيات ميس إيمان الدمشيتي ✨`;
 
-    openWhatsApp(selectedStudent.parentPhone, msg);
+    const isOnline = typeof navigator !== "undefined" ? navigator.onLine : true;
 
-    alert(`✅ تم رصد درجة (${selectedStudent.name}) وإرسال النتيجة لولي الأمر بنجاح!`);
+    // Enqueue message into persistent WhatsApp queue
+    enqueuePendingWhatsAppMessage({
+      studentBarcode: selectedStudent.barcode,
+      studentName: selectedStudent.name,
+      grade: selectedStudent.groupGrade,
+      phone: selectedStudent.parentPhone,
+      messageType: "درجات",
+      message: msg,
+    });
+
+    if (isOnline) {
+      openWhatsApp(selectedStudent.parentPhone, msg);
+      alert(`✅ تم رصد درجة (${selectedStudent.name}) وإرسال النتيجة لولي الأمر عبر الواتساب بنجاح!`);
+    } else {
+      alert(
+        `⚡ أنت في وضع الأوفلاين (بدون إنترنت):\nتم رصد درجة (${selectedStudent.name}) وحفظ رسالة النتيجة في "طابور رسائل الواتساب المعلقة".\nفور عودة الإنترنت يمكنك إرسال كافة النتائج دفعة واحدة بضغطة زر من الشريط العلوي!`
+      );
+    }
 
     setSearchInput("");
     setSelectedStudent(null);

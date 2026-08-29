@@ -6,6 +6,7 @@ import {
   GradeName,
   GroupDays,
   TabType,
+  PendingWhatsAppMessage,
 } from "./types";
 import {
   loadInitialData,
@@ -14,14 +15,21 @@ import {
   savePaymentsData,
   saveGroupPricesData,
   saveUsersData,
+  savePendingWhatsAppMessages,
+  markWhatsAppMessageSent,
+  markAllWhatsAppMessagesSent,
+  deletePendingWhatsAppMessage,
+  clearAllPendingWhatsAppMessages,
   subscribeToCloudData,
+  subscribeToSyncStatus,
+  flushPendingSyncToCloud,
+  SyncStatus,
 } from "./utils/storage";
 import {
   getTodayKey,
   getCurrentMonthKey,
   formatArabicDate,
   formatTimeArabic,
-  openWhatsApp,
 } from "./utils/helpers";
 import { Navbar } from "./components/Navbar";
 import { Sidebar } from "./components/Sidebar";
@@ -42,11 +50,24 @@ import { SettingsTab } from "./components/SettingsTab";
 import { AuthOverlay } from "./components/AuthOverlay";
 import { PrintPDFModal } from "./components/PrintPDFModal";
 import { PrintCardsModal } from "./components/PrintCardsModal";
+import { PendingWhatsAppOutboxModal } from "./components/PendingWhatsAppOutboxModal";
+import { CheckCircle2, WifiOff, RefreshCw, X, MessageSquare, Send } from "lucide-react";
 
 export default function App() {
   const [currentUser, setCurrentUser] = useState<UserAccount | null>(null);
   const [activeTab, setActiveTab] = useState<TabType>("attendance-scan");
-  const [isLiveConnected, setIsLiveConnected] = useState(false);
+  const [syncStatus, setSyncStatus] = useState<SyncStatus>({
+    isOnline: true,
+    isSyncing: false,
+    hasPendingSync: false,
+    lastSyncTime: null,
+  });
+  const [syncBanner, setSyncBanner] = useState<{
+    show: boolean;
+    type: "online-synced" | "offline-mode";
+    message: string;
+  } | null>(null);
+
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [activeSessionSlotId, setActiveSessionSlotId] = useState<string>("auto");
   const [voiceEnabled, setVoiceEnabled] = useState<boolean>(true);
@@ -63,12 +84,17 @@ export default function App() {
   useEffect(() => {
     if (typeof document !== "undefined") {
       document.documentElement.setAttribute("data-theme", theme);
+      document.body.setAttribute("data-theme", theme);
       if (theme === "light") {
         document.documentElement.classList.remove("dark");
         document.documentElement.classList.add("light");
+        document.body.classList.remove("dark");
+        document.body.classList.add("light");
       } else {
         document.documentElement.classList.remove("light");
         document.documentElement.classList.add("dark");
+        document.body.classList.remove("light");
+        document.body.classList.add("dark");
       }
       localStorage.setItem("app_theme", theme);
     }
@@ -83,6 +109,8 @@ export default function App() {
   const [payments, setPayments] = useState<Record<string, Record<string, PaymentRecord>>>({});
   const [groupPrices, setGroupPrices] = useState<Record<GradeName, number>>({} as Record<GradeName, number>);
   const [usersList, setUsersList] = useState<UserAccount[]>([]);
+  const [pendingWhatsAppMessages, setPendingWhatsAppMessages] = useState<PendingWhatsAppMessage[]>([]);
+  const [isWhatsAppOutboxOpen, setIsWhatsAppOutboxOpen] = useState<boolean>(false);
 
   // Print PDF Modal State
   const [printModal, setPrintModal] = useState<{
@@ -93,7 +121,7 @@ export default function App() {
     type: "all",
   });
 
-  // 1. Initial Local Data Load (Instant Speed)
+  // 1. Initial Local Data Load (Instant Speed 0ms)
   useEffect(() => {
     const data = loadInitialData();
     if (data) {
@@ -105,17 +133,59 @@ export default function App() {
       setPayments(data.payments || {});
       setGroupPrices(data.groupPrices || ({} as Record<GradeName, number>));
       setUsersList(data.usersList || []);
+      setPendingWhatsAppMessages(data.pendingWhatsAppMessages || []);
       if (data.activeSessionSlotId) {
         setActiveSessionSlotId(data.activeSessionSlotId);
       }
     }
   }, []);
 
-  // 2. Real-time Firebase Sync in background
+  // 2. Subscribe to sync status & offline/online events
+  useEffect(() => {
+    const unsubscribeSync = subscribeToSyncStatus((status) => {
+      setSyncStatus(status);
+    });
+
+    const handleSyncCompleted = () => {
+      setSyncBanner({
+        show: true,
+        type: "online-synced",
+        message: "تم الاتصال بالسحابة ومزامنة كافة التعديلات بنجاح!",
+      });
+      setTimeout(() => {
+        setSyncBanner(null);
+      }, 5000);
+    };
+
+    const handleOffline = () => {
+      setSyncBanner({
+        show: true,
+        type: "offline-mode",
+        message: "أنت الآن في وضع الأوفلاين (بدون نت) - المنظومة تعمل بالكامل وسيتم المزامنة تلقائياً عند عودة النت.",
+      });
+    };
+
+    const handleQueueUpdated = () => {
+      const local = loadInitialData();
+      setPendingWhatsAppMessages(local.pendingWhatsAppMessages || []);
+    };
+
+    window.addEventListener("cloud-sync-completed", handleSyncCompleted);
+    window.addEventListener("offline", handleOffline);
+    window.addEventListener("whatsapp-queue-updated", handleQueueUpdated);
+
+    return () => {
+      unsubscribeSync();
+      window.removeEventListener("cloud-sync-completed", handleSyncCompleted);
+      window.removeEventListener("offline", handleOffline);
+      window.removeEventListener("whatsapp-queue-updated", handleQueueUpdated);
+    };
+  }, []);
+
+  // 3. Real-time Firebase Sync in background
   useEffect(() => {
     const unsubscribe = subscribeToCloudData(
       (cloudData) => {
-        setIsLiveConnected(true);
         if (cloudData) {
           if (cloudData.students) setStudents(cloudData.students);
           if (cloudData.attendanceToday) setAttendanceToday(cloudData.attendanceToday);
@@ -125,11 +195,12 @@ export default function App() {
           if (cloudData.payments) setPayments(cloudData.payments);
           if (cloudData.groupPrices) setGroupPrices(cloudData.groupPrices);
           if (cloudData.usersList) setUsersList(cloudData.usersList);
+          if (cloudData.pendingWhatsAppMessages) setPendingWhatsAppMessages(cloudData.pendingWhatsAppMessages);
           if (cloudData.activeSessionSlotId) setActiveSessionSlotId(cloudData.activeSessionSlotId);
         }
       },
       () => {
-        setIsLiveConnected(false);
+        // Ignored in offline fallback
       }
     );
 
@@ -137,6 +208,19 @@ export default function App() {
       unsubscribe();
     };
   }, []);
+
+  // Manual Trigger for Cloud Sync
+  const handleManualSync = async () => {
+    const success = await flushPendingSyncToCloud();
+    if (success) {
+      setSyncBanner({
+        show: true,
+        type: "online-synced",
+        message: "تمت المزامنة السحابية الفورية بنجاح!",
+      });
+      setTimeout(() => setSyncBanner(null), 4000);
+    }
+  };
 
   // Handler: Scan Attendance Record
   const handleRecordAttendance = (
@@ -179,7 +263,7 @@ export default function App() {
     setScanLogTimes(updatedTimes);
     setStudents(updatedStudents);
 
-    saveAttendanceTodayData(updatedToday);
+    saveAttendanceTodayData(updatedToday, updatedOrder, updatedTimes);
     saveStudentsData(updatedStudents);
   };
 
@@ -190,11 +274,17 @@ export default function App() {
     absentList: { student: Student; message: string }[],
     lateList: { student: Student; message: string }[]
   ) => {
+    const groupStudents = students.filter(
+      (s) => s.groupGrade === grade && s.groupDays === days
+    );
+
     const updatedToday = { ...attendanceToday };
     const absentBarcodes = absentList.map((a) => a.student.barcode);
-    absentBarcodes.forEach((barcode) => {
-      if (!updatedToday[barcode]) {
-        updatedToday[barcode] = "غائب";
+    
+    // Ensure all absent students in this group are marked as "غائب"
+    groupStudents.forEach((student) => {
+      if (absentBarcodes.includes(student.barcode) || !updatedToday[student.barcode]) {
+        updatedToday[student.barcode] = "غائب";
       }
     });
 
@@ -214,25 +304,23 @@ export default function App() {
       return s;
     });
 
+    // Clear the finished group's barcodes from the active scanner screen so it is fresh for next group
+    const groupBarcodes = new Set<string>(groupStudents.map((s) => s.barcode));
+    const remainingScanOrder = scanLogOrder.filter((b) => !groupBarcodes.has(b));
+    const remainingScanTimes = { ...scanLogTimes };
+    groupBarcodes.forEach((b) => {
+      delete remainingScanTimes[b];
+    });
+
+    setScanLogOrder(remainingScanOrder);
+    setScanLogTimes(remainingScanTimes);
+
     setAttendanceToday(updatedToday);
     setAttendanceHistory(updatedHistory);
     setStudents(updatedStudents);
-    setScanLogOrder([]);
-    setScanLogTimes({});
 
-    saveAttendanceTodayData(updatedToday);
+    saveAttendanceTodayData(updatedToday, remainingScanOrder, remainingScanTimes);
     saveStudentsData(updatedStudents);
-
-    if (absentList.length > 0 || lateList.length > 0) {
-      const shouldSend = confirm(
-        `تم إثبات الحضور والغياب للمجموعة بنجاح!\nيوجد (${absentList.length}) غائب و (${lateList.length}) متأخر.\nهل ترغب في مراسلة أول غائب عبر الواتساب الآن؟`
-      );
-      if (shouldSend && absentList.length > 0) {
-        openWhatsApp(absentList[0].student.parentPhone, absentList[0].message);
-      }
-    } else {
-      alert("✅ تم إثبات الحضور والغياب لجميع طلاب المجموعة بنجاح!");
-    }
   };
 
   // Handler: Add Single Student
@@ -300,28 +388,46 @@ export default function App() {
     alert("تم مسح كافة البيانات بنجاح.");
   };
 
-  // Handler: Manual Status Change in Attendance Report
+  // Handler: Manual Status Change in Attendance Report or Scanner
   const handleChangeAttendanceStatus = (barcode: string, dateKey: string, newStatus: string) => {
+    const todayKey = getTodayKey();
+    const isToday = dateKey === todayKey;
+    
+    const prevStatus = isToday ? attendanceToday[barcode] : (attendanceHistory[dateKey]?.[barcode]);
+    if (prevStatus === newStatus) return;
+
     const dateMap = attendanceHistory[dateKey] || {};
     const updatedDateMap = { ...dateMap, [barcode]: newStatus };
     const updatedHistory = { ...attendanceHistory, [dateKey]: updatedDateMap };
 
     setAttendanceHistory(updatedHistory);
-    const todayKey = getTodayKey();
-    if (dateKey === todayKey) {
-      setAttendanceToday(updatedDateMap);
-      saveAttendanceTodayData(updatedDateMap);
+
+    let updatedToday = attendanceToday;
+    if (isToday) {
+      updatedToday = { ...attendanceToday, [barcode]: newStatus };
+      setAttendanceToday(updatedToday);
+      saveAttendanceTodayData(updatedToday, scanLogOrder, scanLogTimes);
     }
 
     const updatedStudents = students.map((s) => {
       if (s.barcode === barcode) {
         let attCount = s.totalAttendanceDays || 0;
         let absCount = s.totalAbsentDays || 0;
-        if (newStatus === "حضور" || newStatus === "تأخير") {
-          attCount++;
-        } else if (newStatus === "غائب") {
-          absCount++;
+
+        // Undo previous status count
+        if (prevStatus === "حضور" || prevStatus === "تأخير") {
+          attCount = Math.max(0, attCount - 1);
+        } else if (prevStatus === "غائب") {
+          absCount = Math.max(0, absCount - 1);
         }
+
+        // Apply new status count
+        if (newStatus === "حضور" || newStatus === "تأخير") {
+          attCount += 1;
+        } else if (newStatus === "غائب") {
+          absCount += 1;
+        }
+
         return {
           ...s,
           totalAttendanceDays: attCount,
@@ -465,6 +571,45 @@ export default function App() {
     saveGroupPricesData(updated);
   };
 
+  // Handlers for WhatsApp Outbox
+  const handleMarkWhatsAppSent = (id: string) => {
+    markWhatsAppMessageSent(id);
+    const nowStr = formatTimeArabic();
+    setPendingWhatsAppMessages((prev) =>
+      prev.map((m) => (m.id === id ? { ...m, status: "sent", sentAt: nowStr } : m))
+    );
+  };
+
+  const handleMarkAllWhatsAppSent = () => {
+    markAllWhatsAppMessagesSent();
+    const nowStr = formatTimeArabic();
+    setPendingWhatsAppMessages((prev) =>
+      prev.map((m) => (m.status === "pending" ? { ...m, status: "sent", sentAt: nowStr } : m))
+    );
+  };
+
+  const handleDeleteWhatsAppMessage = (id: string) => {
+    deletePendingWhatsAppMessage(id);
+    setPendingWhatsAppMessages((prev) => prev.filter((m) => m.id !== id));
+  };
+
+  const handleClearAllWhatsAppMessages = () => {
+    clearAllPendingWhatsAppMessages();
+    setPendingWhatsAppMessages([]);
+  };
+
+  const handleUpdateWhatsAppMessageText = (id: string, newText: string) => {
+    const updated = pendingWhatsAppMessages.map((m) =>
+      m.id === id ? { ...m, message: newText } : m
+    );
+    savePendingWhatsAppMessages(updated);
+    setPendingWhatsAppMessages(updated);
+  };
+
+  const pendingWhatsAppCount = pendingWhatsAppMessages.filter(
+    (m) => m.status === "pending"
+  ).length;
+
   return (
     <div
       dir="rtl"
@@ -472,8 +617,8 @@ export default function App() {
       className={`min-h-screen ${
         theme === "light"
           ? "bg-slate-100 text-slate-900"
-          : "bg-[#090e17] text-slate-100"
-      } font-['Tajawal',sans-serif] selection:bg-amber-500 selection:text-black transition-colors duration-200`}
+          : "bg-[#070b14] text-slate-100"
+      } font-['Alexandria',sans-serif] selection:bg-amber-500 selection:text-black transition-colors duration-200`}
     >
       {/* 1. Auth Overlay (Login) */}
       {!currentUser && (
@@ -489,7 +634,12 @@ export default function App() {
           <Navbar
             currentUser={currentUser}
             currentDateText={formatArabicDate()}
-            isOnline={isLiveConnected}
+            isOnline={syncStatus.isOnline}
+            isSyncing={syncStatus.isSyncing}
+            hasPendingSync={syncStatus.hasPendingSync}
+            onManualSync={handleManualSync}
+            pendingWhatsAppCount={pendingWhatsAppCount}
+            onOpenWhatsAppOutbox={() => setIsWhatsAppOutboxOpen(true)}
             theme={theme}
             onToggleTheme={() => setTheme(theme === "dark" ? "light" : "dark")}
             voiceEnabled={voiceEnabled}
@@ -501,6 +651,60 @@ export default function App() {
             onOpenPrintAllPDF={() => setPrintModal({ open: true, type: "all" })}
             onToggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)}
           />
+
+          {/* Floating Synchronization Notification Banner */}
+          {syncBanner?.show && (
+            <div className="px-4 py-2 max-w-5xl mx-auto w-full no-print">
+              <div
+                className={`flex items-center justify-between gap-3 px-4 py-2.5 rounded-2xl text-xs md:text-sm font-black border shadow-lg transition-all animate-fadeIn ${
+                  syncBanner.type === "online-synced"
+                    ? "bg-emerald-950/90 text-emerald-300 border-emerald-500/40 shadow-emerald-950/40"
+                    : "bg-amber-950/90 text-amber-300 border-amber-500/40 shadow-amber-950/40"
+                }`}
+              >
+                <div className="flex items-center gap-2.5">
+                  {syncBanner.type === "online-synced" ? (
+                    <CheckCircle2 className="w-5 h-5 text-emerald-400 shrink-0" />
+                  ) : (
+                    <WifiOff className="w-5 h-5 text-amber-400 shrink-0" />
+                  )}
+                  <span>{syncBanner.message}</span>
+                </div>
+                <button
+                  onClick={() => setSyncBanner(null)}
+                  className="p-1 rounded-lg hover:bg-white/10 text-white/70 hover:text-white cursor-pointer"
+                  title="إغلاق التنبيه"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Pending WhatsApp Outbox Global Notice Banner */}
+          {pendingWhatsAppCount > 0 && (
+            <div className="px-4 py-1.5 max-w-5xl mx-auto w-full no-print">
+              <div className="bg-gradient-to-r from-emerald-950/90 via-[#0a1a16] to-emerald-950/90 border border-emerald-500/50 p-3 rounded-2xl flex flex-wrap items-center justify-between gap-3 shadow-xl">
+                <div className="flex items-center gap-2.5">
+                  <div className="p-1.5 rounded-xl bg-emerald-500/20 text-emerald-400">
+                    <MessageSquare className="w-4 h-4" />
+                  </div>
+                  <span className="text-xs font-black text-emerald-300">
+                    توجد لديك <span className="font-mono text-white underline">{pendingWhatsAppCount}</span> رسائل واتساب معلقة (غياب / تأخير / درجات / مصاريف) بانتظار الإرسال!
+                  </span>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setIsWhatsAppOutboxOpen(true)}
+                  className="px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-400 hover:from-emerald-400 text-black text-xs font-black shadow-md shadow-emerald-500/20 transition-all flex items-center gap-1.5 cursor-pointer transform hover:scale-105"
+                >
+                  <Send className="w-3.5 h-3.5" />
+                  <span>إرسال كافة رسائل الواتساب الآن 🚀</span>
+                </button>
+              </div>
+            </div>
+          )}
 
           {/* Main Layout Area */}
           <div className="flex flex-1 min-w-0">
@@ -531,6 +735,8 @@ export default function App() {
                   voiceEnabled={voiceEnabled}
                   onRecordAttendance={handleRecordAttendance}
                   onFinishGroup={handleFinishGroup}
+                  onChangeStatus={handleChangeAttendanceStatus}
+                  onNavigateToReport={() => setActiveTab("daily-report")}
                 />
               )}
 
@@ -604,7 +810,11 @@ export default function App() {
               )}
 
               {activeTab === "whatsapp-engine" && (
-                <WhatsAppDirectTab students={students} />
+                <WhatsAppDirectTab
+                  students={students}
+                  onOpenWhatsAppOutbox={() => setIsWhatsAppOutboxOpen(true)}
+                  pendingWhatsAppCount={pendingWhatsAppCount}
+                />
               )}
 
               {activeTab === "manage-students" && (
@@ -657,6 +867,21 @@ export default function App() {
         <PrintCardsModal
           students={students}
           onClose={() => setIsCardsModalOpen(false)}
+        />
+      )}
+
+      {/* Offline WhatsApp Outbox Queue Modal */}
+      {isWhatsAppOutboxOpen && (
+        <PendingWhatsAppOutboxModal
+          isOpen={isWhatsAppOutboxOpen}
+          onClose={() => setIsWhatsAppOutboxOpen(false)}
+          pendingMessages={pendingWhatsAppMessages}
+          isOnline={syncStatus.isOnline}
+          onMarkSent={handleMarkWhatsAppSent}
+          onMarkAllSent={handleMarkAllWhatsAppSent}
+          onDeleteMessage={handleDeleteWhatsAppMessage}
+          onClearAll={handleClearAllWhatsAppMessages}
+          onUpdateMessageText={handleUpdateWhatsAppMessageText}
         />
       )}
     </div>

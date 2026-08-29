@@ -1,9 +1,10 @@
 import React, { useState } from "react";
 import { Student, GradeName, PaymentRecord } from "../types";
 import { getCurrentMonthKey, getTodayKey, openWhatsApp, DEFAULT_GRADE_PRICES } from "../utils/helpers";
+import { enqueuePendingWhatsAppMessage } from "../utils/storage";
 import { playBeep } from "../utils/audio";
 import { StudentSearchBox } from "./StudentSearchBox";
-import { CreditCard, CheckCircle, Tag, Sparkles, Send, ScanLine } from "lucide-react";
+import { CreditCard, CheckCircle, Tag, Sparkles, Send, ScanLine, Clock } from "lucide-react";
 
 interface PayExpensesTabProps {
   students: Student[];
@@ -61,9 +62,26 @@ export const PayExpensesTab: React.FC<PayExpensesTabProps> = ({
     // WhatsApp Receipt
     const receiptMsg = `إيصال سداد اشتراك 🧾\nمنظومة الأستاذة إيمان الدمشيتي - رياضيات 📐\nاسم الطالب: ${selectedStudent.name}\nالصف: ${selectedStudent.groupGrade}\nعن شهر: ${selectedMonth}\nالمبلغ المسدد: ${amount} ج.م\nالتاريخ: ${getTodayKey()}\nشاكرين لكم حسن تعاونكم واهتمامكم ✨`;
 
-    openWhatsApp(selectedStudent.parentPhone, receiptMsg);
+    const isOnline = typeof navigator !== "undefined" ? navigator.onLine : true;
 
-    alert(`✅ تم إثبات سداد ${amount} ج.م للطالب (${selectedStudent.name}) بنجاح!`);
+    // Enqueue message into persistent WhatsApp queue
+    enqueuePendingWhatsAppMessage({
+      studentBarcode: selectedStudent.barcode,
+      studentName: selectedStudent.name,
+      grade: selectedStudent.groupGrade,
+      phone: selectedStudent.parentPhone,
+      messageType: "مصاريف",
+      message: receiptMsg,
+    });
+
+    if (isOnline) {
+      openWhatsApp(selectedStudent.parentPhone, receiptMsg);
+      alert(`✅ تم إثبات سداد ${amount} ج.م للطالب (${selectedStudent.name}) وإرسال إيصال الواتساب بنجاح!`);
+    } else {
+      alert(
+        `⚡ أنت في وضع الأوفلاين (بدون إنترنت):\nتم إثبات سداد ${amount} ج.م للطالب (${selectedStudent.name}) وحفظ إيصال الواتساب في "طابور رسائل الواتساب المعلقة".\nيمكنك إرسال كافة الإيصالات بضغطة واحدة فور عودة الإنترنت!`
+      );
+    }
 
     setSearchInput("");
     setSelectedStudent(null);

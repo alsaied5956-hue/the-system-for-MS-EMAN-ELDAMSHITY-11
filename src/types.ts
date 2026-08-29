@@ -115,6 +115,29 @@ export interface EarlyWarningStudent {
   severity: "high" | "medium" | "low";
 }
 
+export type WhatsAppMessageType =
+  | "غياب"
+  | "تأخير"
+  | "حضور"
+  | "درجات"
+  | "مصاريف"
+  | "تنبيه"
+  | "عام";
+
+export interface PendingWhatsAppMessage {
+  id: string;
+  studentBarcode?: string;
+  studentName: string;
+  grade?: GradeName;
+  phone: string;
+  messageType: WhatsAppMessageType;
+  message: string;
+  createdAt: string;
+  timeFormatted: string;
+  status: "pending" | "sent";
+  sentAt?: string;
+}
+
 export interface CertificateData {
   student: Student;
   examTitle: string;
