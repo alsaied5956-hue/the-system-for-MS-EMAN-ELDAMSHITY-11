@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { UserAccount, GradeName, GRADE_ORDER } from "../types";
 import { DEFAULT_GRADE_PRICES, getWhatsAppMode, setWhatsAppMode } from "../utils/helpers";
-import { KeyRound, Tag, ShieldCheck, CheckCircle, MessageSquare, Globe, Smartphone, Sun, Moon, Palette } from "lucide-react";
+import { KeyRound, Tag, ShieldCheck, CheckCircle, MessageSquare, Globe, Smartphone, Sun, Moon, Palette, ExternalLink, Sparkles } from "lucide-react";
 
 interface SettingsTabProps {
   currentUser: UserAccount;
@@ -352,6 +352,39 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
             حفظ وتثبيت سعر الصف 💵
           </button>
         </form>
+      </div>
+
+      {/* External System Link Card */}
+      <div className="bg-gradient-to-r from-[#0d1627] via-[#101b30] to-[#0d1627] border border-amber-500/40 p-6 rounded-2xl shadow-xl backdrop-blur-md space-y-4">
+        <div className="flex items-center justify-between pb-3 border-b border-amber-500/20">
+          <div className="flex items-center gap-3">
+            <div className="p-2.5 bg-gradient-to-br from-amber-500/30 to-amber-600/20 text-amber-400 border border-amber-500/40 rounded-xl shadow-inner">
+              <Sparkles className="w-6 h-6" />
+            </div>
+            <div>
+              <h2 className="text-lg font-black text-amber-300">
+                منظومة الأستاذة إيمان الدمشيتي (الرابط الخارجي)
+              </h2>
+              <p className="text-xs text-slate-400 mt-0.5">
+                الانتقال المباشر للمنظومة الخارجية بضغطة زر واحدة
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <div className="pt-2">
+          <a
+            href="https://the-system-for-ms-eman-eldamshity-p.vercel.app/"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="w-full py-4 px-6 rounded-xl bg-gradient-to-r from-amber-500 via-amber-400 to-yellow-400 hover:from-amber-400 hover:to-yellow-300 text-black font-black text-sm shadow-xl shadow-amber-500/20 hover:shadow-amber-500/40 transition-all flex items-center justify-center gap-3 transform hover:-translate-y-0.5 cursor-pointer no-underline"
+          >
+            <ExternalLink className="w-5 h-5 text-black stroke-[2.5]" />
+            <span className="text-sm font-black tracking-wide">
+              فتح منظومة الأستاذة إيمان الدمشيتي 🚀
+            </span>
+          </a>
+        </div>
       </div>
     </div>
   );
