@@ -37,7 +37,7 @@
   font-family: 'Tajawal', 'Cairo', sans-serif;
 }
 
-/* Ambient Radial Mesh Gradients (Luxury Sapphire & Emerald Horizon) */
+/* Ambient Radial Mesh Gradients (Luxury Sapphire & Emerald Horizon) - High Performance */
 body {
   background-color: #050711;
   background-image: 
@@ -45,25 +45,29 @@ body {
     radial-gradient(circle at 85% 15%, rgba(245, 158, 11, 0.07) 0px, transparent 40%),
     radial-gradient(circle at 50% 80%, rgba(16, 185, 129, 0.05) 0px, transparent 50%),
     radial-gradient(circle at 50% 20%, rgba(14, 165, 233, 0.04) 0px, transparent 60%);
-  background-attachment: fixed;
   font-family: 'Readex Pro', 'Cairo', sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
 }
 
-/* Glassmorphism Luxury Utilities */
+/* Glassmorphism Luxury Utilities - Optimized for 60fps Smoothness */
 .glass-panel {
-  background: rgba(9, 14, 31, 0.82);
-  backdrop-filter: blur(24px);
-  -webkit-backdrop-filter: blur(24px);
+  background: rgba(9, 14, 31, 0.92);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
   border: 1px solid rgba(255, 255, 255, 0.09);
-  box-shadow: 0 24px 48px -12px rgba(0, 0, 0, 0.65), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  box-shadow: 0 16px 36px -12px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  transform: translateZ(0);
 }
 
 .glass-card {
-  background: rgba(12, 19, 41, 0.76);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
+  background: rgba(12, 19, 41, 0.88);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
   border: 1px solid rgba(255, 255, 255, 0.08);
-  box-shadow: 0 14px 32px -8px rgba(0, 0, 0, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  box-shadow: 0 10px 24px -8px rgba(0, 0, 0, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  transform: translateZ(0);
 }
 
 .neo-card {

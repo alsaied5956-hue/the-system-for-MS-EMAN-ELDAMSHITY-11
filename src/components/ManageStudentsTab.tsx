@@ -32,22 +32,19 @@ export const ManageStudentsTab: React.FC<ManageStudentsTabProps> = ({
   const [ledgerModalStudent, setLedgerModalStudent] = useState<Student | null>(null);
 
   const sortedStudents = useMemo(() => {
-    let result = students.filter((s) => {
-      if (!searchQuery.trim()) return true;
-      const { match } = matchStudentSearch(s, searchQuery);
-      return match;
-    });
-
     if (searchQuery.trim()) {
-      result = [...result].sort((a, b) => {
-        const scoreA = matchStudentSearch(a, searchQuery).score;
-        const scoreB = matchStudentSearch(b, searchQuery).score;
-        return scoreB - scoreA;
-      });
-      return result;
+      const scored: { student: Student; score: number }[] = [];
+      for (const s of students) {
+        const { match, score } = matchStudentSearch(s, searchQuery);
+        if (match) {
+          scored.push({ student: s, score });
+        }
+      }
+      scored.sort((a, b) => b.score - a.score);
+      return scored.map((item) => item.student);
     }
 
-    return sortStudentsByGradeAndName(result);
+    return sortStudentsByGradeAndName(students);
   }, [students, searchQuery]);
 
   const handleOpenEdit = (student: Student) => {

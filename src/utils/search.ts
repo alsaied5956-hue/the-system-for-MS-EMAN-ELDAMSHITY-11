@@ -1,5 +1,9 @@
 import { Student } from "../types";
 
+// Fast normalization cache to avoid repeated regex & string operations
+const normalizationCache = new Map<string, string>();
+const MAX_CACHE_SIZE = 2000;
+
 /**
  * Normalizes Arabic text for flexible, error-tolerant searching:
  * - Strips all Arabic Tashkeel / Harakat diacritics (Fatha, Damma, Kasra, Shadda, Sukun, Tanween, etc.)
@@ -14,12 +18,19 @@ import { Student } from "../types";
  */
 export function normalizeArabicText(input?: string | number | null): string {
   if (input === undefined || input === null) return "";
-  let text = String(input).trim().toLowerCase();
+  const rawKey = String(input);
+  if (normalizationCache.has(rawKey)) {
+    return normalizationCache.get(rawKey)!;
+  }
+
+  let text = rawKey.trim().toLowerCase();
 
   // 1. Convert Arabic-Indic Digits to standard 0-9
   const arabicDigits = ["٠", "١", "٢", "٣", "٤", "٥", "٦", "٧", "٨", "٩"];
   for (let i = 0; i < 10; i++) {
-    text = text.split(arabicDigits[i]).join(String(i));
+    if (text.includes(arabicDigits[i])) {
+      text = text.split(arabicDigits[i]).join(String(i));
+    }
   }
 
   // 2. Remove Tashkeel (Harakat) and Tatweel
@@ -48,6 +59,12 @@ export function normalizeArabicText(input?: string | number | null): string {
   // 9. Clean extra symbols and collapse multiple spaces
   text = text.replace(/[^\w\u0600-\u06FF\s]/g, " ");
   text = text.replace(/\s+/g, " ").trim();
+
+  // Prevent memory unbounded growth
+  if (normalizationCache.size >= MAX_CACHE_SIZE) {
+    normalizationCache.clear();
+  }
+  normalizationCache.set(rawKey, text);
 
   return text;
 }

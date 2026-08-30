@@ -160,22 +160,32 @@ export function loadLocalData(): SystemData {
   return INITIAL_SYSTEM_DATA;
 }
 
+let localSaveTimeout: ReturnType<typeof setTimeout> | null = null;
+
 /**
- * Save data to browser LocalStorage as high-speed instant cache (0ms latency)
+ * Save data to browser LocalStorage as high-speed instant cache (0ms latency, throttled write)
  */
 export function saveToLocalStorage(data: SystemData): void {
   memoryCachedData = data;
   if (typeof window === "undefined") return;
-  try {
-    const todayKey = getTodayKey();
-    if (!data.attendanceHistory) data.attendanceHistory = {};
-    data.attendanceHistory[todayKey] = data.attendanceToday || {};
 
-    const serialized = JSON.stringify(data);
-    localStorage.setItem(STORAGE_KEY, serialized);
-  } catch (e) {
-    console.error("Local storage save error:", e);
+  const todayKey = getTodayKey();
+  if (!data.attendanceHistory) data.attendanceHistory = {};
+  data.attendanceHistory[todayKey] = data.attendanceToday || {};
+
+  // Debounce actual localStorage disk write by 60ms to prevent main thread blocking during fast typing/scanning
+  if (localSaveTimeout) {
+    clearTimeout(localSaveTimeout);
   }
+
+  localSaveTimeout = setTimeout(() => {
+    try {
+      const serialized = JSON.stringify(data);
+      localStorage.setItem(STORAGE_KEY, serialized);
+    } catch (e) {
+      console.error("Local storage save error:", e);
+    }
+  }, 60);
 }
 
 /**

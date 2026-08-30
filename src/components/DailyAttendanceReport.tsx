@@ -29,27 +29,25 @@ export const DailyAttendanceReport: React.FC<DailyAttendanceReportProps> = ({
   const dateAttendanceMap = attendanceHistory[selectedDate] || {};
 
   const filteredStudents = useMemo(() => {
-    let result = students.filter((s) => {
+    const base = students.filter((s) => {
       if (filterGrade !== "ALL" && s.groupGrade !== filterGrade) return false;
       if (filterDays !== "ALL" && s.groupDays !== filterDays) return false;
-      if (searchQuery.trim()) {
-        const { match } = matchStudentSearch(s, searchQuery);
-        return match;
-      }
       return true;
     });
 
     if (searchQuery.trim()) {
-      // Sort by relevance score if searching
-      result = [...result].sort((a, b) => {
-        const scoreA = matchStudentSearch(a, searchQuery).score;
-        const scoreB = matchStudentSearch(b, searchQuery).score;
-        return scoreB - scoreA;
-      });
-      return result;
+      const scored: { student: Student; score: number }[] = [];
+      for (const s of base) {
+        const { match, score } = matchStudentSearch(s, searchQuery);
+        if (match) {
+          scored.push({ student: s, score });
+        }
+      }
+      scored.sort((a, b) => b.score - a.score);
+      return scored.map((item) => item.student);
     }
 
-    return sortStudentsByGradeAndName(result);
+    return sortStudentsByGradeAndName(base);
   }, [students, filterGrade, filterDays, searchQuery]);
 
   const { presentCount, lateCount, absentCount } = useMemo(() => {

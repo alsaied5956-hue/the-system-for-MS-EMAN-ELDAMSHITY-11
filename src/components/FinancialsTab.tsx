@@ -29,29 +29,28 @@ export const FinancialsTab: React.FC<FinancialsTabProps> = ({
   const monthPayments = payments[selectedMonth] || {};
 
   const filteredStudents = useMemo(() => {
-    let result = students.filter((s) => {
+    const base = students.filter((s) => {
       if (filterGrade !== "ALL" && s.groupGrade !== filterGrade) return false;
       const isPaid = !!monthPayments[s.barcode];
       if (filterStatus === "PAID" && !isPaid) return false;
       if (filterStatus === "UNPAID" && isPaid) return false;
-      if (searchQuery.trim()) {
-        const { match } = matchStudentSearch(s, searchQuery);
-        return match;
-      }
       return true;
     });
 
     if (searchQuery.trim()) {
-      result = [...result].sort((a, b) => {
-        const scoreA = matchStudentSearch(a, searchQuery).score;
-        const scoreB = matchStudentSearch(b, searchQuery).score;
-        return scoreB - scoreA;
-      });
-      return result;
+      const scored: { student: Student; score: number }[] = [];
+      for (const s of base) {
+        const { match, score } = matchStudentSearch(s, searchQuery);
+        if (match) {
+          scored.push({ student: s, score });
+        }
+      }
+      scored.sort((a, b) => b.score - a.score);
+      return scored.map((item) => item.student);
     }
 
-    return sortStudentsByGradeAndName(result);
-  }, [students, selectedMonth, filterGrade, filterStatus, searchQuery, monthPayments]);
+    return sortStudentsByGradeAndName(base);
+  }, [students, filterGrade, filterStatus, searchQuery, monthPayments]);
 
   const { paidCount, unpaidCount, todayAmount, monthTotalAmount } = useMemo(() => {
     let paid = 0;

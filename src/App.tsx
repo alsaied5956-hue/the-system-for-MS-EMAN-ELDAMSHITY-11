@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import {
   Student,
   PaymentRecord,
@@ -224,7 +224,7 @@ export default function App() {
   };
 
   // Handler: Scan Attendance Record
-  const handleRecordAttendance = (
+  const handleRecordAttendance = useCallback((
     barcode: string,
     status: "حضور" | "تأخير",
     timeIso: string,
@@ -265,10 +265,10 @@ export default function App() {
     setStudents(updatedStudents);
 
     saveAttendanceAndStudentsBatch(updatedToday, updatedOrder, updatedTimes, updatedStudents);
-  };
+  }, [attendanceToday, attendanceHistory, scanLogOrder, scanLogTimes, students]);
 
   // Handler: Finish and Lock Group Session
-  const handleFinishGroup = (
+  const handleFinishGroup = useCallback((
     grade: GradeName,
     days: GroupDays,
     absentList: { student: Student; message: string }[],
@@ -320,10 +320,10 @@ export default function App() {
     setStudents(updatedStudents);
 
     saveAttendanceAndStudentsBatch(updatedToday, remainingScanOrder, remainingScanTimes, updatedStudents);
-  };
+  }, [students, attendanceToday, attendanceHistory, scanLogOrder, scanLogTimes]);
 
   // Handler: Add Single Student
-  const handleAddStudent = (newStudent: Student, cardFee = 0) => {
+  const handleAddStudent = useCallback((newStudent: Student, cardFee = 0) => {
     const updated = [newStudent, ...students];
     setStudents(updated);
     saveStudentsData(updated);
@@ -353,31 +353,31 @@ export default function App() {
       setPayments(updatedPayments);
       savePaymentsData(updatedPayments);
     }
-  };
+  }, [students, payments, currentUser]);
 
   // Handler: Bulk Import Students from Excel
-  const handleBulkImport = (newStudentsList: Student[]) => {
+  const handleBulkImport = useCallback((newStudentsList: Student[]) => {
     const updated = [...newStudentsList, ...students];
     setStudents(updated);
     saveStudentsData(updated);
-  };
+  }, [students]);
 
   // Handler: Update Student Info
-  const handleUpdateStudent = (oldBarcode: string, updatedStudent: Student) => {
+  const handleUpdateStudent = useCallback((oldBarcode: string, updatedStudent: Student) => {
     const updated = students.map((s) => (s.barcode === oldBarcode ? updatedStudent : s));
     setStudents(updated);
     saveStudentsData(updated);
-  };
+  }, [students]);
 
   // Handler: Delete Single Student
-  const handleDeleteStudent = (barcode: string) => {
+  const handleDeleteStudent = useCallback((barcode: string) => {
     const updated = students.filter((s) => s.barcode !== barcode);
     setStudents(updated);
     saveStudentsData(updated);
-  };
+  }, [students]);
 
   // Handler: Clear All Data
-  const handleClearAllData = () => {
+  const handleClearAllData = useCallback(() => {
     setStudents([]);
     setAttendanceToday({});
     setScanLogOrder([]);
@@ -385,10 +385,10 @@ export default function App() {
     saveStudentsData([]);
     saveAttendanceTodayData({});
     alert("تم مسح كافة البيانات بنجاح.");
-  };
+  }, []);
 
   // Handler: Manual Status Change in Attendance Report or Scanner
-  const handleChangeAttendanceStatus = (barcode: string, dateKey: string, newStatus: string) => {
+  const handleChangeAttendanceStatus = useCallback((barcode: string, dateKey: string, newStatus: string) => {
     const todayKey = getTodayKey();
     const isToday = dateKey === todayKey;
     
@@ -438,10 +438,10 @@ export default function App() {
 
     setStudents(updatedStudents);
     saveStudentsData(updatedStudents);
-  };
+  }, [attendanceToday, attendanceHistory, scanLogOrder, scanLogTimes, students]);
 
   // Handler: Record Payment
-  const handleRecordPayment = (
+  const handleRecordPayment = useCallback((
     barcode: string,
     amount: number,
     monthKey: string,
@@ -472,10 +472,10 @@ export default function App() {
 
     setPayments(updatedPayments);
     savePaymentsData(updatedPayments);
-  };
+  }, [payments, currentUser]);
 
   // Handler: Record Exam Grade
-  const handleRecordExamGrade = (
+  const handleRecordExamGrade = useCallback((
     barcode: string,
     examTitle: string,
     score: number,
@@ -502,7 +502,7 @@ export default function App() {
 
     setStudents(updated);
     saveStudentsData(updated);
-  };
+  }, [students]);
 
   // Handler: Update Grade Record from Cumulative Table
   const handleUpdateGradeRecord = (
