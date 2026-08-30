@@ -778,6 +778,7 @@ export default function App() {
                   students={students}
                   payments={payments}
                   groupPrices={groupPrices}
+                  onRecordPayment={handleRecordPayment}
                 />
               )}
 
@@ -819,10 +820,13 @@ export default function App() {
               {activeTab === "manage-students" && (
                 <ManageStudentsTab
                   students={students}
+                  payments={payments}
+                  groupPrices={groupPrices}
                   onUpdateStudent={handleUpdateStudent}
                   onDeleteStudent={handleDeleteStudent}
                   onClearAllData={handleClearAllData}
                   onOpenPrintCards={() => setIsCardsModalOpen(true)}
+                  onRecordPayment={handleRecordPayment}
                 />
               )}
 

@@ -2,24 +2,28 @@ import React, { useState, useMemo } from "react";
 import { Student, PaymentRecord, GradeName, GRADE_ORDER } from "../types";
 import { getCurrentMonthKey, getTodayKey, sortStudentsByGradeAndName, DEFAULT_GRADE_PRICES, openWhatsApp } from "../utils/helpers";
 import { matchStudentSearch } from "../utils/search";
+import { StudentFinancialLedgerModal } from "./StudentFinancialLedgerModal";
 import * as XLSX from "xlsx";
-import { Coins, FileSpreadsheet, CheckCircle2, XCircle, Search, Calendar, Tag, X } from "lucide-react";
+import { Coins, FileSpreadsheet, CheckCircle2, XCircle, Search, Calendar, Tag, X, FileText } from "lucide-react";
 
 interface FinancialsTabProps {
   students: Student[];
   payments: Record<string, Record<string, PaymentRecord>>;
   groupPrices: Record<GradeName, number>;
+  onRecordPayment?: (barcode: string, amount: number, monthKey: string, note: string) => void;
 }
 
 export const FinancialsTab: React.FC<FinancialsTabProps> = ({
   students,
   payments,
   groupPrices,
+  onRecordPayment,
 }) => {
   const [selectedMonth, setSelectedMonth] = useState(getCurrentMonthKey());
   const [filterGrade, setFilterGrade] = useState("ALL");
   const [filterStatus, setFilterStatus] = useState<"ALL" | "PAID" | "UNPAID">("ALL");
   const [searchQuery, setSearchQuery] = useState("");
+  const [ledgerModalStudent, setLedgerModalStudent] = useState<Student | null>(null);
 
   const todayKey = getTodayKey();
   const monthPayments = payments[selectedMonth] || {};
@@ -267,25 +271,35 @@ export const FinancialsTab: React.FC<FinancialsTabProps> = ({
                       </td>
                       <td className="p-3.5">
                         <div className="flex items-center justify-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => setLedgerModalStudent(student)}
+                            className="px-2.5 py-1.5 rounded-xl bg-indigo-500/20 hover:bg-indigo-500/30 border border-indigo-500/40 text-indigo-200 text-[11px] font-bold cursor-pointer transition-all flex items-center gap-1"
+                            title="عرض كشف الحساب المالي المفصل وسجل شهور العام"
+                          >
+                            <FileText className="w-3.5 h-3.5 text-amber-400" />
+                            <span>كشف الحساب 📊</span>
+                          </button>
+
                           {pay ? (
                             <button
                               onClick={() => {
-                                const receiptMsg = `إيصال استلام اشتراك 🧾\nاسم الطالب: ${student.name}\nالصف: ${student.groupGrade}\nشهر: ${selectedMonth}\nالمبلغ المسدد: ${pay.amount} ج.م\nالتاريخ: ${pay.date}\nمع تحيات ميس إيمان الدمشيتي ✨`;
+                                const receiptMsg = `إيصال استلام اشتراك 🧾\nمنظومة الأستاذة إيمان الدمشيتي - رياضيات 📐\nاسم الطالب: ${student.name}\nالصف: ${student.groupGrade}\nعن شهر: ${selectedMonth}\nالمبلغ المسدد: ${pay.amount} ج.م\nالتاريخ: ${pay.date}\nمع تحيات ميس إيمان الدمشيتي ✨`;
                                 openWhatsApp(student.parentPhone, receiptMsg);
                               }}
                               className="px-2.5 py-1.5 rounded-xl bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/30 text-emerald-300 text-[11px] font-bold cursor-pointer transition-all"
                             >
-                              📲 إيصال واتساب
+                              📲 إيصال
                             </button>
                           ) : (
                             <button
                               onClick={() => {
-                                const reminderMsg = `تذكير ودي بسداد الاشتراك 🔔\nاسم الطالب: ${student.name}\nالصف: ${student.groupGrade}\nنود تذكيركم بسداد اشتراك شهر (${selectedMonth}) وقيمته: ${fee} ج.م.\nشاكرين لكم حسن تعاونكم واهتمامكم ✨`;
+                                const reminderMsg = `تذكير ودي بسداد الاشتراك 🔔\nمنظومة الأستاذة إيمان الدمشيتي - رياضيات 📐\nاسم الطالب: ${student.name}\nالصف: ${student.groupGrade}\nنود تذكيركم بسداد اشتراك شهر (${selectedMonth}) وقيمته: ${fee} ج.م.\nشاكرين لكم حسن تعاونكم واهتمامكم ✨`;
                                 openWhatsApp(student.parentPhone, reminderMsg);
                               }}
                               className="px-2.5 py-1.5 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 text-amber-300 text-[11px] font-bold cursor-pointer transition-all"
                             >
-                              🔔 تذكير بالسداد
+                              🔔 تذكير
                             </button>
                           )}
                         </div>
@@ -298,6 +312,18 @@ export const FinancialsTab: React.FC<FinancialsTabProps> = ({
           </table>
         </div>
       </div>
+
+      {/* Student Detailed Financial Ledger Modal */}
+      {ledgerModalStudent && (
+        <StudentFinancialLedgerModal
+          student={ledgerModalStudent}
+          payments={payments}
+          groupPrices={groupPrices}
+          isOpen={!!ledgerModalStudent}
+          onClose={() => setLedgerModalStudent(null)}
+          onRecordQuickPayment={onRecordPayment}
+        />
+      )}
     </div>
   );
 };

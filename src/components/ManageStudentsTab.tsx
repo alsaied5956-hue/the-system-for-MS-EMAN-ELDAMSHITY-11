@@ -1,27 +1,35 @@
 import React, { useState, useMemo } from "react";
-import { Student, GradeName, GroupDays, GRADE_ORDER } from "../types";
+import { Student, GradeName, GroupDays, GRADE_ORDER, PaymentRecord } from "../types";
 import { sortStudentsByGradeAndName, getExamAverage, getAbsenceRate, DEFAULT_GRADE_PRICES } from "../utils/helpers";
 import { matchStudentSearch } from "../utils/search";
-import { Users2, Trash2, Edit3, Search, AlertTriangle, Tag, Sparkles, X, CreditCard } from "lucide-react";
+import { StudentFinancialLedgerModal } from "./StudentFinancialLedgerModal";
+import { Users2, Trash2, Edit3, Search, AlertTriangle, Tag, Sparkles, X, CreditCard, FileText } from "lucide-react";
 
 interface ManageStudentsTabProps {
   students: Student[];
+  payments?: Record<string, Record<string, PaymentRecord>>;
+  groupPrices?: Record<GradeName, number>;
   onUpdateStudent: (oldBarcode: string, updated: Student) => void;
   onDeleteStudent: (barcode: string) => void;
   onClearAllData: () => void;
   onOpenPrintCards?: () => void;
+  onRecordPayment?: (barcode: string, amount: number, monthKey: string, note: string) => void;
 }
 
 export const ManageStudentsTab: React.FC<ManageStudentsTabProps> = ({
   students,
+  payments = {},
+  groupPrices = {} as Record<GradeName, number>,
   onUpdateStudent,
   onDeleteStudent,
   onClearAllData,
   onOpenPrintCards,
+  onRecordPayment,
 }) => {
   const [searchQuery, setSearchQuery] = useState("");
   const [editingStudent, setEditingStudent] = useState<Student | null>(null);
   const [oldBarcode, setOldBarcode] = useState("");
+  const [ledgerModalStudent, setLedgerModalStudent] = useState<Student | null>(null);
 
   const sortedStudents = useMemo(() => {
     let result = students.filter((s) => {
@@ -201,8 +209,18 @@ export const ManageStudentsTab: React.FC<ManageStudentsTabProps> = ({
                         <div className="flex items-center justify-center gap-2">
                           <button
                             type="button"
+                            onClick={() => setLedgerModalStudent(student)}
+                            className="px-2.5 py-1.5 rounded-xl bg-indigo-500/15 hover:bg-indigo-500/25 text-indigo-200 border border-indigo-500/30 text-[11px] font-bold flex items-center gap-1 cursor-pointer transition-all"
+                            title="عرض كشف الحساب المالي المفصل للطالب"
+                          >
+                            <FileText className="w-3 h-3 text-amber-400" />
+                            <span>سجل الحساب</span>
+                          </button>
+
+                          <button
+                            type="button"
                             onClick={() => handleOpenEdit(student)}
-                            className="px-3 py-1.5 rounded-xl bg-sky-500/10 hover:bg-sky-500/20 text-sky-300 border border-sky-500/30 text-[11px] font-bold flex items-center gap-1 cursor-pointer transition-all"
+                            className="px-2.5 py-1.5 rounded-xl bg-sky-500/10 hover:bg-sky-500/20 text-sky-300 border border-sky-500/30 text-[11px] font-bold flex items-center gap-1 cursor-pointer transition-all"
                           >
                             <Edit3 className="w-3 h-3" />
                             <span>تعديل</span>
@@ -211,7 +229,7 @@ export const ManageStudentsTab: React.FC<ManageStudentsTabProps> = ({
                           <button
                             type="button"
                             onClick={() => handleDeleteClick(student)}
-                            className="px-3 py-1.5 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-300 border border-rose-500/30 text-[11px] font-bold flex items-center gap-1 cursor-pointer transition-all"
+                            className="px-2.5 py-1.5 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-300 border border-rose-500/30 text-[11px] font-bold flex items-center gap-1 cursor-pointer transition-all"
                           >
                             <Trash2 className="w-3 h-3" />
                             <span>حذف</span>
@@ -383,6 +401,18 @@ export const ManageStudentsTab: React.FC<ManageStudentsTabProps> = ({
             </form>
           </div>
         </div>
+      )}
+
+      {/* Student Detailed Financial Ledger Modal */}
+      {ledgerModalStudent && (
+        <StudentFinancialLedgerModal
+          student={ledgerModalStudent}
+          payments={payments}
+          groupPrices={groupPrices}
+          isOpen={!!ledgerModalStudent}
+          onClose={() => setLedgerModalStudent(null)}
+          onRecordQuickPayment={onRecordPayment}
+        />
       )}
     </div>
   );

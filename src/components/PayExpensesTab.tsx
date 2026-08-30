@@ -4,7 +4,8 @@ import { getCurrentMonthKey, getTodayKey, openWhatsApp, DEFAULT_GRADE_PRICES } f
 import { enqueuePendingWhatsAppMessage } from "../utils/storage";
 import { playBeep } from "../utils/audio";
 import { StudentSearchBox } from "./StudentSearchBox";
-import { CreditCard, CheckCircle, Tag, Sparkles, Send, ScanLine, Clock } from "lucide-react";
+import { StudentFinancialLedgerModal } from "./StudentFinancialLedgerModal";
+import { CreditCard, CheckCircle, Tag, Sparkles, Send, ScanLine, Clock, FileText } from "lucide-react";
 
 interface PayExpensesTabProps {
   students: Student[];
@@ -24,6 +25,7 @@ export const PayExpensesTab: React.FC<PayExpensesTabProps> = ({
   const [customAmount, setCustomAmount] = useState<number | "">("");
   const [paymentNote, setPaymentNote] = useState("سداد الاشتراك الشهري");
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
+  const [isLedgerModalOpen, setIsLedgerModalOpen] = useState(false);
 
   const handleSelectStudent = (student: Student) => {
     setSelectedStudent(student);
@@ -154,6 +156,17 @@ export const PayExpensesTab: React.FC<PayExpensesTabProps> = ({
                   <span>طالب باشتراك خاص مخصص ({selectedStudent.customMonthlyFee} ج.م)</span>
                 </div>
               )}
+
+              <div className="pt-1 flex justify-end">
+                <button
+                  type="button"
+                  onClick={() => setIsLedgerModalOpen(true)}
+                  className="px-3 py-1.5 rounded-xl bg-indigo-500/20 hover:bg-indigo-500/30 border border-indigo-500/40 text-amber-300 text-xs font-bold flex items-center gap-1.5 cursor-pointer transition-all"
+                >
+                  <FileText className="w-4 h-4 text-amber-400" />
+                  <span>عرض كشف الحساب الشامل للطالب 📊</span>
+                </button>
+              </div>
             </div>
           )}
 
@@ -202,6 +215,18 @@ export const PayExpensesTab: React.FC<PayExpensesTabProps> = ({
           </button>
         </form>
       </div>
+
+      {/* Student Detailed Financial Ledger Modal */}
+      {selectedStudent && (
+        <StudentFinancialLedgerModal
+          student={selectedStudent}
+          payments={payments}
+          groupPrices={groupPrices}
+          isOpen={isLedgerModalOpen}
+          onClose={() => setIsLedgerModalOpen(false)}
+          onRecordQuickPayment={onRecordPayment}
+        />
+      )}
     </div>
   );
 };
