@@ -119,17 +119,17 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
       {/* Sidebar Aside element */}
       <aside
-        className={`no-print fixed md:sticky top-0 md:top-[65px] right-0 h-screen md:h-[calc(100vh-65px)] w-76 bg-[#080d1a] md:bg-[#080d1a]/95 backdrop-blur-2xl border-l border-amber-500/15 flex flex-col transition-all duration-300 z-50 md:z-20 shrink-0 shadow-2xl ${
+        className={`no-print fixed md:sticky top-0 md:top-[73px] right-0 h-screen md:h-[calc(100vh-73px)] w-80 bg-[#070c1e] md:bg-[#070c1e]/95 backdrop-blur-2xl border-l border-indigo-500/15 flex flex-col transition-all duration-300 z-50 md:z-20 shrink-0 shadow-2xl ${
           isOpen ? "translate-x-0" : "translate-x-full md:translate-x-0"
         }`}
       >
         {/* Mobile Header with Close button */}
-        <div className="p-4 border-b border-amber-500/20 flex items-center justify-between md:hidden bg-slate-900/95">
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-xl bg-amber-500 text-slate-950 font-black flex items-center justify-center text-sm">
+        <div className="p-4 border-b border-indigo-500/20 flex items-center justify-between md:hidden bg-slate-900/95">
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-amber-500 to-yellow-300 text-slate-950 font-black flex items-center justify-center text-sm font-fancy shadow-md">
               إ
             </div>
-            <span className="text-sm font-black text-amber-400">قائمة المنظومة 📐</span>
+            <span className="text-sm font-bold text-amber-300 font-fancy">قائمة المنظومة 📐</span>
           </div>
           <button
             onClick={onCloseMobile}
@@ -140,24 +140,24 @@ export const Sidebar: React.FC<SidebarProps> = ({
         </div>
 
         {/* Printable Quick Hub */}
-        <div className="p-3.5 border-b border-amber-500/15 bg-gradient-to-b from-amber-500/10 via-[#0d162a]/40 to-transparent">
-          <p className="text-[11px] font-black text-amber-300 mb-2 px-1 flex items-center justify-between">
+        <div className="p-4 border-b border-indigo-500/15 bg-gradient-to-b from-indigo-500/10 via-[#0a122e]/40 to-transparent">
+          <div className="text-[11px] font-bold text-amber-300 mb-2.5 px-1 flex items-center justify-between font-tajawal">
             <span className="flex items-center gap-1.5">
               <FileText className="w-3.5 h-3.5 text-amber-400" />
               <span>تصدير وطباعة PDF مقسم:</span>
             </span>
-            <span className="text-[10px] text-slate-400 font-normal">A4 جاهز</span>
-          </p>
-          <div className="grid grid-cols-2 gap-1.5 mb-1.5">
+            <span className="text-[10px] text-slate-400 bg-white/5 px-2 py-0.5 rounded-full border border-white/5">A4 جاهز</span>
+          </div>
+          <div className="grid grid-cols-2 gap-2 mb-2">
             <button
               onClick={() => onOpenPdfModal("attendance")}
-              className="px-2.5 py-2 rounded-xl bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/35 text-amber-300 text-[11px] font-black transition-all flex items-center justify-center gap-1 shadow-sm cursor-pointer transform active:scale-95"
+              className="px-3 py-2 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 border border-amber-400/25 hover:border-amber-400/40 text-amber-300 text-[11px] font-bold transition-all flex items-center justify-center gap-1.5 shadow-sm cursor-pointer transform active:scale-95 font-tajawal"
             >
               <span>📄 تقرير الغياب</span>
             </button>
             <button
               onClick={() => onOpenPdfModal("exams")}
-              className="px-2.5 py-2 rounded-xl bg-sky-500/15 hover:bg-sky-500/25 border border-sky-500/35 text-sky-300 text-[11px] font-black transition-all flex items-center justify-center gap-1 shadow-sm cursor-pointer transform active:scale-95"
+              className="px-3 py-2 rounded-xl bg-sky-500/10 hover:bg-sky-500/20 border border-sky-400/25 hover:border-sky-400/40 text-sky-300 text-[11px] font-bold transition-all flex items-center justify-center gap-1.5 shadow-sm cursor-pointer transform active:scale-95 font-tajawal"
             >
               <span>📊 سجل الدرجات</span>
             </button>
@@ -165,7 +165,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           {onOpenPrintCards && (
             <button
               onClick={onOpenPrintCards}
-              className="w-full px-2.5 py-2 rounded-xl bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/35 text-emerald-300 text-[11px] font-black transition-all flex items-center justify-center gap-1.5 shadow-sm cursor-pointer transform active:scale-95"
+              className="w-full px-3 py-2 rounded-xl bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-400/25 hover:border-emerald-400/40 text-emerald-300 text-[11px] font-bold transition-all flex items-center justify-center gap-1.5 shadow-sm cursor-pointer transform active:scale-95 font-tajawal"
             >
               <span>🪪 طباعة كروت الباركود الذكية (ID Cards)</span>
             </button>
@@ -173,15 +173,16 @@ export const Sidebar: React.FC<SidebarProps> = ({
         </div>
 
         {/* Main Nav Items Categorized */}
-        <nav className="flex-1 overflow-y-auto p-3 space-y-4">
+        <nav className="flex-1 overflow-y-auto p-3.5 space-y-4 custom-scrollbar">
           {categories.map((cat, idx) => {
             const visibleItems = cat.items.filter((it) => it.show);
             if (visibleItems.length === 0) return null;
 
             return (
               <div key={idx} className="space-y-1">
-                <div className="text-[10px] font-black text-slate-400 uppercase tracking-wider px-2.5 mb-1">
-                  {cat.title}
+                <div className="text-[11px] font-bold text-slate-400 px-3 mb-1.5 font-fancy flex items-center gap-2">
+                  <span className="w-1.5 h-1.5 rounded-full bg-amber-400 inline-block shadow-sm shadow-amber-400/50" />
+                  <span>{cat.title}</span>
                 </div>
 
                 <div className="space-y-1">
@@ -192,13 +193,13 @@ export const Sidebar: React.FC<SidebarProps> = ({
                       <button
                         key={item.id}
                         onClick={() => onSelectTab(item.id)}
-                        className={`w-full flex items-center justify-between px-3 py-2.5 rounded-2xl text-xs font-bold text-right transition-all group cursor-pointer ${
+                        className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-2xl text-xs font-bold text-right transition-all group cursor-pointer font-tajawal ${
                           isActive
-                            ? "bg-gradient-to-r from-amber-500 to-amber-400 text-slate-950 shadow-lg shadow-amber-500/25 font-black transform scale-[1.02]"
+                            ? "bg-gradient-to-r from-amber-400 via-amber-300 to-yellow-200 text-slate-950 shadow-lg shadow-amber-500/25 font-black transform scale-[1.01]"
                             : item.alert
-                            ? "bg-rose-500/10 hover:bg-rose-500/20 text-rose-300 border border-rose-500/25"
+                            ? "bg-rose-500/10 hover:bg-rose-500/20 text-rose-300 border border-rose-500/20"
                             : item.gold
-                            ? "bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 border border-amber-500/25"
+                            ? "bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 border border-amber-500/20"
                             : "text-slate-300 hover:bg-white/5 hover:text-white"
                         }`}
                       >
@@ -218,7 +219,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                         </div>
 
                         {item.badge && !isActive && (
-                          <span className="text-[9px] font-black bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 px-1.5 py-0.5 rounded-md">
+                          <span className="text-[9px] font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 px-2 py-0.5 rounded-full">
                             {item.badge}
                           </span>
                         )}
@@ -236,11 +237,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
         </nav>
 
         {/* Bottom System Info */}
-        <div className="p-3 border-t border-amber-500/15 bg-[#060a14] text-center">
-          <div className="text-[11px] font-black text-slate-300">
+        <div className="p-3.5 border-t border-indigo-500/15 bg-[#050917] text-center">
+          <div className="text-[12px] font-bold text-slate-200 font-fancy">
             منظومة إدارة الرياضيات الذكية
           </div>
-          <div className="text-[10px] text-amber-500/80 font-mono font-bold mt-0.5">
+          <div className="text-[10px] text-amber-400/90 font-mono font-bold mt-0.5">
             الأستاذة إيمان الدمشيتي • v3.5
           </div>
         </div>

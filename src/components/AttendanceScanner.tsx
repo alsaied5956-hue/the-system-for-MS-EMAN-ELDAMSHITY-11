@@ -349,11 +349,11 @@ export const AttendanceScanner: React.FC<AttendanceScannerProps> = ({
     <div className="space-y-6">
       
       {/* Top Group Selector & Action Bar */}
-      <div className="bg-gradient-to-r from-[#101726] via-[#0d1424] to-[#101726] border-2 border-amber-500/30 p-4 md:p-5 rounded-3xl flex flex-wrap items-center justify-between gap-4 shadow-2xl backdrop-blur-xl">
+      <div className="glass-panel p-4 md:p-6 rounded-3xl flex flex-wrap items-center justify-between gap-4 shadow-2xl">
         <div className="flex flex-wrap items-center gap-3">
-          <div className="flex items-center gap-2 bg-amber-500/10 border border-amber-500/30 px-3 py-1.5 rounded-2xl">
-            <UserCheck className="w-4 h-4 text-amber-400" />
-            <span className="font-black text-xs md:text-sm text-amber-300">
+          <div className="flex items-center gap-2 bg-indigo-500/15 border border-indigo-400/30 px-4 py-2 rounded-2xl shadow-sm">
+            <UserCheck className="w-4 h-4 text-indigo-400" />
+            <span className="font-tajawal font-bold text-xs md:text-sm text-indigo-200">
               المجموعة النشطة بالقاعة:
             </span>
           </div>
@@ -361,10 +361,10 @@ export const AttendanceScanner: React.FC<AttendanceScannerProps> = ({
           <select
             value={selectedGrade}
             onChange={(e) => handleGradeChange(e.target.value as GradeName)}
-            className="bg-[#080d17] border-2 border-amber-500/40 text-white text-xs md:text-sm font-black px-4 py-2.5 rounded-2xl outline-none cursor-pointer focus:ring-2 focus:ring-amber-400 shadow-md transition-all"
+            className="bg-[#0b1226] border border-indigo-500/30 text-white text-xs md:text-sm font-bold px-4 py-2.5 rounded-2xl outline-none cursor-pointer focus:ring-2 focus:ring-amber-400 shadow-md transition-all font-tajawal"
           >
             {GRADE_ORDER.map((grade) => (
-              <option key={grade} value={grade} className="bg-slate-900 text-white">
+              <option key={grade} value={grade} className="bg-slate-900 text-white font-medium">
                 {grade}
               </option>
             ))}
@@ -373,7 +373,7 @@ export const AttendanceScanner: React.FC<AttendanceScannerProps> = ({
           <select
             value={selectedDays}
             onChange={(e) => handleDaysChange(e.target.value as GroupDays)}
-            className="bg-[#080d17] border-2 border-amber-500/40 text-white text-xs md:text-sm font-black px-4 py-2.5 rounded-2xl outline-none cursor-pointer focus:ring-2 focus:ring-amber-400 shadow-md transition-all"
+            className="bg-[#0b1226] border border-indigo-500/30 text-white text-xs md:text-sm font-bold px-4 py-2.5 rounded-2xl outline-none cursor-pointer focus:ring-2 focus:ring-amber-400 shadow-md transition-all font-tajawal"
           >
             <option value="سبت - إثنين - أربعاء" className="bg-slate-900 text-white">
               سبت - إثنين - أربعاء
@@ -389,7 +389,7 @@ export const AttendanceScanner: React.FC<AttendanceScannerProps> = ({
           <button
             type="button"
             onClick={handleFinishGroupClick}
-            className="px-5 py-3 rounded-2xl bg-gradient-to-r from-rose-600 via-rose-500 to-amber-600 hover:from-rose-500 hover:to-amber-500 text-white text-xs md:text-sm font-black shadow-xl shadow-rose-600/30 flex items-center gap-2 transition-all transform hover:scale-[1.02] active:scale-95 cursor-pointer border border-rose-400/40"
+            className="px-5 py-3 rounded-2xl bg-gradient-to-r from-rose-600 via-rose-500 to-amber-500 hover:from-rose-500 hover:to-amber-400 text-white text-xs md:text-sm font-bold shadow-xl shadow-rose-600/25 flex items-center gap-2 transition-all transform hover:scale-[1.02] active:scale-95 cursor-pointer border border-rose-300/30 font-tajawal"
           >
             <Send className="w-4 h-4" />
             <span>🔒 حفظ وإرسال الغياب والتأخير للكل بضغطة واحدة</span>
@@ -399,16 +399,16 @@ export const AttendanceScanner: React.FC<AttendanceScannerProps> = ({
 
       {/* Finished Group Banner Notice */}
       {finishedBanner && (
-        <div className="bg-gradient-to-r from-emerald-950/80 via-[#0a1b14] to-emerald-950/80 border-2 border-emerald-500/50 p-5 rounded-3xl shadow-2xl flex flex-wrap items-center justify-between gap-4 animate-in fade-in zoom-in-95">
-          <div className="flex items-center gap-3">
-            <div className="w-12 h-12 rounded-2xl bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center shrink-0">
+        <div className="bg-gradient-to-r from-emerald-950/80 via-[#091e17] to-emerald-950/80 border border-emerald-500/40 p-5 rounded-3xl shadow-2xl flex flex-wrap items-center justify-between gap-4 animate-in fade-in zoom-in-95">
+          <div className="flex items-center gap-3.5">
+            <div className="w-12 h-12 rounded-2xl bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center shrink-0 shadow-inner">
               <CheckCircle2 className="w-6 h-6 text-emerald-400" />
             </div>
             <div>
-              <h3 className="text-base md:text-lg font-black text-emerald-300">
+              <h3 className="text-base md:text-lg font-bold text-emerald-300 font-fancy">
                 ✅ تم حفظ وترحيل سجلات ({finishedBanner.grade} - {finishedBanner.days}) بالكامل!
               </h3>
-              <p className="text-xs md:text-sm text-slate-300 mt-0.5">
+              <p className="text-xs md:text-sm text-slate-300 mt-0.5 font-tajawal">
                 تم تثبيت: <span className="text-emerald-400 font-bold">{finishedBanner.present} حاضر</span> •{" "}
                 <span className="text-amber-400 font-bold">{finishedBanner.late} متأخر</span> •{" "}
                 <span className="text-rose-400 font-bold">{finishedBanner.absent} غائب</span>. الاسكانر مفرغ وجاهز الآن للمجموعة القادمة.
@@ -420,7 +420,7 @@ export const AttendanceScanner: React.FC<AttendanceScannerProps> = ({
             <button
               type="button"
               onClick={onNavigateToReport}
-              className="px-4 py-2.5 rounded-2xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-xs md:text-sm transition-all flex items-center gap-2 shadow-lg shadow-emerald-500/20 cursor-pointer"
+              className="px-4 py-2.5 rounded-2xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-xs md:text-sm transition-all flex items-center gap-2 shadow-lg shadow-emerald-500/20 cursor-pointer font-tajawal"
             >
               <FileText className="w-4 h-4" />
               <span>عرض في تقرير الحضور اليومي والسابق</span>
@@ -430,49 +430,58 @@ export const AttendanceScanner: React.FC<AttendanceScannerProps> = ({
         </div>
       )}
 
-      {/* Live Group Real-time Stats Chips */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        <div className="bg-[#0c121e] border border-amber-500/20 p-3.5 rounded-2xl flex items-center justify-between shadow-lg">
+      {/* Live Group Real-time Stats Chips (Redesigned Bento Grid) */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3.5">
+        <div className="glass-card p-4 rounded-3xl flex items-center justify-between shadow-lg hover:border-amber-400/40 transition-all duration-300 group">
           <div>
-            <div className="text-[11px] text-slate-400 font-bold">إجمالي طلاب المجموعة</div>
-            <div className="text-xl font-black text-amber-300 font-mono mt-0.5">{totalGroupCount} طالب</div>
+            <div className="text-[11px] text-slate-400 font-medium font-tajawal">إجمالي طلاب المجموعة</div>
+            <div className="text-2xl md:text-3xl font-black text-amber-300 font-mono mt-1">{totalGroupCount} <span className="text-xs font-normal text-slate-400">طالب</span></div>
           </div>
-          <Users className="w-6 h-6 text-amber-400/40" />
+          <div className="p-3 bg-amber-500/10 rounded-2xl border border-amber-500/20 group-hover:scale-110 transition-transform">
+            <Users className="w-6 h-6 text-amber-400" />
+          </div>
         </div>
 
-        <div className="bg-[#0c121e] border border-emerald-500/30 p-3.5 rounded-2xl flex items-center justify-between shadow-lg">
+        <div className="glass-card p-4 rounded-3xl flex items-center justify-between shadow-lg hover:border-emerald-400/40 transition-all duration-300 group">
           <div>
-            <div className="text-[11px] text-emerald-400 font-bold">حاضرون بالقاعة الآن</div>
-            <div className="text-xl font-black text-emerald-400 font-mono mt-0.5">{currentGroupPresentCount} طالب</div>
+            <div className="text-[11px] text-emerald-400 font-medium font-tajawal">حاضرون بالقاعة الآن</div>
+            <div className="text-2xl md:text-3xl font-black text-emerald-400 font-mono mt-1">{currentGroupPresentCount} <span className="text-xs font-normal text-slate-400">طالب</span></div>
           </div>
-          <CheckCircle2 className="w-6 h-6 text-emerald-400/40" />
+          <div className="p-3 bg-emerald-500/10 rounded-2xl border border-emerald-500/20 group-hover:scale-110 transition-transform">
+            <CheckCircle2 className="w-6 h-6 text-emerald-400" />
+          </div>
         </div>
 
-        <div className="bg-[#0c121e] border border-amber-500/30 p-3.5 rounded-2xl flex items-center justify-between shadow-lg">
+        <div className="glass-card p-4 rounded-3xl flex items-center justify-between shadow-lg hover:border-amber-400/40 transition-all duration-300 group">
           <div>
-            <div className="text-[11px] text-amber-400 font-bold">متأخرون</div>
-            <div className="text-xl font-black text-amber-400 font-mono mt-0.5">{currentGroupLateCount} طالب</div>
+            <div className="text-[11px] text-amber-400 font-medium font-tajawal">متأخرون</div>
+            <div className="text-2xl md:text-3xl font-black text-amber-400 font-mono mt-1">{currentGroupLateCount} <span className="text-xs font-normal text-slate-400">طالب</span></div>
           </div>
-          <Clock className="w-6 h-6 text-amber-400/40" />
+          <div className="p-3 bg-amber-500/10 rounded-2xl border border-amber-500/20 group-hover:scale-110 transition-transform">
+            <Clock className="w-6 h-6 text-amber-400" />
+          </div>
         </div>
 
-        <div className="bg-[#0c121e] border border-rose-500/30 p-3.5 rounded-2xl flex items-center justify-between shadow-lg">
+        <div className="glass-card p-4 rounded-3xl flex items-center justify-between shadow-lg hover:border-rose-400/40 transition-all duration-300 group">
           <div>
-            <div className="text-[11px] text-rose-400 font-bold">لم يسجلوا بعد (سيُرصد غيابهم)</div>
-            <div className="text-xl font-black text-rose-400 font-mono mt-0.5">{Math.max(0, currentGroupUnscannedCount)} طالب</div>
+            <div className="text-[11px] text-rose-400 font-medium font-tajawal">لم يسجلوا (غياب محتمل)</div>
+            <div className="text-2xl md:text-3xl font-black text-rose-400 font-mono mt-1">{Math.max(0, currentGroupUnscannedCount)} <span className="text-xs font-normal text-slate-400">طالب</span></div>
           </div>
-          <XCircle className="w-6 h-6 text-rose-400/40" />
+          <div className="p-3 bg-rose-500/10 rounded-2xl border border-rose-500/20 group-hover:scale-110 transition-transform">
+            <XCircle className="w-6 h-6 text-rose-400" />
+          </div>
         </div>
       </div>
 
       {/* Barcode Scanner Input Spotlight */}
-      <div className="max-w-2xl mx-auto text-center space-y-3">
-        <label className="text-base md:text-lg font-black text-amber-300 flex items-center justify-center gap-2">
-          <span>📡 مرر كارت الطالب أمام الإسكانر لتسجيل الحضور الفوري</span>
+      <div className="max-w-2xl mx-auto text-center space-y-3.5">
+        <label className="text-base md:text-lg font-bold text-amber-300 flex items-center justify-center gap-2 font-fancy">
+          <Sparkles className="w-5 h-5 text-amber-400" />
+          <span>مرر كارت الطالب أمام الإسكانر لتسجيل الحضور الفوري</span>
         </label>
 
-        <form onSubmit={handleScanSubmit} className="flex gap-2">
-          <div className="relative flex-1">
+        <form onSubmit={handleScanSubmit} className="flex gap-2.5">
+          <div className="relative flex-1 group">
             <input
               ref={inputRef}
               type="text"
@@ -480,9 +489,9 @@ export const AttendanceScanner: React.FC<AttendanceScannerProps> = ({
               onChange={(e) => setBarcodeInput(e.target.value)}
               placeholder="انتظار قراءة الباركود الآلية..."
               autoFocus
-              className="w-full bg-[#070b14] border-2 border-amber-400 text-amber-300 text-center font-mono font-black text-2xl md:text-3xl px-4 py-4 rounded-3xl outline-none focus:ring-4 focus:ring-amber-400/40 shadow-inner placeholder:text-slate-600 placeholder:text-base transition-all"
+              className="w-full bg-[#060a17] border-2 border-indigo-500/40 focus:border-amber-400 text-amber-300 text-center font-mono font-black text-2xl md:text-3xl px-4 py-4 rounded-3xl outline-none focus:ring-4 focus:ring-amber-400/20 shadow-2xl placeholder:text-slate-600 placeholder:text-base transition-all"
             />
-            <ScanLine className="w-7 h-7 text-amber-400/60 absolute left-4 top-4 pointer-events-none animate-pulse" />
+            <ScanLine className="w-7 h-7 text-amber-400/70 absolute left-4 top-4 pointer-events-none animate-pulse" />
           </div>
 
           <button
@@ -492,7 +501,7 @@ export const AttendanceScanner: React.FC<AttendanceScannerProps> = ({
               setManualSearchQuery("");
               setSelectedManualStudent(null);
             }}
-            className="px-5 py-3.5 bg-gradient-to-r from-sky-500 to-cyan-400 hover:from-sky-400 hover:to-cyan-300 text-slate-950 font-black text-xs md:text-sm rounded-3xl shadow-xl shadow-cyan-500/20 transition-all flex items-center gap-2 shrink-0 cursor-pointer border border-cyan-300/40 transform hover:scale-[1.02] active:scale-95"
+            className="px-5 py-3.5 bg-gradient-to-r from-sky-500 to-cyan-400 hover:from-sky-400 hover:to-cyan-300 text-slate-950 font-bold text-xs md:text-sm rounded-3xl shadow-xl shadow-cyan-500/20 transition-all flex items-center gap-2 shrink-0 cursor-pointer border border-cyan-300/40 transform hover:scale-[1.02] active:scale-95 font-tajawal"
             title="بحث بالاسم أو الكود للتعويض اليدوي"
           >
             <PlusCircle className="w-5 h-5" />
@@ -581,23 +590,23 @@ export const AttendanceScanner: React.FC<AttendanceScannerProps> = ({
       {/* Live Scan Result Spotlight Card */}
       {scanAlert && (
         <div
-          className={`max-w-2xl mx-auto p-4 md:p-5 rounded-3xl border-2 transition-all duration-300 shadow-2xl ${
+          className={`max-w-2xl mx-auto p-4 md:p-6 rounded-3xl border transition-all duration-300 shadow-2xl ${
             scanAlert.type === "success"
-              ? "bg-gradient-to-r from-[#0d1628] to-[#0a101d] border-amber-400 border-r-8"
+              ? "glass-panel border-emerald-500/50 text-white"
               : scanAlert.type === "warning"
-              ? "bg-rose-950/70 border-rose-500 border-r-8 text-rose-200"
+              ? "bg-rose-950/80 border-rose-500/60 text-rose-200"
               : "bg-rose-900/80 border-rose-500 text-rose-100"
           }`}
         >
           <div className="flex flex-wrap items-center justify-between gap-3">
-            <div className="space-y-1">
-              <h3 className="text-lg md:text-xl font-black text-amber-300">{scanAlert.title}</h3>
-              <p className="text-xs md:text-sm text-slate-300">{scanAlert.message}</p>
+            <div className="space-y-1.5">
+              <h3 className="text-lg md:text-xl font-bold font-fancy text-amber-300">{scanAlert.title}</h3>
+              <p className="text-xs md:text-sm text-slate-300 font-tajawal">{scanAlert.message}</p>
 
               {scanAlert.student && (
                 <div className="flex flex-wrap items-center gap-2 pt-2">
                   <span
-                    className={`text-xs px-3 py-1 rounded-full font-black border ${
+                    className={`text-xs px-3 py-1 rounded-full font-bold border font-tajawal ${
                       scanAlert.isPaid
                         ? "bg-emerald-500/20 text-emerald-300 border-emerald-500/40"
                         : "bg-rose-500/20 text-rose-300 border-rose-500/40"
@@ -607,7 +616,7 @@ export const AttendanceScanner: React.FC<AttendanceScannerProps> = ({
                   </span>
 
                   <span
-                    className={`text-xs px-3 py-1 rounded-full font-black border ${
+                    className={`text-xs px-3 py-1 rounded-full font-bold border font-tajawal ${
                       scanAlert.status === "تأخير"
                         ? "bg-amber-500/20 text-amber-300 border-amber-500/40"
                         : "bg-emerald-500/20 text-emerald-300 border-emerald-500/40"
@@ -617,7 +626,7 @@ export const AttendanceScanner: React.FC<AttendanceScannerProps> = ({
                   </span>
 
                   {scanAlert.student.customMonthlyFee !== undefined && (
-                    <span className="text-xs px-3 py-1 rounded-full font-black bg-purple-500/20 text-purple-300 border border-purple-500/40">
+                    <span className="text-xs px-3 py-1 rounded-full font-bold bg-purple-500/20 text-purple-300 border border-purple-500/40 font-tajawal">
                       🏷️ اشتراك مخصص: {scanAlert.student.customMonthlyFee} ج.م
                     </span>
                   )}
@@ -626,7 +635,7 @@ export const AttendanceScanner: React.FC<AttendanceScannerProps> = ({
             </div>
 
             {scanAlert.time && (
-              <div className="text-left font-mono font-black text-2xl md:text-3xl text-amber-400 bg-slate-900/90 px-4 py-2 rounded-2xl border border-slate-800">
+              <div className="text-left font-mono font-black text-2xl md:text-3xl text-amber-400 bg-slate-950/80 px-5 py-2.5 rounded-2xl border border-indigo-500/30 shadow-inner">
                 {scanAlert.time}
               </div>
             )}
@@ -635,18 +644,18 @@ export const AttendanceScanner: React.FC<AttendanceScannerProps> = ({
       )}
 
       {/* Attendance Scanned Log Table */}
-      <div className="bg-[#0d1424]/90 border border-amber-500/25 rounded-3xl p-4 md:p-6 shadow-2xl overflow-hidden backdrop-blur-md space-y-4">
-        <div className="flex flex-wrap items-center justify-between gap-3 pb-4 border-b border-amber-500/20">
+      <div className="glass-panel rounded-3xl p-4 md:p-6 shadow-2xl overflow-hidden space-y-4">
+        <div className="flex flex-wrap items-center justify-between gap-3 pb-4 border-b border-indigo-500/20">
           <div className="flex items-center gap-3">
-            <h3 className="font-black text-base md:text-lg text-amber-300 flex items-center gap-2">
+            <h3 className="font-bold text-base md:text-lg text-amber-300 flex items-center gap-2 font-fancy">
               <span>📋 طابور حضور القاعة بالسكانر</span>
-              <span className="bg-amber-500/20 text-amber-300 border border-amber-500/30 text-xs px-3 py-0.5 rounded-full font-black">
+              <span className="bg-amber-500/20 text-amber-300 border border-amber-500/30 text-xs px-3 py-0.5 rounded-full font-bold">
                 {filteredBarcodes.length} طالب حاضر
               </span>
             </h3>
           </div>
 
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2 font-tajawal">
             {/* Quick Search */}
             <div className="relative">
               <input
@@ -654,13 +663,13 @@ export const AttendanceScanner: React.FC<AttendanceScannerProps> = ({
                 value={tableSearch}
                 onChange={(e) => setTableSearch(e.target.value)}
                 placeholder="بحث في الحاضرين..."
-                className="bg-[#080d17] border border-slate-700 text-xs text-white px-3 py-1.5 pr-8 rounded-xl outline-none focus:border-amber-400"
+                className="bg-[#080d1e] border border-indigo-500/30 text-xs text-white px-3 py-2 pr-8 rounded-xl outline-none focus:border-amber-400"
               />
-              <Search className="w-3.5 h-3.5 text-slate-400 absolute right-2.5 top-2.5 pointer-events-none" />
+              <Search className="w-3.5 h-3.5 text-slate-400 absolute right-2.5 top-3 pointer-events-none" />
               {tableSearch && (
                 <button
                   onClick={() => setTableSearch("")}
-                  className="absolute left-2 top-2 text-slate-400 hover:text-white"
+                  className="absolute left-2 top-2.5 text-slate-400 hover:text-white"
                 >
                   <X className="w-3 h-3" />
                 </button>
@@ -668,11 +677,11 @@ export const AttendanceScanner: React.FC<AttendanceScannerProps> = ({
             </div>
 
             {/* View Filter Switcher */}
-            <div className="flex items-center gap-2 bg-[#080d17] p-1 rounded-2xl border border-slate-800 text-xs">
+            <div className="flex items-center gap-1.5 bg-[#080d1e] p-1 rounded-2xl border border-indigo-500/30 text-xs">
               <button
                 type="button"
                 onClick={() => setViewFilter("current_group")}
-                className={`px-3 py-1.5 rounded-xl font-black transition-all ${
+                className={`px-3 py-1.5 rounded-xl font-bold transition-all ${
                   viewFilter === "current_group"
                     ? "bg-amber-500 text-slate-950 shadow-md"
                     : "text-slate-400 hover:text-white"
@@ -683,7 +692,7 @@ export const AttendanceScanner: React.FC<AttendanceScannerProps> = ({
               <button
                 type="button"
                 onClick={() => setViewFilter("all_scanned")}
-                className={`px-3 py-1.5 rounded-xl font-black transition-all ${
+                className={`px-3 py-1.5 rounded-xl font-bold transition-all ${
                   viewFilter === "all_scanned"
                     ? "bg-amber-500 text-slate-950 shadow-md"
                     : "text-slate-400 hover:text-white"
@@ -696,9 +705,9 @@ export const AttendanceScanner: React.FC<AttendanceScannerProps> = ({
         </div>
 
         <div className="overflow-x-auto">
-          <table className="w-full text-right border-collapse text-xs md:text-sm">
+          <table className="w-full text-right border-collapse text-xs md:text-sm font-tajawal">
             <thead>
-              <tr className="bg-slate-900/90 text-amber-400 font-black border-b border-amber-500/30">
+              <tr className="bg-slate-900/90 text-amber-400 font-bold border-b border-indigo-500/30">
                 <th className="p-3.5">الترتيب</th>
                 <th className="p-3.5">الباركود</th>
                 <th className="p-3.5">اسم الطالب</th>
@@ -709,14 +718,14 @@ export const AttendanceScanner: React.FC<AttendanceScannerProps> = ({
                 <th className="p-3.5 text-center">مراسلة سريعة</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-800/80">
+            <tbody className="divide-y divide-indigo-950/50">
               {filteredBarcodes.length === 0 ? (
                 <tr>
                   <td colSpan={8} className="p-10 text-center text-slate-400 space-y-2">
-                    <p className="text-sm font-bold text-slate-300">
+                    <p className="text-sm font-bold text-slate-300 font-fancy">
                       في انتظار قراءة أول كارت بالسكانر لهذه الحصة...
                     </p>
-                    <p className="text-xs text-slate-500">
+                    <p className="text-xs text-slate-500 font-tajawal">
                       مرر كارت الطالب أمام السكانر، أو استخدم "بحث يدوي ذكي". وبمجرد الانتهاء اضغط على "حفظ وإرسال الغياب للكل" لترحيل البيانات لتقرير الحضور وتفريغ الشاشة للحصة التالية.
                     </p>
                   </td>
@@ -739,17 +748,17 @@ export const AttendanceScanner: React.FC<AttendanceScannerProps> = ({
                   return (
                     <tr
                       key={barcode + idx}
-                      className="hover:bg-amber-500/5 transition-colors font-medium"
+                      className="hover:bg-indigo-500/10 transition-colors font-medium"
                     >
-                      <td className="p-3.5 font-black text-amber-400">#{orderNumber}</td>
+                      <td className="p-3.5 font-black text-amber-400 font-mono">#{orderNumber}</td>
                       <td className="p-3.5 font-mono text-slate-300 font-bold">{student.barcode}</td>
-                      <td className="p-3.5 font-black text-white">{student.name}</td>
+                      <td className="p-3.5 font-bold text-white">{student.name}</td>
                       <td className="p-3.5 text-slate-300 text-xs">
                         {student.groupGrade} • {student.groupDays}
                       </td>
                       <td className="p-3.5">
                         <span
-                          className={`font-black text-xs px-2.5 py-1 rounded-full ${
+                          className={`font-bold text-xs px-2.5 py-1 rounded-full ${
                             isPaid
                               ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/30"
                               : "bg-rose-500/10 text-rose-400 border border-rose-500/30"
@@ -761,7 +770,7 @@ export const AttendanceScanner: React.FC<AttendanceScannerProps> = ({
                       </td>
                       <td className="p-3.5">
                         <span
-                          className={`font-black text-xs px-2.5 py-1 rounded-full ${
+                          className={`font-bold text-xs px-2.5 py-1 rounded-full ${
                             statusToday === "تأخير"
                               ? "bg-amber-500/10 text-amber-400 border border-amber-500/30"
                               : "bg-emerald-500/10 text-emerald-400 border border-emerald-500/30"
@@ -780,7 +789,7 @@ export const AttendanceScanner: React.FC<AttendanceScannerProps> = ({
                               `السلام عليكم ورحمة الله، نفيدكم بتسجيل حضور الطالب/ة (${student.name}) في حصة الرياضيات.`
                             )
                           }
-                          className="px-3 py-1.5 rounded-xl bg-emerald-500/10 hover:bg-emerald-500 text-emerald-400 hover:text-white border border-emerald-500/30 text-xs font-black transition-all inline-flex items-center gap-1 cursor-pointer"
+                          className="px-3 py-1.5 rounded-xl bg-emerald-500/10 hover:bg-emerald-500 text-emerald-400 hover:text-white border border-emerald-500/30 text-xs font-bold transition-all inline-flex items-center gap-1 cursor-pointer"
                         >
                           📲 واتساب
                         </button>
@@ -795,14 +804,14 @@ export const AttendanceScanner: React.FC<AttendanceScannerProps> = ({
 
         {/* Bottom Report Navigation Link */}
         {onNavigateToReport && (
-          <div className="pt-3 border-t border-amber-500/15 flex items-center justify-between">
+          <div className="pt-3 border-t border-indigo-500/15 flex items-center justify-between font-tajawal">
             <span className="text-xs text-slate-400">
               💡 لمراجعة سجلات الحضور السابقة والكاملة لكل المجموعات والتواريخ:
             </span>
             <button
               type="button"
               onClick={onNavigateToReport}
-              className="text-amber-400 hover:text-amber-300 text-xs font-black flex items-center gap-1 hover:underline cursor-pointer"
+              className="text-amber-400 hover:text-amber-300 text-xs font-bold flex items-center gap-1.5 hover:underline cursor-pointer"
             >
               <span>الانتقال إلى تقرير الحضور اليومي والسابق</span>
               <ArrowLeft className="w-3.5 h-3.5" />

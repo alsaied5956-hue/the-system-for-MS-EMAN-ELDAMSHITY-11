@@ -88,19 +88,19 @@ export const WhatsAppDirectTab: React.FC<WhatsAppDirectTabProps> = ({
   };
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-6 font-tajawal">
       {/* Top Banner for Offline Outbox Access */}
       {onOpenWhatsAppOutbox && (
-        <div className="bg-gradient-to-r from-[#0d1627] via-[#101b30] to-[#0d1627] border border-amber-500/30 p-4 rounded-2xl flex flex-wrap items-center justify-between gap-3 shadow-xl">
-          <div className="flex items-center gap-3">
-            <div className="p-2.5 rounded-xl bg-amber-500/20 text-amber-400 border border-amber-500/30">
-              <MessageSquare className="w-5 h-5" />
+        <div className="relative overflow-hidden rounded-3xl border border-indigo-500/30 p-5 bg-gradient-to-r from-[#0d1627]/90 via-[#101b30]/90 to-[#0d1627]/90 flex flex-wrap items-center justify-between gap-4 shadow-xl backdrop-blur-xl">
+          <div className="flex items-center gap-3.5">
+            <div className="w-12 h-12 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-400 flex items-center justify-center shadow-md">
+              <MessageSquare className="w-6 h-6" />
             </div>
             <div>
-              <h3 className="text-sm font-black text-white flex items-center gap-2">
+              <h3 className="text-sm font-bold text-white font-fancy flex items-center gap-2">
                 <span>طابور رسائل الواتساب المعلقة (Offline Outbox)</span>
                 {pendingWhatsAppCount > 0 && (
-                  <span className="px-2 py-0.5 rounded-full bg-rose-500 text-white text-[11px] font-black animate-pulse">
+                  <span className="px-2.5 py-0.5 rounded-full bg-rose-500 text-white text-[11px] font-bold font-mono animate-pulse">
                     {pendingWhatsAppCount} رسائل بانتظار الإرسال
                   </span>
                 )}
@@ -114,9 +114,9 @@ export const WhatsAppDirectTab: React.FC<WhatsAppDirectTabProps> = ({
           <button
             type="button"
             onClick={onOpenWhatsAppOutbox}
-            className="px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-black text-xs font-black transition-all shadow-md shadow-amber-500/20 flex items-center gap-2 cursor-pointer"
+            className="px-4 py-2.5 rounded-2xl bg-gradient-to-r from-amber-400 via-amber-300 to-yellow-200 hover:from-amber-300 text-slate-950 text-xs font-black transition-all shadow-md shadow-amber-500/20 flex items-center gap-2 cursor-pointer active:scale-95"
           >
-            <Flame className="w-4 h-4 text-black" />
+            <Flame className="w-4 h-4 text-slate-950" />
             <span>عرض طابور الرسائل المعلقة ({pendingWhatsAppCount})</span>
           </button>
         </div>
@@ -125,22 +125,22 @@ export const WhatsAppDirectTab: React.FC<WhatsAppDirectTabProps> = ({
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Direct Message Form (2 Columns) */}
         <div className="lg:col-span-2 space-y-5">
-          <div className="bg-[#121926]/90 border border-amber-500/30 p-6 rounded-2xl shadow-xl backdrop-blur-md space-y-4">
-            <div className="flex items-center gap-3 pb-3 border-b border-amber-500/20">
-              <div className="p-2.5 bg-emerald-500/20 text-emerald-400 rounded-xl">
+          <div className="glass-panel p-6 md:p-8 rounded-3xl shadow-2xl space-y-5">
+            <div className="flex items-center gap-3.5 pb-4 border-b border-indigo-500/20">
+              <div className="w-12 h-12 bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 rounded-2xl flex items-center justify-center shadow-md">
                 <MessageSquare className="w-6 h-6" />
               </div>
               <div>
-                <h2 className="text-lg font-black text-amber-400">
+                <h2 className="text-xl font-bold font-fancy text-amber-300">
                   نظام المراسلة الفردية المباشرة
                 </h2>
-                <p className="text-xs text-slate-400">
+                <p className="text-xs text-slate-400 mt-0.5">
                   إرسال تنبيهات الواجب، الملاحظات، والتقارير الفردية لولي أمر طالب محدد عبر الواتساب
                 </p>
               </div>
             </div>
 
-            <div className="space-y-3 text-xs font-bold">
+            <div className="space-y-4 text-xs font-bold font-tajawal">
               {/* Student Search with High-Performance Fuzzy Box */}
               <div className="space-y-1.5">
                 <label className="text-slate-300">ابحث باسم الطالب (تسامح مع الإملاء والأجزاء) أو الباركود / الكود:</label>
@@ -161,11 +161,11 @@ export const WhatsAppDirectTab: React.FC<WhatsAppDirectTabProps> = ({
 
               {/* Selected Student Card */}
               {selectedStudent && (
-                <div className="bg-[#090e17] border border-amber-500/40 p-4 rounded-xl flex items-center justify-between shadow-inner">
+                <div className="glass-card border-amber-500/40 p-4 rounded-2xl flex items-center justify-between shadow-inner animate-in fade-in">
                   <div>
-                    <h4 className="text-sm font-black text-amber-300">{selectedStudent.name}</h4>
+                    <h4 className="text-base font-bold text-amber-300 font-fancy">{selectedStudent.name}</h4>
                     <p className="text-xs text-slate-400 mt-0.5">
-                      {selectedStudent.groupGrade} • {selectedStudent.groupDays} • ولي الأمر: {selectedStudent.parentPhone}
+                      {selectedStudent.groupGrade} • {selectedStudent.groupDays} • ولي الأمر: <span className="font-mono text-slate-300">{selectedStudent.parentPhone}</span>
                     </p>
                   </div>
                   <button
@@ -174,7 +174,7 @@ export const WhatsAppDirectTab: React.FC<WhatsAppDirectTabProps> = ({
                       setSelectedStudent(null);
                       setSearchQuery("");
                     }}
-                    className="px-3 py-1 bg-rose-500/10 hover:bg-rose-500/20 text-rose-300 border border-rose-500/30 rounded-lg text-xs font-bold transition-all"
+                    className="px-3.5 py-1.5 bg-rose-500/10 hover:bg-rose-500/20 text-rose-300 border border-rose-500/30 rounded-xl text-xs font-bold transition-all cursor-pointer"
                   >
                     تغيير الطالب ✕
                   </button>
@@ -182,13 +182,13 @@ export const WhatsAppDirectTab: React.FC<WhatsAppDirectTabProps> = ({
               )}
 
               {/* Quick Templates */}
-              <div className="space-y-1.5 pt-1">
-                <label className="text-slate-400 text-[11px]">قوالب رسائل سريعة بضغطة زر:</label>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              <div className="space-y-2 pt-1">
+                <label className="text-slate-400 text-xs">قوالب رسائل سريعة بضغطة زر:</label>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                   <button
                     type="button"
                     onClick={() => handleSendHomeworkAlert("shortage")}
-                    className="py-2 px-3 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/40 text-amber-300 text-xs font-bold transition-all text-right flex items-center gap-2 cursor-pointer"
+                    className="py-2.5 px-3.5 rounded-2xl bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 text-amber-300 text-xs font-bold transition-all text-right flex items-center gap-2 cursor-pointer"
                   >
                     <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0" />
                     <span>⚠️ تنبيه: تقصير في الواجب</span>
@@ -197,7 +197,7 @@ export const WhatsAppDirectTab: React.FC<WhatsAppDirectTabProps> = ({
                   <button
                     type="button"
                     onClick={() => handleSendHomeworkAlert("no_hw")}
-                    className="py-2 px-3 rounded-xl bg-rose-500/20 hover:bg-rose-500/30 border border-rose-500/40 text-rose-300 text-xs font-bold transition-all text-right flex items-center gap-2 cursor-pointer"
+                    className="py-2.5 px-3.5 rounded-2xl bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 text-rose-300 text-xs font-bold transition-all text-right flex items-center gap-2 cursor-pointer"
                   >
                     <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0" />
                     <span>🚨 تنبيه: لم يتم عمل الواجب</span>
@@ -206,14 +206,14 @@ export const WhatsAppDirectTab: React.FC<WhatsAppDirectTabProps> = ({
               </div>
 
               {/* Message Textarea */}
-              <div className="space-y-1.5 pt-2">
+              <div className="space-y-1.5 pt-1">
                 <label className="text-slate-300">نص الرسالة المرسلة:</label>
                 <textarea
                   rows={5}
                   value={customMessage}
                   onChange={(e) => setCustomMessage(e.target.value)}
                   placeholder="اكتب نص الرسالة هنا..."
-                  className="w-full bg-[#090e17] border border-amber-500/30 focus:border-amber-400 text-slate-100 p-3 rounded-xl outline-none text-xs leading-relaxed"
+                  className="w-full bg-[#080d1e] border border-indigo-500/30 focus:border-amber-400 text-slate-100 p-4 rounded-2xl outline-none text-xs leading-relaxed transition-all font-medium"
                 />
               </div>
 
@@ -221,10 +221,10 @@ export const WhatsAppDirectTab: React.FC<WhatsAppDirectTabProps> = ({
                 type="button"
                 onClick={handleSendMessage}
                 disabled={!selectedStudent}
-                className={`w-full py-3 rounded-xl font-black text-sm transition-all flex items-center justify-center gap-2 shadow-lg ${
+                className={`w-full py-3.5 rounded-2xl font-black text-sm transition-all flex items-center justify-center gap-2 shadow-xl ${
                   selectedStudent
-                    ? "bg-gradient-to-r from-emerald-500 to-teal-400 hover:from-emerald-400 text-black shadow-emerald-500/20 cursor-pointer"
-                    : "bg-slate-700 text-slate-400 cursor-not-allowed opacity-60"
+                    ? "bg-gradient-to-r from-emerald-500 to-teal-400 hover:from-emerald-400 text-slate-950 shadow-emerald-500/20 cursor-pointer active:scale-[0.99]"
+                    : "bg-slate-800 text-slate-500 cursor-not-allowed opacity-50"
                 }`}
               >
                 <Send className="w-4 h-4" />
@@ -235,34 +235,34 @@ export const WhatsAppDirectTab: React.FC<WhatsAppDirectTabProps> = ({
         </div>
 
         {/* Directory Side List (1 Column) */}
-        <div className="bg-[#121926]/90 border border-amber-500/30 p-5 rounded-2xl shadow-xl backdrop-blur-md flex flex-col h-[650px]">
-          <h3 className="text-sm font-extrabold text-amber-400 pb-3 border-b border-amber-500/20 mb-3 flex items-center justify-between">
+        <div className="glass-panel p-5 rounded-3xl shadow-2xl flex flex-col h-[650px]">
+          <h3 className="text-sm font-bold font-fancy text-amber-300 pb-3 border-b border-indigo-500/20 mb-3 flex items-center justify-between">
             <span>👥 دليل الطلاب ومؤشرات الأداء</span>
-            <span className="text-[11px] text-slate-400 font-normal">{sortedStudents.length} طالب</span>
+            <span className="text-[11px] text-slate-400 font-mono font-normal">{sortedStudents.length} طالب</span>
           </h3>
 
           {/* Side filter search */}
           <div className="relative mb-3">
-            <Search className="w-3.5 h-3.5 text-amber-400/60 absolute right-3 top-2.5 pointer-events-none" />
+            <Search className="w-4 h-4 text-amber-400/60 absolute right-3.5 top-3 pointer-events-none" />
             <input
               type="text"
               value={sideSearchQuery}
               onChange={(e) => setSideSearchQuery(e.target.value)}
               placeholder="تصفية الدليل بالاسم أو الكود..."
-              className="w-full bg-[#090e17] border border-slate-700 text-slate-200 text-xs pr-8 pl-7 py-2 rounded-xl outline-none focus:border-amber-400"
+              className="w-full bg-[#080d1e] border border-indigo-500/30 text-slate-200 text-xs pr-10 pl-8 py-2.5 rounded-2xl outline-none focus:border-amber-400 transition-all font-medium"
             />
             {sideSearchQuery && (
               <button
                 type="button"
                 onClick={() => setSideSearchQuery("")}
-                className="absolute left-2 top-2 text-slate-400 hover:text-white"
+                className="absolute left-3 top-3 text-slate-400 hover:text-white cursor-pointer"
               >
                 <X className="w-3.5 h-3.5" />
               </button>
             )}
           </div>
 
-          <div className="flex-1 overflow-y-auto space-y-2 pr-1">
+          <div className="flex-1 overflow-y-auto space-y-2.5 pr-1">
             {sortedStudents.length === 0 ? (
               <p className="text-center text-xs text-slate-500 py-6">لا يوجد طلاب مطابقين للتصفية.</p>
             ) : (
@@ -274,21 +274,21 @@ export const WhatsAppDirectTab: React.FC<WhatsAppDirectTabProps> = ({
                   <div
                     key={s.barcode}
                     onClick={() => handleSelectStudent(s)}
-                    className={`p-3 rounded-xl border text-xs cursor-pointer transition-all flex items-center justify-between ${
+                    className={`p-3.5 rounded-2xl border text-xs cursor-pointer transition-all flex items-center justify-between ${
                       selectedStudent?.barcode === s.barcode
-                        ? "bg-amber-500/20 border-amber-400 shadow-md"
-                        : "bg-[#090e17] border-slate-800 hover:border-amber-500/40"
+                        ? "bg-amber-500/15 border-amber-400/80 shadow-lg"
+                        : "glass-card hover:border-amber-500/30"
                     }`}
                   >
                     <div>
-                      <h4 className="font-bold text-slate-200">{s.name}</h4>
+                      <h4 className="font-bold font-fancy text-slate-200">{s.name}</h4>
                       <p className="text-[11px] text-slate-400 mt-0.5">
-                        {s.groupGrade} • ({s.barcode})
+                        {s.groupGrade} • <span className="font-mono text-amber-300/80">#{s.barcode}</span>
                       </p>
                     </div>
 
-                    <div className="text-left space-y-0.5 font-bold text-[11px]">
-                      <span className={avg >= 80 ? "text-emerald-400" : "text-amber-400"}>
+                    <div className="text-left space-y-0.5 font-bold text-[11px] font-mono">
+                      <span className={avg >= 80 ? "text-emerald-400" : "text-amber-300"}>
                         امتحان: {avg}%
                       </span>
                       <br />

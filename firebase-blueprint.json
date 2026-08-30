@@ -1,0 +1,63 @@
+{
+  "entities": {
+    "SystemState": {
+      "title": "SystemState",
+      "description": "The complete synced center management state including students, attendance records, payments, and configs.",
+      "type": "object",
+      "properties": {
+        "students": {
+          "type": "array",
+          "description": "List of registered students in the system."
+        },
+        "attendanceHistory": {
+          "type": "object",
+          "description": "Daily attendance history indexed by date string."
+        },
+        "attendanceToday": {
+          "type": "object",
+          "description": "Today's scanned attendance indexed by student barcode."
+        },
+        "scanLogTimes": {
+          "type": "object",
+          "description": "Scanned attendance timestamps."
+        },
+        "payments": {
+          "type": "object",
+          "description": "Monthly payment records for students."
+        },
+        "scanLogOrder": {
+          "type": "array",
+          "description": "Sequential order of scanned barcodes for today."
+        },
+        "usersList": {
+          "type": "array",
+          "description": "System accounts and permissions."
+        },
+        "groupPrices": {
+          "type": "object",
+          "description": "Monthly pricing configured per academic grade."
+        },
+        "activeSessionSlotId": {
+          "type": "string",
+          "description": "Active session time slot configuration."
+        },
+        "pendingWhatsAppMessages": {
+          "type": "array",
+          "description": "Offline WhatsApp outbox queue messages."
+        },
+        "updatedAt": {
+          "type": "string",
+          "description": "ISO timestamp of last cloud synchronization."
+        }
+      }
+    }
+  },
+  "firestore": {
+    "/system_state/{stateId}": {
+      "schema": {
+        "$ref": "SystemState"
+      },
+      "description": "Stores system state and records for the educational center."
+    }
+  }
+}

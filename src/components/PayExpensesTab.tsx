@@ -90,22 +90,22 @@ export const PayExpensesTab: React.FC<PayExpensesTabProps> = ({
 
   return (
     <div className="max-w-2xl mx-auto space-y-6">
-      <div className="bg-[#121926]/90 border border-amber-500/30 p-6 rounded-2xl shadow-xl backdrop-blur-md">
-        <div className="flex items-center gap-3 pb-4 border-b border-amber-500/20 mb-5">
-          <div className="p-2.5 rounded-xl bg-amber-500/20 text-amber-400">
+      <div className="glass-panel p-6 md:p-8 rounded-3xl shadow-2xl space-y-6">
+        <div className="flex items-center gap-3.5 pb-4 border-b border-indigo-500/20">
+          <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-amber-500/20 to-yellow-400/10 border border-amber-500/30 flex items-center justify-center text-amber-400 shadow-md">
             <CreditCard className="w-6 h-6" />
           </div>
           <div>
-            <h2 className="text-lg font-black text-amber-400">
+            <h2 className="text-xl font-bold font-fancy text-amber-300">
               نافذة إثبات وسداد المصروفات والاشتراكات
             </h2>
-            <p className="text-xs text-slate-400">
+            <p className="text-xs text-slate-400 font-tajawal mt-0.5">
               بحث ذكي بالاسم (مثال: أحمد علي) أو ضرب الباركود بالسكانر مع إرسال إيصال فوري لواتساب ولي الأمر
             </p>
           </div>
         </div>
 
-        <form onSubmit={handlePaySubmit} className="space-y-4 text-xs font-bold">
+        <form onSubmit={handlePaySubmit} className="space-y-4 text-xs font-bold font-tajawal">
           {/* Smart Search / Barcode Input */}
           <div className="space-y-1.5">
             <label className="text-slate-300 flex items-center justify-between">
@@ -129,28 +129,28 @@ export const PayExpensesTab: React.FC<PayExpensesTabProps> = ({
 
           {/* Student Found Info Card */}
           {selectedStudent && (
-            <div className="bg-[#090e17] border border-emerald-500/40 p-4 rounded-xl space-y-2 animate-in fade-in">
+            <div className="glass-card border-emerald-500/40 p-5 rounded-2xl space-y-2.5 animate-in fade-in">
               <div className="flex items-center justify-between">
                 <div>
-                  <h4 className="text-base font-black text-emerald-400">{selectedStudent.name}</h4>
-                  <p className="text-xs text-slate-300 mt-0.5">
+                  <h4 className="text-base font-bold text-emerald-300 font-fancy">{selectedStudent.name}</h4>
+                  <p className="text-xs text-slate-300 mt-1">
                     {selectedStudent.groupGrade} • {selectedStudent.groupDays} • باركود #{selectedStudent.barcode}
                   </p>
                 </div>
                 <div className="text-left">
                   <span className="text-[11px] text-slate-400 block">الاشتراك المستحق:</span>
-                  <span className="text-base font-black text-amber-300">
+                  <span className="text-lg font-black text-amber-300 font-mono">
                     {selectedStudent.customMonthlyFee ??
                       groupPrices[selectedStudent.groupGrade] ??
                       100}{" "}
-                    ج.م
+                    <span className="text-xs font-tajawal font-normal text-slate-400">ج.م</span>
                   </span>
                 </div>
               </div>
 
               {selectedStudent.customMonthlyFee !== undefined && (
-                <div className="flex items-center gap-1.5 text-xs text-purple-300 bg-purple-500/10 border border-purple-500/30 px-2.5 py-1 rounded-lg">
-                  <Tag className="w-3.5 h-3.5 text-purple-400" />
+                <div className="flex items-center gap-1.5 text-xs text-amber-300 bg-amber-500/10 border border-amber-500/30 px-3 py-1.5 rounded-xl">
+                  <Tag className="w-3.5 h-3.5 text-amber-400" />
                   <span>طالب باشتراك خاص مخصص ({selectedStudent.customMonthlyFee} ج.م)</span>
                 </div>
               )}
@@ -165,7 +165,7 @@ export const PayExpensesTab: React.FC<PayExpensesTabProps> = ({
                 type="month"
                 value={selectedMonth}
                 onChange={(e) => setSelectedMonth(e.target.value)}
-                className="w-full bg-[#090e17] border border-amber-500/30 text-slate-100 p-2.5 rounded-xl outline-none focus:border-amber-400"
+                className="w-full bg-[#080d1e] border border-indigo-500/30 text-slate-100 p-3 rounded-2xl outline-none focus:border-amber-400 transition-all"
               />
             </div>
 
@@ -176,7 +176,7 @@ export const PayExpensesTab: React.FC<PayExpensesTabProps> = ({
                 value={customAmount}
                 onChange={(e) => setCustomAmount(e.target.value === "" ? "" : Number(e.target.value))}
                 placeholder="المبلغ المسدد..."
-                className="w-full bg-[#090e17] border border-amber-500/30 text-amber-300 font-mono text-base p-2.5 rounded-xl outline-none focus:border-amber-400 font-bold"
+                className="w-full bg-[#080d1e] border border-indigo-500/30 text-amber-300 font-mono text-base p-3 rounded-2xl outline-none focus:border-amber-400 font-bold transition-all"
               />
             </div>
           </div>
@@ -188,16 +188,16 @@ export const PayExpensesTab: React.FC<PayExpensesTabProps> = ({
               value={paymentNote}
               onChange={(e) => setPaymentNote(e.target.value)}
               placeholder="مثال: سداد كامل / دفعة أولى"
-              className="w-full bg-[#090e17] border border-amber-500/30 text-slate-100 p-2.5 rounded-xl outline-none focus:border-amber-400"
+              className="w-full bg-[#080d1e] border border-indigo-500/30 text-slate-100 p-3 rounded-2xl outline-none focus:border-amber-400 transition-all"
             />
           </div>
 
           <button
             type="submit"
             disabled={!selectedStudent}
-            className="w-full py-3.5 rounded-xl bg-gradient-to-r from-amber-500 via-amber-400 to-yellow-300 text-black font-black text-sm hover:brightness-110 active:scale-[0.99] transition-all shadow-lg shadow-amber-500/20 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+            className="w-full py-3.5 rounded-2xl bg-gradient-to-r from-amber-400 via-amber-300 to-yellow-200 hover:from-amber-300 hover:to-yellow-100 text-slate-950 font-black text-sm shadow-xl shadow-amber-500/25 disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2 cursor-pointer transition-all active:scale-[0.99]"
           >
-            <CheckCircle className="w-5 h-5" />
+            <CheckCircle className="w-5 h-5 text-slate-950" />
             <span>إثبات السداد وإرسال الإيصال عبر الواتساب</span>
           </button>
         </form>

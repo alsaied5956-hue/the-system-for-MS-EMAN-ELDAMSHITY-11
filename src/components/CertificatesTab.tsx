@@ -127,19 +127,19 @@ export const CertificatesTab: React.FC<CertificatesTabProps> = ({ students }) =>
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 font-tajawal">
       {/* Top Banner */}
-      <div className="bg-gradient-to-r from-amber-600/30 via-yellow-500/20 to-amber-600/30 border border-amber-400/40 p-6 rounded-2xl shadow-2xl flex flex-wrap items-center justify-between gap-4">
-        <div className="flex items-center gap-3.5">
-          <div className="p-3.5 bg-gradient-to-tr from-amber-500 to-yellow-300 text-black rounded-2xl shadow-lg shadow-amber-500/30">
+      <div className="relative overflow-hidden rounded-3xl border border-amber-500/30 p-6 md:p-8 bg-gradient-to-r from-amber-500/15 via-indigo-900/30 to-amber-500/15 shadow-2xl backdrop-blur-xl flex flex-wrap items-center justify-between gap-5">
+        <div className="flex items-center gap-4">
+          <div className="w-14 h-14 bg-gradient-to-tr from-amber-400 to-yellow-200 text-slate-950 rounded-2xl shadow-xl shadow-amber-500/20 flex items-center justify-center">
             <Trophy className="w-8 h-8" />
           </div>
           <div>
-            <h2 className="text-xl font-black text-amber-300 flex items-center gap-2">
+            <h2 className="text-xl md:text-2xl font-bold font-fancy text-amber-300 flex items-center gap-2">
               <span>منظومة شهادات التقدير والتفوق الأكاديمي</span>
-              <Sparkles className="w-5 h-5 text-yellow-300 animate-pulse" />
+              <Sparkles className="w-5 h-5 text-amber-300 animate-pulse" />
             </h2>
-            <p className="text-xs text-slate-300 mt-1 max-w-xl">
+            <p className="text-xs md:text-sm text-slate-300 mt-1 max-w-xl leading-relaxed">
               توليد وطباعة شهادات تقدير فاخرة للطلاب الحاصلين على الدرجات النهائية بضغطة زر واحدة وإرسالها المباشر لواتساب ولي الأمر.
             </p>
           </div>
@@ -148,7 +148,7 @@ export const CertificatesTab: React.FC<CertificatesTabProps> = ({ students }) =>
         <button
           type="button"
           onClick={() => setIsCustomModalOpen(true)}
-          className="px-4 py-2.5 bg-gradient-to-r from-amber-500 to-amber-400 hover:from-amber-400 text-black text-xs font-black rounded-xl shadow-lg shadow-amber-500/20 flex items-center gap-2 transition-all transform hover:scale-[1.02]"
+          className="px-5 py-3 bg-gradient-to-r from-amber-400 via-amber-300 to-yellow-200 hover:from-amber-300 text-slate-950 text-xs font-black rounded-2xl shadow-xl shadow-amber-500/25 flex items-center gap-2 transition-all transform hover:scale-[1.02] cursor-pointer active:scale-95"
         >
           <PlusCircle className="w-4 h-4" />
           <span>إصدار شهادة مخصصة لأي طالب</span>
@@ -156,22 +156,22 @@ export const CertificatesTab: React.FC<CertificatesTabProps> = ({ students }) =>
       </div>
 
       {/* Filter and Search */}
-      <div className="bg-[#121926]/90 border border-amber-500/20 p-4 rounded-2xl flex flex-wrap items-center justify-between gap-3 shadow-xl">
+      <div className="glass-panel p-5 rounded-3xl flex flex-wrap items-center justify-between gap-3 shadow-2xl">
         <div className="flex flex-wrap items-center gap-3 flex-1 min-w-[300px]">
           <div className="relative flex-1 min-w-[220px]">
-            <Search className="w-4 h-4 text-amber-400/60 absolute right-3.5 top-3 pointer-events-none" />
+            <Search className="w-4 h-4 text-amber-400/60 absolute right-3.5 top-3.5 pointer-events-none" />
             <input
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="بحث بالاسم (مثال: أحمد علي) أو الباركود..."
-              className="w-full bg-[#090e17] border border-amber-500/30 text-slate-100 text-xs pr-10 pl-8 py-2.5 rounded-xl outline-none focus:border-amber-400 transition-all placeholder:text-slate-500 font-medium"
+              className="w-full bg-[#080d1e] border border-indigo-500/30 text-slate-100 text-xs pr-10 pl-8 py-3 rounded-2xl outline-none focus:border-amber-400 transition-all placeholder:text-slate-500 font-medium"
             />
             {searchQuery && (
               <button
                 type="button"
                 onClick={() => setSearchQuery("")}
-                className="absolute left-2.5 top-2.5 text-slate-400 hover:text-white"
+                className="absolute left-3 top-3 text-slate-400 hover:text-white cursor-pointer"
               >
                 <X className="w-3.5 h-3.5" />
               </button>
@@ -181,18 +181,18 @@ export const CertificatesTab: React.FC<CertificatesTabProps> = ({ students }) =>
           <select
             value={filterGrade}
             onChange={(e) => setFilterGrade(e.target.value)}
-            className="bg-[#090e17] border border-amber-500/30 text-slate-100 text-xs font-bold px-3.5 py-2.5 rounded-xl outline-none"
+            className="bg-[#080d1e] border border-indigo-500/30 text-slate-100 text-xs font-bold px-4 py-3 rounded-2xl outline-none"
           >
             <option value="ALL">كل الصفوف الدراسية</option>
             {GRADE_ORDER.map((g) => (
-              <option key={g} value={g}>
+              <option key={g} value={g} className="bg-slate-900 text-white">
                 {g}
               </option>
             ))}
           </select>
         </div>
 
-        <span className="text-xs font-bold text-amber-400">
+        <span className="text-xs font-bold text-amber-300 font-fancy">
           ⭐ عدد المتفوقين المؤهلين للتكريم: {topAchievers.length} طالب
         </span>
       </div>
@@ -200,12 +200,12 @@ export const CertificatesTab: React.FC<CertificatesTabProps> = ({ students }) =>
       {/* Top Achievers Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {topAchievers.length === 0 ? (
-          <div className="col-span-full bg-[#121926]/80 border border-amber-500/20 p-8 rounded-2xl text-center space-y-2">
-            <Award className="w-12 h-12 text-amber-400/50 mx-auto" />
-            <h3 className="text-base font-bold text-slate-300">
+          <div className="col-span-full glass-panel border-amber-500/20 p-10 rounded-3xl text-center space-y-3">
+            <Award className="w-14 h-14 text-amber-400/50 mx-auto" />
+            <h3 className="text-base font-bold text-slate-300 font-fancy">
               {searchQuery ? `لا يوجد نتائج مطابقة لبحث "${searchQuery}"` : "لا يوجد نتائج متطابقة في القائمة الحالية"}
             </h3>
-            <p className="text-xs text-slate-500">
+            <p className="text-xs text-slate-400 max-w-md mx-auto">
               قم برصد درجات الاختبارات لإدراج الطلاب المتفوقين تلقائياً هنا أو اضغط زر "إصدار شهادة مخصصة" بالأعلى.
             </p>
           </div>
@@ -213,12 +213,12 @@ export const CertificatesTab: React.FC<CertificatesTabProps> = ({ students }) =>
           topAchievers.map((student) => (
             <div
               key={student.barcode}
-              className="bg-[#121926] border border-amber-500/30 hover:border-amber-400 p-5 rounded-2xl shadow-xl transition-all flex flex-col justify-between space-y-4 group hover:shadow-amber-500/10"
+              className="glass-card hover:border-amber-400/50 p-6 rounded-3xl shadow-xl transition-all flex flex-col justify-between space-y-4 group hover:shadow-amber-500/10"
             >
-              <div className="space-y-2">
+              <div className="space-y-2.5">
                 <div className="flex items-center justify-between">
-                  <span className="text-[11px] font-mono text-amber-400/80 bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/20">
-                    {student.barcode}
+                  <span className="text-[11px] font-mono text-amber-300 bg-slate-900/80 px-2.5 py-1 rounded-xl border border-indigo-500/20">
+                    #{student.barcode}
                   </span>
                   <span className="text-xs font-black text-amber-300 flex items-center gap-1">
                     <Star className="w-3.5 h-3.5 fill-amber-400 text-amber-400" />
@@ -226,28 +226,28 @@ export const CertificatesTab: React.FC<CertificatesTabProps> = ({ students }) =>
                   </span>
                 </div>
 
-                <h3 className="text-base font-black text-slate-100 group-hover:text-amber-300 transition-colors">
+                <h3 className="text-base font-bold text-slate-100 font-fancy group-hover:text-amber-300 transition-colors">
                   {student.name}
                 </h3>
                 <p className="text-xs text-slate-400">{student.groupGrade}</p>
 
                 {student.lastExamScore && (
-                  <div className="bg-[#090e17] p-2.5 rounded-xl border border-amber-500/20 text-xs">
+                  <div className="bg-[#080d1e] p-3 rounded-2xl border border-amber-500/20 text-xs">
                     <span className="text-slate-400 block text-[10px]">
                       {student.lastExamTitle || "آخر اختبار"}:
                     </span>
-                    <span className="font-extrabold text-amber-300">
+                    <span className="font-extrabold text-amber-300 font-mono">
                       {student.lastExamScore}
                     </span>
                   </div>
                 )}
               </div>
 
-              <div className="pt-2 border-t border-slate-800 flex gap-2">
+              <div className="pt-3 border-t border-indigo-500/20 flex gap-2">
                 <button
                   type="button"
                   onClick={() => handleGenerateCertificate(student)}
-                  className="flex-1 py-2.5 bg-gradient-to-r from-amber-500 to-yellow-400 hover:from-amber-400 hover:to-yellow-300 text-black font-black text-xs rounded-xl shadow-md flex items-center justify-center gap-1.5 transition-transform active:scale-95 cursor-pointer"
+                  className="flex-1 py-3 bg-gradient-to-r from-amber-400 via-amber-300 to-yellow-200 hover:from-amber-300 text-slate-950 font-black text-xs rounded-2xl shadow-lg flex items-center justify-center gap-1.5 transition-transform active:scale-95 cursor-pointer"
                 >
                   <Award className="w-4 h-4" />
                   <span>إصدار الشهادة 📜</span>
@@ -260,24 +260,24 @@ export const CertificatesTab: React.FC<CertificatesTabProps> = ({ students }) =>
 
       {/* Custom Certificate Modal */}
       {isCustomModalOpen && (
-        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-[#121926] border border-amber-500/40 p-6 rounded-2xl max-w-lg w-full shadow-2xl space-y-4 animate-in fade-in zoom-in-95">
-            <div className="flex items-center justify-between pb-2 border-b border-amber-500/20">
-              <h3 className="text-base font-extrabold text-amber-400 flex items-center gap-2">
-                <Award className="w-5 h-5" />
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4">
+          <div className="glass-panel p-6 md:p-8 rounded-3xl max-w-lg w-full shadow-2xl space-y-5 animate-in fade-in zoom-in-95 border-amber-500/40">
+            <div className="flex items-center justify-between pb-3 border-b border-indigo-500/20">
+              <h3 className="text-base font-bold font-fancy text-amber-300 flex items-center gap-2">
+                <Award className="w-5 h-5 text-amber-400" />
                 <span>إصدار شهادة تقدير مخصصة</span>
               </h3>
               <button
                 type="button"
                 onClick={() => setIsCustomModalOpen(false)}
-                className="p-1 text-slate-400 hover:text-white"
+                className="p-1.5 text-slate-400 hover:text-white rounded-xl bg-slate-800/50 cursor-pointer"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            <form onSubmit={handleCreateCustomCertificate} className="space-y-3.5 text-xs font-bold">
-              <div className="space-y-1">
+            <form onSubmit={handleCreateCustomCertificate} className="space-y-4 text-xs font-bold font-tajawal">
+              <div className="space-y-1.5">
                 <label className="text-slate-300">اختر الطالب بالبحث الذكي:</label>
                 <StudentSearchBox
                   students={students}
@@ -293,12 +293,12 @@ export const CertificatesTab: React.FC<CertificatesTabProps> = ({ students }) =>
               </div>
 
               {customStudent && (
-                <div className="bg-[#090e17] p-3 rounded-xl border border-emerald-500/40 text-emerald-400">
+                <div className="glass-card p-3.5 rounded-2xl border-emerald-500/40 text-emerald-300 font-fancy">
                   تم اختيار: <strong>{customStudent.name}</strong> ({customStudent.groupGrade})
                 </div>
               )}
 
-              <div className="space-y-1">
+              <div className="space-y-1.5">
                 <label className="text-slate-300">عنوان الاختبار أو المناسبة:</label>
                 <input
                   type="text"
@@ -306,11 +306,11 @@ export const CertificatesTab: React.FC<CertificatesTabProps> = ({ students }) =>
                   value={customExamTitle}
                   onChange={(e) => setCustomExamTitle(e.target.value)}
                   placeholder="مثال: الاختبار الشامل لمادة الرياضيات"
-                  className="w-full bg-[#090e17] border border-amber-500/30 text-slate-100 px-3 py-2 rounded-xl outline-none"
+                  className="w-full bg-[#080d1e] border border-indigo-500/30 text-slate-100 px-4 py-3 rounded-2xl outline-none focus:border-amber-400 transition-all font-medium"
                 />
               </div>
 
-              <div className="space-y-1">
+              <div className="space-y-1.5">
                 <label className="text-slate-300">الدرجة أو نص الإشادة:</label>
                 <input
                   type="text"
@@ -318,25 +318,25 @@ export const CertificatesTab: React.FC<CertificatesTabProps> = ({ students }) =>
                   value={customScoreText}
                   onChange={(e) => setCustomScoreText(e.target.value)}
                   placeholder="مثال: الدرجة النهائية 100%"
-                  className="w-full bg-[#090e17] border border-amber-500/30 text-slate-100 px-3 py-2 rounded-xl outline-none"
+                  className="w-full bg-[#080d1e] border border-indigo-500/30 text-slate-100 px-4 py-3 rounded-2xl outline-none focus:border-amber-400 transition-all font-medium"
                 />
               </div>
 
-              <div className="flex items-center justify-end gap-2 pt-3">
+              <div className="flex items-center justify-end gap-3 pt-4">
                 <button
                   type="button"
                   onClick={() => setIsCustomModalOpen(false)}
-                  className="px-4 py-2 rounded-xl bg-slate-800 text-slate-300 hover:bg-slate-700"
+                  className="px-5 py-2.5 rounded-2xl bg-slate-800/80 text-slate-300 hover:bg-slate-700 cursor-pointer"
                 >
                   إلغاء
                 </button>
                 <button
                   type="submit"
                   disabled={!customStudent}
-                  className={`px-5 py-2 rounded-xl font-black transition-all ${
+                  className={`px-6 py-2.5 rounded-2xl font-black transition-all ${
                     customStudent
-                      ? "bg-amber-500 hover:bg-amber-400 text-black shadow-md cursor-pointer"
-                      : "bg-slate-700 text-slate-500 cursor-not-allowed"
+                      ? "bg-gradient-to-r from-amber-400 to-yellow-300 hover:from-amber-300 text-slate-950 shadow-md cursor-pointer active:scale-95"
+                      : "bg-slate-800 text-slate-500 cursor-not-allowed"
                   }`}
                 >
                   توليد وعرض الشهادة 📜
@@ -352,17 +352,17 @@ export const CertificatesTab: React.FC<CertificatesTabProps> = ({ students }) =>
         <div className="fixed inset-0 z-50 bg-black/90 backdrop-blur-md flex items-center justify-center p-4 overflow-y-auto">
           <div className="max-w-4xl w-full space-y-4 my-auto">
             {/* Modal Controls */}
-            <div className="no-print bg-[#121926] p-4 rounded-2xl border border-amber-500/30 space-y-3">
+            <div className="no-print glass-panel p-4 md:p-5 rounded-3xl border-amber-500/30 space-y-3">
               <div className="flex items-center justify-between">
-                <span className="text-xs font-black text-amber-400 flex items-center gap-2">
-                  <Award className="w-4 h-4" />
+                <span className="text-xs font-bold text-amber-300 font-fancy flex items-center gap-2">
+                  <Award className="w-4 h-4 text-amber-400" />
                   معاينة شهادة التقدير الفاخرة للطباعة والمشاركة
                 </span>
 
                 <div className="flex items-center gap-2 flex-wrap">
                   <button
                     onClick={handlePrintCertificate}
-                    className="px-3.5 py-1.5 rounded-xl bg-amber-500 text-black font-black text-xs hover:bg-amber-400 flex items-center gap-1 shadow-md cursor-pointer"
+                    className="px-4 py-2 rounded-2xl bg-gradient-to-r from-amber-400 to-yellow-300 text-slate-950 font-black text-xs hover:from-amber-300 flex items-center gap-1.5 shadow-md cursor-pointer"
                   >
                     <Printer className="w-4 h-4" />
                     <span>طباعة / حفظ PDF</span>
@@ -370,7 +370,7 @@ export const CertificatesTab: React.FC<CertificatesTabProps> = ({ students }) =>
 
                   <button
                     onClick={handleDownloadCertificate}
-                    className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-xs flex items-center gap-1 cursor-pointer border border-slate-700"
+                    className="px-4 py-2 rounded-2xl bg-slate-800/80 hover:bg-slate-700 text-slate-200 font-bold text-xs flex items-center gap-1.5 cursor-pointer border border-indigo-500/20"
                     title="تحميل الشهادة كملف مستند للفتح والطباعة من كروم"
                   >
                     <Download className="w-3.5 h-3.5 text-amber-400" />
@@ -379,7 +379,7 @@ export const CertificatesTab: React.FC<CertificatesTabProps> = ({ students }) =>
 
                   <button
                     onClick={() => handleSendCertificateWhatsApp(activeCertificate)}
-                    className="px-3.5 py-1.5 rounded-xl bg-emerald-500 text-white font-bold text-xs hover:bg-emerald-400 flex items-center gap-1 shadow-md cursor-pointer"
+                    className="px-4 py-2 rounded-2xl bg-emerald-500 text-white font-bold text-xs hover:bg-emerald-400 flex items-center gap-1.5 shadow-md cursor-pointer"
                   >
                     <Send className="w-4 h-4" />
                     <span>إرسال لولي الأمر 📲</span>
@@ -387,7 +387,7 @@ export const CertificatesTab: React.FC<CertificatesTabProps> = ({ students }) =>
 
                   <button
                     onClick={() => setActiveCertificate(null)}
-                    className="px-3 py-1.5 rounded-xl bg-slate-800 text-slate-300 text-xs font-bold hover:bg-slate-700 cursor-pointer"
+                    className="px-4 py-2 rounded-2xl bg-slate-800/80 text-slate-300 text-xs font-bold hover:bg-slate-700 cursor-pointer"
                   >
                     إغلاق
                   </button>
@@ -395,8 +395,8 @@ export const CertificatesTab: React.FC<CertificatesTabProps> = ({ students }) =>
               </div>
 
               {/* Tip */}
-              <div className="bg-amber-500/10 border border-amber-500/30 rounded-xl p-2 flex items-center gap-2 text-[11px] text-amber-300">
-                <Info className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+              <div className="bg-amber-500/10 border border-amber-500/30 rounded-2xl p-2.5 flex items-center gap-2 text-[11px] text-amber-300">
+                <Info className="w-4 h-4 text-amber-400 shrink-0" />
                 <span>
                   <strong>💡 للحفظ كملف PDF على جهازك:</strong> اضغط زر «طباعة / حفظ PDF» ثم اختر من نافذة الطباعة وجهة الحفظ <strong>«Save as PDF / حفظ بتنسيق PDF»</strong>.
                 </span>

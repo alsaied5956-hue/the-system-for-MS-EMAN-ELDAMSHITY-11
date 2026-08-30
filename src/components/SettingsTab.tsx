@@ -84,43 +84,43 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
   return (
     <div className="max-w-2xl mx-auto space-y-6">
       {/* Theme Settings Card (Dark / Light Mode) */}
-      <div className="bg-[#121926]/90 border border-amber-500/30 p-6 rounded-2xl shadow-xl backdrop-blur-md space-y-4">
-        <div className="flex items-center gap-3 pb-3 border-b border-amber-500/20">
-          <div className="p-2.5 bg-amber-500/20 text-amber-400 rounded-xl">
+      <div className="glass-panel p-6 md:p-8 rounded-3xl shadow-2xl space-y-5">
+        <div className="flex items-center gap-3.5 pb-4 border-b border-indigo-500/20">
+          <div className="w-12 h-12 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-400 flex items-center justify-center shadow-md">
             <Palette className="w-6 h-6" />
           </div>
           <div>
-            <h2 className="text-lg font-black text-amber-400">
+            <h2 className="text-xl font-bold font-fancy text-amber-300">
               مظهر المنظومة (الوضع المظلم / الوضع الفاتح)
             </h2>
-            <p className="text-xs text-slate-400">
+            <p className="text-xs text-slate-400 font-tajawal mt-0.5">
               اختر المظهر المريح لعينيك أثناء العمل والمتابعة
             </p>
           </div>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 pt-1 font-tajawal">
           {/* Dark Mode Card */}
           <button
             type="button"
             onClick={() => {
               if (theme !== "dark" && onToggleTheme) onToggleTheme();
             }}
-            className={`p-4 rounded-xl border text-right transition-all flex flex-col justify-between ${
+            className={`p-4.5 rounded-2xl border text-right transition-all flex flex-col justify-between cursor-pointer ${
               theme === "dark"
-                ? "bg-slate-900 border-amber-400 shadow-md ring-2 ring-amber-400/40"
-                : "bg-slate-800/40 border-slate-700 opacity-70 hover:opacity-100 hover:border-slate-500"
+                ? "bg-slate-900/90 border-amber-400 shadow-lg ring-2 ring-amber-400/30"
+                : "bg-slate-900/40 border-indigo-500/20 opacity-70 hover:opacity-100 hover:border-amber-400/40"
             }`}
           >
             <div className="flex items-center justify-between mb-2">
               <div className="flex items-center gap-2">
-                <div className="p-2 rounded-lg bg-slate-950 text-amber-400">
+                <div className="p-2 rounded-xl bg-slate-950 text-amber-400 border border-amber-500/20">
                   <Moon className="w-5 h-5" />
                 </div>
-                <span className="font-black text-sm text-slate-100">الوضع المظلم (Dark)</span>
+                <span className="font-bold text-sm text-slate-100">الوضع المظلم (Dark)</span>
               </div>
               {theme === "dark" && (
-                <span className="text-[10px] bg-amber-500 text-black font-black px-2 py-0.5 rounded-full">
+                <span className="text-[10px] bg-amber-400 text-slate-950 font-black px-2.5 py-0.5 rounded-full">
                   المفعل حالياً
                 </span>
               )}
@@ -136,21 +136,21 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
             onClick={() => {
               if (theme !== "light" && onToggleTheme) onToggleTheme();
             }}
-            className={`p-4 rounded-xl border text-right transition-all flex flex-col justify-between ${
+            className={`p-4.5 rounded-2xl border text-right transition-all flex flex-col justify-between cursor-pointer ${
               theme === "light"
-                ? "bg-amber-50 border-amber-500 shadow-md ring-2 ring-amber-500/40 text-slate-900"
-                : "bg-slate-800/40 border-slate-700 opacity-70 hover:opacity-100 hover:border-slate-500"
+                ? "bg-amber-50 border-amber-500 shadow-lg ring-2 ring-amber-500/40 text-slate-900"
+                : "bg-slate-900/40 border-indigo-500/20 opacity-70 hover:opacity-100 hover:border-amber-400/40"
             }`}
           >
             <div className="flex items-center justify-between mb-2">
               <div className="flex items-center gap-2">
-                <div className="p-2 rounded-lg bg-amber-500 text-slate-900">
+                <div className="p-2 rounded-xl bg-amber-500 text-slate-900">
                   <Sun className="w-5 h-5" />
                 </div>
-                <span className="font-black text-sm text-slate-900 dark:text-slate-100">الوضع الفاتح (Light)</span>
+                <span className="font-bold text-sm text-slate-900 dark:text-slate-100">الوضع الفاتح (Light)</span>
               </div>
               {theme === "light" && (
-                <span className="text-[10px] bg-amber-500 text-black font-black px-2 py-0.5 rounded-full">
+                <span className="text-[10px] bg-amber-500 text-black font-black px-2.5 py-0.5 rounded-full">
                   المفعل حالياً
                 </span>
               )}
@@ -163,23 +163,23 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
       </div>
 
       {/* Change Password Card */}
-      <div className="bg-[#121926]/90 border border-amber-500/30 p-6 rounded-2xl shadow-xl backdrop-blur-md space-y-4">
-        <div className="flex items-center gap-3 pb-3 border-b border-amber-500/20">
-          <div className="p-2.5 bg-amber-500/20 text-amber-400 rounded-xl">
+      <div className="glass-panel p-6 md:p-8 rounded-3xl shadow-2xl space-y-5">
+        <div className="flex items-center gap-3.5 pb-4 border-b border-indigo-500/20">
+          <div className="w-12 h-12 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-400 flex items-center justify-center shadow-md">
             <KeyRound className="w-6 h-6" />
           </div>
           <div>
-            <h2 className="text-lg font-black text-amber-400">
+            <h2 className="text-xl font-bold font-fancy text-amber-300">
               تغيير كلمة مرور الحساب الحالي ({currentUser.username})
             </h2>
-            <p className="text-xs text-slate-400">
+            <p className="text-xs text-slate-400 font-tajawal mt-0.5">
               تحديث كلمة المرور مع الحفظ الفوري والتزامن السحابي
             </p>
           </div>
         </div>
 
-        <form onSubmit={handlePasswordSubmit} className="space-y-3 text-xs font-bold">
-          <div className="space-y-1">
+        <form onSubmit={handlePasswordSubmit} className="space-y-4 text-xs font-bold font-tajawal">
+          <div className="space-y-1.5">
             <label className="text-slate-300">كلمة المرور الحالية *</label>
             <input
               type="password"
@@ -187,11 +187,11 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
               value={currentPass}
               onChange={(e) => setCurrentPass(e.target.value)}
               placeholder="أدخل كلمة المرور الحالية"
-              className="w-full bg-[#090e17] border border-slate-700 text-slate-100 px-3.5 py-2 rounded-xl outline-none focus:border-amber-400"
+              className="w-full bg-[#080d1e] border border-indigo-500/30 text-slate-100 px-4 py-3 rounded-2xl outline-none focus:border-amber-400 transition-all"
             />
           </div>
 
-          <div className="space-y-1">
+          <div className="space-y-1.5">
             <label className="text-slate-300">كلمة المرور الجديدة *</label>
             <input
               type="password"
@@ -199,11 +199,11 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
               value={newPass}
               onChange={(e) => setNewPass(e.target.value)}
               placeholder="أدخل كلمة المرور الجديدة"
-              className="w-full bg-[#090e17] border border-slate-700 text-slate-100 px-3.5 py-2 rounded-xl outline-none focus:border-amber-400"
+              className="w-full bg-[#080d1e] border border-indigo-500/30 text-slate-100 px-4 py-3 rounded-2xl outline-none focus:border-amber-400 transition-all"
             />
           </div>
 
-          <div className="space-y-1">
+          <div className="space-y-1.5">
             <label className="text-slate-300">تأكيد كلمة المرور الجديدة *</label>
             <input
               type="password"
@@ -211,13 +211,13 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
               value={confirmPass}
               onChange={(e) => setConfirmPass(e.target.value)}
               placeholder="أعد إدخال كلمة المرور الجديدة"
-              className="w-full bg-[#090e17] border border-slate-700 text-slate-100 px-3.5 py-2 rounded-xl outline-none focus:border-amber-400"
+              className="w-full bg-[#080d1e] border border-indigo-500/30 text-slate-100 px-4 py-3 rounded-2xl outline-none focus:border-amber-400 transition-all"
             />
           </div>
 
           <button
             type="submit"
-            className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-yellow-400 text-black font-black text-xs shadow-md hover:from-amber-400 transition-all"
+            className="px-6 py-3 rounded-2xl bg-gradient-to-r from-amber-400 via-amber-300 to-yellow-200 hover:from-amber-300 hover:to-yellow-100 text-slate-950 font-black text-xs shadow-lg shadow-amber-500/20 transition-all cursor-pointer"
           >
             تحديث كلمة المرور 🔒
           </button>
@@ -225,41 +225,41 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
       </div>
 
       {/* WhatsApp Sending Engine Target */}
-      <div className="bg-[#121926]/90 border border-amber-500/30 p-6 rounded-2xl shadow-xl backdrop-blur-md space-y-4">
-        <div className="flex items-center gap-3 pb-3 border-b border-amber-500/20">
-          <div className="p-2.5 bg-emerald-500/20 text-emerald-400 rounded-xl">
+      <div className="glass-panel p-6 md:p-8 rounded-3xl shadow-2xl space-y-5">
+        <div className="flex items-center gap-3.5 pb-4 border-b border-indigo-500/20">
+          <div className="w-12 h-12 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 flex items-center justify-center shadow-md">
             <MessageSquare className="w-6 h-6" />
           </div>
           <div>
-            <h2 className="text-lg font-black text-emerald-400">
+            <h2 className="text-xl font-bold font-fancy text-emerald-300">
               طريقة فتح وإرسال رسائل WhatsApp
             </h2>
-            <p className="text-xs text-slate-400">
+            <p className="text-xs text-slate-400 font-tajawal mt-0.5">
               اختر بين فتح WhatsApp Web على المتصفح أو فتح تطبيق الواتساب المثبت
             </p>
           </div>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 pt-1 font-tajawal">
           {/* Mode Web */}
           <button
             type="button"
             onClick={() => handleWhatsAppModeChange("web")}
-            className={`p-4 rounded-xl border text-right transition-all flex flex-col justify-between ${
+            className={`p-4.5 rounded-2xl border text-right transition-all flex flex-col justify-between cursor-pointer ${
               waMode === "web"
-                ? "bg-emerald-500/20 border-emerald-400 shadow-md ring-2 ring-emerald-400/30"
-                : "bg-slate-800/40 border-slate-700 hover:border-slate-500"
+                ? "bg-emerald-500/20 border-emerald-400 shadow-lg ring-2 ring-emerald-400/30"
+                : "bg-slate-900/40 border-indigo-500/20 hover:border-emerald-400/40"
             }`}
           >
             <div className="flex items-center justify-between mb-2">
               <div className="flex items-center gap-2">
-                <div className="p-2 rounded-lg bg-emerald-500/20 text-emerald-400">
+                <div className="p-2 rounded-xl bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
                   <Globe className="w-5 h-5" />
                 </div>
-                <span className="font-black text-sm text-slate-100">WhatsApp Web (الموصى به)</span>
+                <span className="font-bold text-sm text-slate-100">WhatsApp Web (الموصى به)</span>
               </div>
               {waMode === "web" && (
-                <span className="text-[10px] bg-emerald-500 text-black font-black px-2 py-0.5 rounded-full">
+                <span className="text-[10px] bg-emerald-400 text-slate-950 font-black px-2.5 py-0.5 rounded-full">
                   المفعل حالياً
                 </span>
               )}
@@ -273,21 +273,21 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
           <button
             type="button"
             onClick={() => handleWhatsAppModeChange("app")}
-            className={`p-4 rounded-xl border text-right transition-all flex flex-col justify-between ${
+            className={`p-4.5 rounded-2xl border text-right transition-all flex flex-col justify-between cursor-pointer ${
               waMode === "app"
-                ? "bg-emerald-500/20 border-emerald-400 shadow-md ring-2 ring-emerald-400/30"
-                : "bg-slate-800/40 border-slate-700 hover:border-slate-500"
+                ? "bg-emerald-500/20 border-emerald-400 shadow-lg ring-2 ring-emerald-400/30"
+                : "bg-slate-900/40 border-indigo-500/20 hover:border-emerald-400/40"
             }`}
           >
             <div className="flex items-center justify-between mb-2">
               <div className="flex items-center gap-2">
-                <div className="p-2 rounded-lg bg-sky-500/20 text-sky-400">
+                <div className="p-2 rounded-xl bg-sky-500/20 text-sky-400 border border-sky-500/30">
                   <Smartphone className="w-5 h-5" />
                 </div>
-                <span className="font-black text-sm text-slate-100">تطبيق WhatsApp</span>
+                <span className="font-bold text-sm text-slate-100">تطبيق WhatsApp</span>
               </div>
               {waMode === "app" && (
-                <span className="text-[10px] bg-emerald-500 text-black font-black px-2 py-0.5 rounded-full">
+                <span className="text-[10px] bg-emerald-400 text-slate-950 font-black px-2.5 py-0.5 rounded-full">
                   المفعل حالياً
                 </span>
               )}
@@ -300,38 +300,38 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
       </div>
 
       {/* Default Grade Prices Card */}
-      <div className="bg-[#121926]/90 border border-amber-500/30 p-6 rounded-2xl shadow-xl backdrop-blur-md space-y-4">
-        <div className="flex items-center gap-3 pb-3 border-b border-amber-500/20">
-          <div className="p-2.5 bg-sky-500/20 text-sky-400 rounded-xl">
+      <div className="glass-panel p-6 md:p-8 rounded-3xl shadow-2xl space-y-5">
+        <div className="flex items-center gap-3.5 pb-4 border-b border-indigo-500/20">
+          <div className="w-12 h-12 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-400 flex items-center justify-center shadow-md">
             <Tag className="w-6 h-6" />
           </div>
           <div>
-            <h2 className="text-lg font-black text-amber-400">
+            <h2 className="text-xl font-bold font-fancy text-amber-300">
               تحديد أسعار الاشتراكات الشهرية الافتراضية لكل صف
             </h2>
-            <p className="text-xs text-slate-400">
+            <p className="text-xs text-slate-400 font-tajawal mt-0.5">
               هذه الأسعار تطبق تلقائياً عند إضافة طالب جديد مالم يتم تحديد سعر مخصص له
             </p>
           </div>
         </div>
 
-        <form onSubmit={handleSavePrice} className="space-y-4 text-xs font-bold">
-          <div className="space-y-1">
+        <form onSubmit={handleSavePrice} className="space-y-4 text-xs font-bold font-tajawal">
+          <div className="space-y-1.5">
             <label className="text-slate-300">اختر الصف الدراسي:</label>
             <select
               value={selectedGrade}
               onChange={(e) => handleGradeSelect(e.target.value as GradeName)}
-              className="w-full bg-[#090e17] border border-amber-500/30 text-slate-100 px-3.5 py-2.5 rounded-xl outline-none"
+              className="w-full bg-[#080d1e] border border-indigo-500/30 text-slate-100 px-4 py-3 rounded-2xl outline-none"
             >
               {GRADE_ORDER.map((grade) => (
-                <option key={grade} value={grade}>
+                <option key={grade} value={grade} className="bg-slate-900 text-white">
                   {grade}
                 </option>
               ))}
             </select>
           </div>
 
-          <div className="space-y-1">
+          <div className="space-y-1.5">
             <label className="text-slate-300">
               سعر الاشتراك الشهري الافتراضي للصف (بالجنيه المصري):
             </label>
@@ -341,13 +341,13 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
               required
               value={priceInput}
               onChange={(e) => setPriceInput(Number(e.target.value))}
-              className="w-full bg-[#090e17] border border-amber-400 text-amber-300 font-black px-3.5 py-2.5 rounded-xl text-lg outline-none"
+              className="w-full bg-[#080d1e] border border-amber-400 text-amber-300 font-black px-4 py-3 rounded-2xl text-lg outline-none font-mono"
             />
           </div>
 
           <button
             type="submit"
-            className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-sky-500 to-cyan-400 text-black font-black text-xs shadow-md hover:from-sky-400"
+            className="px-6 py-3 rounded-2xl bg-gradient-to-r from-amber-400 via-amber-300 to-yellow-200 hover:from-amber-300 hover:to-yellow-100 text-slate-950 font-black text-xs shadow-lg shadow-amber-500/20 cursor-pointer transition-all"
           >
             حفظ وتثبيت سعر الصف 💵
           </button>
@@ -355,17 +355,17 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
       </div>
 
       {/* External System Link Card */}
-      <div className="bg-gradient-to-r from-[#0d1627] via-[#101b30] to-[#0d1627] border border-amber-500/40 p-6 rounded-2xl shadow-xl backdrop-blur-md space-y-4">
-        <div className="flex items-center justify-between pb-3 border-b border-amber-500/20">
-          <div className="flex items-center gap-3">
-            <div className="p-2.5 bg-gradient-to-br from-amber-500/30 to-amber-600/20 text-amber-400 border border-amber-500/40 rounded-xl shadow-inner">
+      <div className="glass-panel border border-amber-500/40 p-6 md:p-8 rounded-3xl shadow-2xl space-y-4">
+        <div className="flex items-center justify-between pb-4 border-b border-indigo-500/20">
+          <div className="flex items-center gap-3.5">
+            <div className="w-12 h-12 bg-gradient-to-br from-amber-500/30 to-amber-600/20 text-amber-400 border border-amber-500/40 rounded-2xl flex items-center justify-center shadow-inner">
               <Sparkles className="w-6 h-6" />
             </div>
             <div>
-              <h2 className="text-lg font-black text-amber-300">
+              <h2 className="text-xl font-bold font-fancy text-amber-300">
                 منظومة الأستاذة إيمان الدمشيتي (الرابط الخارجي)
               </h2>
-              <p className="text-xs text-slate-400 mt-0.5">
+              <p className="text-xs text-slate-400 font-tajawal mt-0.5">
                 الانتقال المباشر للمنظومة الخارجية بضغطة زر واحدة
               </p>
             </div>
@@ -377,9 +377,9 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
             href="https://the-system-for-ms-eman-eldamshity-p.vercel.app/"
             target="_blank"
             rel="noopener noreferrer"
-            className="w-full py-4 px-6 rounded-xl bg-gradient-to-r from-amber-500 via-amber-400 to-yellow-400 hover:from-amber-400 hover:to-yellow-300 text-black font-black text-sm shadow-xl shadow-amber-500/20 hover:shadow-amber-500/40 transition-all flex items-center justify-center gap-3 transform hover:-translate-y-0.5 cursor-pointer no-underline"
+            className="w-full py-4 px-6 rounded-2xl bg-gradient-to-r from-amber-400 via-amber-300 to-yellow-200 hover:from-amber-300 hover:to-yellow-100 text-slate-950 font-black text-sm shadow-xl shadow-amber-500/25 transition-all flex items-center justify-center gap-3 transform hover:-translate-y-0.5 cursor-pointer no-underline font-tajawal"
           >
-            <ExternalLink className="w-5 h-5 text-black stroke-[2.5]" />
+            <ExternalLink className="w-5 h-5 text-slate-950 stroke-[2.5]" />
             <span className="text-sm font-black tracking-wide">
               فتح منظومة الأستاذة إيمان الدمشيتي 🚀
             </span>

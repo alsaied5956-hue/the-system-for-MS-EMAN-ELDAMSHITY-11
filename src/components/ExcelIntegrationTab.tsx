@@ -89,67 +89,67 @@ export const ExcelIntegrationTab: React.FC<ExcelIntegrationTabProps> = ({
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 font-tajawal">
       {/* Quick Export Cards */}
-      <div className="bg-[#121926]/90 border border-amber-500/30 p-6 rounded-2xl shadow-xl backdrop-blur-md space-y-4">
-        <div className="flex items-center gap-3 pb-3 border-b border-amber-500/20">
-          <div className="p-2.5 bg-emerald-500/20 text-emerald-400 rounded-xl">
+      <div className="glass-panel p-6 md:p-8 rounded-3xl shadow-2xl space-y-5">
+        <div className="flex items-center gap-3.5 pb-4 border-b border-indigo-500/20">
+          <div className="w-12 h-12 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 flex items-center justify-center shadow-md">
             <Download className="w-6 h-6" />
           </div>
           <div>
-            <h2 className="text-lg font-black text-amber-400">
+            <h2 className="text-xl font-bold font-fancy text-amber-300">
               تصدير سجلات المنظومة إلى ملفات Excel (.xlsx)
             </h2>
-            <p className="text-xs text-slate-400">
+            <p className="text-xs text-slate-400 mt-0.5">
               تنزيل وتصدير كامل لكشوف الطلاب والدرجات والحسابات بتنسيق عربي سليم ومتوافق مع جميع البرامج
             </p>
           </div>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-1">
           <button
             onClick={() => exportStudentsToExcel(students)}
-            className="p-4 rounded-xl bg-[#090e17] hover:bg-slate-900 border border-amber-500/30 hover:border-amber-400 text-right transition-all flex items-center justify-between group shadow-md"
+            className="p-5 rounded-2xl glass-card hover:border-amber-400 text-right transition-all flex items-center justify-between group shadow-lg cursor-pointer"
           >
             <div>
-              <h4 className="text-sm font-extrabold text-amber-300 group-hover:text-amber-200">
+              <h4 className="text-sm font-bold font-fancy text-amber-300 group-hover:text-amber-200">
                 📥 كشف الطلاب الرئيسي بالكامل
               </h4>
-              <p className="text-[11px] text-slate-400 mt-1">
-                يشمل الباركود، الأرقام، الاشتراكات المخصصة، ونسب الحضور والغياب ({students.length} طالب)
+              <p className="text-xs text-slate-400 mt-1">
+                يشمل الباركود، الأرقام، الاشتراكات المخصصة، ونسب الحضور والغياب (<span className="font-mono text-amber-300">{students.length}</span> طالب)
               </p>
             </div>
-            <FileSpreadsheet className="w-7 h-7 text-emerald-400 group-hover:scale-110 transition-transform shrink-0" />
+            <FileSpreadsheet className="w-8 h-8 text-emerald-400 group-hover:scale-110 transition-transform shrink-0" />
           </button>
 
           <button
             onClick={() => exportAllExamsToExcel(students)}
-            className="p-4 rounded-xl bg-[#090e17] hover:bg-slate-900 border border-sky-500/30 hover:border-sky-400 text-right transition-all flex items-center justify-between group shadow-md"
+            className="p-5 rounded-2xl glass-card hover:border-sky-400 text-right transition-all flex items-center justify-between group shadow-lg cursor-pointer"
           >
             <div>
-              <h4 className="text-sm font-extrabold text-sky-300 group-hover:text-sky-200">
+              <h4 className="text-sm font-bold font-fancy text-sky-300 group-hover:text-sky-200">
                 📥 سجل الدرجات والاختبارات التراكمي
               </h4>
-              <p className="text-[11px] text-slate-400 mt-1">
+              <p className="text-xs text-slate-400 mt-1">
                 يشمل درجات كافة الامتحانات والنسب المئوية ومتوسط كل طالب
               </p>
             </div>
-            <FileSpreadsheet className="w-7 h-7 text-sky-400 group-hover:scale-110 transition-transform shrink-0" />
+            <FileSpreadsheet className="w-8 h-8 text-sky-400 group-hover:scale-110 transition-transform shrink-0" />
           </button>
         </div>
       </div>
 
       {/* Excel Import Section */}
-      <div className="bg-[#121926]/90 border border-amber-500/30 p-6 rounded-2xl shadow-xl backdrop-blur-md space-y-4">
-        <div className="flex items-center gap-3 pb-3 border-b border-amber-500/20">
-          <div className="p-2.5 bg-amber-500/20 text-amber-400 rounded-xl">
+      <div className="glass-panel p-6 md:p-8 rounded-3xl shadow-2xl space-y-5">
+        <div className="flex items-center gap-3.5 pb-4 border-b border-indigo-500/20">
+          <div className="w-12 h-12 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-400 flex items-center justify-center shadow-md">
             <Upload className="w-6 h-6" />
           </div>
           <div>
-            <h2 className="text-lg font-black text-amber-400">
+            <h2 className="text-xl font-bold font-fancy text-amber-300">
               استيراد وإضافة مئات الطلاب دفعة واحدة من شيت Excel
             </h2>
-            <p className="text-xs text-slate-400">
+            <p className="text-xs text-slate-400 mt-0.5">
               ارفع ملف إكسيل (.xlsx / .csv) يحتوي على الأعمدة: (كود الباركود، اسم الطالب، رقم ولي الأمر، الصف الدراسي)
             </p>
           </div>
@@ -170,10 +170,10 @@ export const ExcelIntegrationTab: React.FC<ExcelIntegrationTabProps> = ({
             }
           }}
           onClick={() => fileInputRef.current?.click()}
-          className={`border-2 border-dashed rounded-2xl p-8 text-center cursor-pointer transition-all ${
+          className={`border-2 border-dashed rounded-3xl p-8 text-center cursor-pointer transition-all ${
             dragActive
               ? "border-amber-400 bg-amber-500/10 scale-[1.01]"
-              : "border-slate-700 hover:border-amber-500/50 bg-[#090e17]/80"
+              : "border-indigo-500/30 hover:border-amber-500/60 bg-[#080d1e]/80"
           }`}
         >
           <input
@@ -189,7 +189,7 @@ export const ExcelIntegrationTab: React.FC<ExcelIntegrationTabProps> = ({
           />
 
           <FileSpreadsheet className="w-12 h-12 text-amber-400/80 mx-auto mb-3 animate-bounce" />
-          <h3 className="text-sm font-extrabold text-slate-200">
+          <h3 className="text-base font-bold font-fancy text-slate-200">
             اضغط هنا لاختيار ملف الإكسيل أو اسحب الملف وأفلته مباشرة
           </h3>
           <p className="text-xs text-slate-400 mt-1">يدعم ملفات .xlsx, .xls, .csv</p>
@@ -197,18 +197,18 @@ export const ExcelIntegrationTab: React.FC<ExcelIntegrationTabProps> = ({
 
         {/* Import Preview Table */}
         {importPreview && importPreview.length > 0 && (
-          <div className="space-y-4 pt-4 border-t border-amber-500/20">
+          <div className="space-y-4 pt-4 border-t border-indigo-500/20">
             <div className="flex items-center justify-between">
-              <h3 className="text-sm font-black text-emerald-400 flex items-center gap-2">
+              <h3 className="text-sm font-bold text-emerald-400 flex items-center gap-2">
                 <FileCheck className="w-4 h-4" />
-                <span>تم التعرف على {importPreview.length} طالب جاهز للإضافة</span>
+                <span>تم التعرف على <span className="font-mono">{importPreview.length}</span> طالب جاهز للإضافة</span>
               </h3>
 
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2.5">
                 <button
                   type="button"
                   onClick={() => setImportPreview(null)}
-                  className="px-3 py-1.5 rounded-xl bg-slate-800 text-slate-300 text-xs font-bold hover:bg-slate-700"
+                  className="px-4 py-2 rounded-2xl bg-slate-800 text-slate-300 text-xs font-bold hover:bg-slate-700 cursor-pointer"
                 >
                   إلغاء
                 </button>
@@ -216,7 +216,7 @@ export const ExcelIntegrationTab: React.FC<ExcelIntegrationTabProps> = ({
                 <button
                   type="button"
                   onClick={handleConfirmImport}
-                  className="px-4 py-2 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-400 hover:from-emerald-400 text-black font-black text-xs shadow-lg shadow-emerald-500/20 flex items-center gap-1.5"
+                  className="px-5 py-2.5 rounded-2xl bg-gradient-to-r from-emerald-500 to-teal-400 hover:from-emerald-400 text-slate-950 font-black text-xs shadow-lg shadow-emerald-500/20 flex items-center gap-2 cursor-pointer active:scale-95"
                 >
                   <CheckCircle className="w-4 h-4" />
                   <span>تأكيد استيراد وحفظ الطلاب في المنظومة ➕</span>
@@ -224,27 +224,27 @@ export const ExcelIntegrationTab: React.FC<ExcelIntegrationTabProps> = ({
               </div>
             </div>
 
-            <div className="max-h-60 overflow-y-auto overflow-x-auto rounded-xl border border-slate-800">
+            <div className="max-h-60 overflow-y-auto overflow-x-auto rounded-2xl border border-indigo-500/20 bg-[#080d1e]/80">
               <table className="w-full text-right border-collapse text-xs">
                 <thead>
-                  <tr className="bg-slate-900 text-amber-400 sticky top-0 font-extrabold border-b border-slate-800">
-                    <th className="p-2.5">م</th>
-                    <th className="p-2.5">الباركود</th>
-                    <th className="p-2.5">اسم الطالب</th>
-                    <th className="p-2.5">الصف الدراسي</th>
-                    <th className="p-2.5">رقم ولي الأمر</th>
-                    <th className="p-2.5">الاشتراك المخصص</th>
+                  <tr className="bg-slate-900/90 text-amber-300 sticky top-0 font-bold font-fancy border-b border-indigo-500/20">
+                    <th className="p-3">م</th>
+                    <th className="p-3">الباركود</th>
+                    <th className="p-3">اسم الطالب</th>
+                    <th className="p-3">الصف الدراسي</th>
+                    <th className="p-3">رقم ولي الأمر</th>
+                    <th className="p-3">الاشتراك المخصص</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-800 font-medium">
+                <tbody className="divide-y divide-slate-800/60 font-medium">
                   {importPreview.slice(0, 30).map((p, idx) => (
                     <tr key={idx} className="hover:bg-slate-800/40">
-                      <td className="p-2 font-mono text-slate-400">{idx + 1}</td>
-                      <td className="p-2 font-mono text-amber-300">{p.barcode}</td>
-                      <td className="p-2 font-bold text-slate-200">{p.name}</td>
-                      <td className="p-2 text-slate-400">{p.groupGrade}</td>
-                      <td className="p-2 font-mono text-slate-400">{p.parentPhone}</td>
-                      <td className="p-2 text-purple-300">
+                      <td className="p-2.5 font-mono text-slate-400">{idx + 1}</td>
+                      <td className="p-2.5 font-mono text-amber-300">#{p.barcode}</td>
+                      <td className="p-2.5 font-bold text-slate-200 font-fancy">{p.name}</td>
+                      <td className="p-2.5 text-slate-400">{p.groupGrade}</td>
+                      <td className="p-2.5 font-mono text-slate-400">{p.parentPhone}</td>
+                      <td className="p-2.5 text-purple-300 font-bold">
                         {p.customMonthlyFee ? `${p.customMonthlyFee} ج` : "الافتراضي"}
                       </td>
                     </tr>
@@ -254,7 +254,7 @@ export const ExcelIntegrationTab: React.FC<ExcelIntegrationTabProps> = ({
             </div>
 
             {importPreview.length > 30 && (
-              <p className="text-[11px] text-slate-400 text-center">
+              <p className="text-xs text-slate-400 text-center">
                 ... ويوجد {importPreview.length - 30} طالب آخر في الملف سيتم استيرادهم بالكامل.
               </p>
             )}

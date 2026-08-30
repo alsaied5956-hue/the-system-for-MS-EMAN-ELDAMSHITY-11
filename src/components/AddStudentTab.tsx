@@ -78,81 +78,81 @@ export const AddStudentTab: React.FC<AddStudentTabProps> = ({
 
   return (
     <div className="max-w-2xl mx-auto space-y-6">
-      <div className="bg-[#121926]/90 border border-amber-500/30 p-6 rounded-2xl shadow-xl backdrop-blur-md">
-        <div className="flex items-center gap-3 pb-4 border-b border-amber-500/20 mb-5">
-          <div className="p-2.5 rounded-xl bg-amber-500/20 text-amber-400">
+      <div className="glass-panel p-6 md:p-8 rounded-3xl shadow-2xl space-y-6">
+        <div className="flex items-center gap-3.5 pb-4 border-b border-indigo-500/20">
+          <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-amber-500/20 to-yellow-400/10 border border-amber-500/30 flex items-center justify-center text-amber-400 shadow-md">
             <UserPlus className="w-6 h-6" />
           </div>
           <div>
-            <h2 className="text-lg font-black text-amber-400">
+            <h2 className="text-xl font-bold font-fancy text-amber-300">
               تسجيل طالب جديد وتحديد الاشتراك الشهري
             </h2>
-            <p className="text-xs text-slate-400">
+            <p className="text-xs text-slate-400 font-tajawal mt-0.5">
               تسجيل بيانات الطالب مع إمكانية تحديد اشتراك شهري مخصص (50، 60، 70، 80 ج.م أو حسب رغبتك)
             </p>
           </div>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-4 text-xs font-bold">
+        <form onSubmit={handleSubmit} className="space-y-4 text-xs font-bold font-tajawal">
           <div className="space-y-1.5">
-            <label className="text-slate-300">الرقم التسلسلي لكارت الباركود (Barcode) *</label>
+            <label className="text-slate-300 font-tajawal text-xs">الرقم التسلسلي لكارت الباركود (Barcode) *</label>
             <input
               type="text"
               required
               value={barcode}
               onChange={(e) => setBarcode(e.target.value)}
               placeholder="مرر الكارت أمام الإسكانر أو اكتب الكود..."
-              className="w-full bg-[#090e17] border border-amber-500/30 focus:border-amber-400 text-slate-100 px-3.5 py-2.5 rounded-xl outline-none font-mono text-sm"
+              className="w-full bg-[#080d1e] border border-indigo-500/30 focus:border-amber-400 text-amber-300 px-4 py-3 rounded-2xl outline-none font-mono text-sm shadow-inner transition-all"
             />
           </div>
 
           <div className="space-y-1.5">
-            <label className="text-slate-300">اسم الطالب ثلاثي *</label>
+            <label className="text-slate-300 font-tajawal text-xs">اسم الطالب ثلاثي *</label>
             <input
               type="text"
               required
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder="مثال: أحمد محمد علي"
-              className="w-full bg-[#090e17] border border-amber-500/30 focus:border-amber-400 text-slate-100 px-3.5 py-2.5 rounded-xl outline-none text-sm"
+              className="w-full bg-[#080d1e] border border-indigo-500/30 focus:border-amber-400 text-slate-100 px-4 py-3 rounded-2xl outline-none text-sm shadow-inner transition-all"
             />
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-1.5">
-              <label className="text-slate-300">رقم تليفون الطالب</label>
+              <label className="text-slate-300 font-tajawal text-xs">رقم تليفون الطالب</label>
               <input
                 type="text"
                 value={phone}
                 onChange={(e) => setPhone(e.target.value)}
                 placeholder="01xxxxxxxxx"
-                className="w-full bg-[#090e17] border border-amber-500/30 focus:border-amber-400 text-slate-100 px-3.5 py-2.5 rounded-xl outline-none font-mono text-sm"
+                className="w-full bg-[#080d1e] border border-indigo-500/30 focus:border-amber-400 text-slate-100 px-4 py-3 rounded-2xl outline-none font-mono text-sm shadow-inner transition-all"
               />
             </div>
 
             <div className="space-y-1.5">
-              <label className="text-slate-300">رقم تليفون ولي الأمر (للواتساب) *</label>
+              <label className="text-slate-300 font-tajawal text-xs">رقم تليفون ولي الأمر (للواتساب) *</label>
               <input
                 type="text"
                 required
                 value={parentPhone}
                 onChange={(e) => setParentPhone(e.target.value)}
                 placeholder="01xxxxxxxxx"
-                className="w-full bg-[#090e17] border border-amber-500/30 focus:border-amber-400 text-slate-100 px-3.5 py-2.5 rounded-xl outline-none font-mono text-sm"
+                className="w-full bg-[#080d1e] border border-indigo-500/30 focus:border-amber-400 text-slate-100 px-4 py-3 rounded-2xl outline-none font-mono text-sm shadow-inner transition-all"
               />
             </div>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-1.5">
-              <label className="text-slate-300">الصف الدراسي *</label>
+              <label className="text-slate-300 font-tajawal text-xs">الصف الدراسي *</label>
               <select
                 value={groupGrade}
                 onChange={(e) => setGroupGrade(e.target.value as GradeName)}
-                className="w-full bg-[#090e17] border border-amber-500/30 focus:border-amber-400 text-slate-100 px-3.5 py-2.5 rounded-xl outline-none text-sm cursor-pointer"
+                className="w-full bg-[#080d1e] border border-indigo-500/30 focus:border-amber-400 text-slate-100 px-4 py-3 rounded-2xl outline-none text-sm cursor-pointer transition-all"
               >
                 {GRADE_ORDER.map((grade) => (
-                  <option key={grade} value={grade}>
+                  <option key={grade} value={grade} className="bg-slate-900 text-white">
                     {grade}
                   </option>
                 ))}
@@ -160,26 +160,26 @@ export const AddStudentTab: React.FC<AddStudentTabProps> = ({
             </div>
 
             <div className="space-y-1.5">
-              <label className="text-slate-300">أيام المجموعة *</label>
+              <label className="text-slate-300 font-tajawal text-xs">أيام المجموعة *</label>
               <select
                 value={groupDays}
                 onChange={(e) => setGroupDays(e.target.value as GroupDays)}
-                className="w-full bg-[#090e17] border border-amber-500/30 focus:border-amber-400 text-slate-100 px-3.5 py-2.5 rounded-xl outline-none text-sm cursor-pointer"
+                className="w-full bg-[#080d1e] border border-indigo-500/30 focus:border-amber-400 text-slate-100 px-4 py-3 rounded-2xl outline-none text-sm cursor-pointer transition-all"
               >
-                <option value="سبت - إثنين - أربعاء">سبت - إثنين - أربعاء</option>
-                <option value="أحد - ثلاثاء - خميس">أحد - ثلاثاء - خميس</option>
+                <option value="سبت - إثنين - أربعاء" className="bg-slate-900 text-white">سبت - إثنين - أربعاء</option>
+                <option value="أحد - ثلاثاء - خميس" className="bg-slate-900 text-white">أحد - ثلاثاء - خميس</option>
               </select>
             </div>
           </div>
 
-          {/* Custom Monthly Fee Section (As requested by user) */}
-          <div className="bg-[#090e17] border border-amber-500/30 p-4 rounded-xl space-y-3">
+          {/* Custom Monthly Fee Section */}
+          <div className="glass-card p-4.5 rounded-2xl space-y-3">
             <div className="flex items-center justify-between">
-              <span className="text-amber-300 flex items-center gap-1.5 font-extrabold text-xs">
+              <span className="text-amber-300 flex items-center gap-2 font-bold text-xs">
                 <Tag className="w-4 h-4 text-amber-400" />
                 تحديد اشتراك شهري مخصص للطالب:
               </span>
-              <label className="flex items-center gap-2 cursor-pointer">
+              <label className="flex items-center gap-2 cursor-pointer bg-white/5 px-3 py-1 rounded-full border border-white/5 hover:border-amber-400/30 transition-colors">
                 <input
                   type="checkbox"
                   checked={isCustomFee}
@@ -204,7 +204,7 @@ export const AddStudentTab: React.FC<AddStudentTabProps> = ({
                     value={customMonthlyFee}
                     onChange={(e) => setCustomMonthlyFee(Number(e.target.value))}
                     placeholder="مثلاً: 50 أو 60 أو 70 أو 80"
-                    className="w-full bg-[#121926] border border-amber-400 text-amber-300 px-3 py-2 rounded-lg outline-none font-bold text-sm"
+                    className="w-full bg-[#080d1e] border border-amber-400 text-amber-300 px-3.5 py-2.5 rounded-xl outline-none font-bold text-sm"
                   />
                 </div>
                 <div className="space-y-1">
@@ -214,7 +214,7 @@ export const AddStudentTab: React.FC<AddStudentTabProps> = ({
                     value={discountReason}
                     onChange={(e) => setDiscountReason(e.target.value)}
                     placeholder="مثال: خصم إخوة / أيتام / تفوق"
-                    className="w-full bg-[#121926] border border-slate-700 text-slate-200 px-3 py-2 rounded-lg outline-none text-xs"
+                    className="w-full bg-[#080d1e] border border-indigo-500/30 text-slate-200 px-3.5 py-2.5 rounded-xl outline-none text-xs"
                   />
                 </div>
               </div>
@@ -227,7 +227,7 @@ export const AddStudentTab: React.FC<AddStudentTabProps> = ({
           </div>
 
           {/* Card Fee */}
-          <div className="flex items-center justify-between bg-slate-900/60 p-3 rounded-xl border border-slate-800">
+          <div className="flex items-center justify-between bg-slate-900/60 p-4 rounded-2xl border border-indigo-500/20">
             <span className="text-slate-300 text-xs">رسوم استخراج كارت الباركود:</span>
             <div className="flex items-center gap-2">
               <input
@@ -235,7 +235,7 @@ export const AddStudentTab: React.FC<AddStudentTabProps> = ({
                 min={0}
                 value={cardFeeAmount}
                 onChange={(e) => setCardFeeAmount(Number(e.target.value))}
-                className="w-20 bg-[#090e17] border border-slate-700 text-center text-amber-300 font-bold text-xs py-1 rounded"
+                className="w-20 bg-[#080d1e] border border-indigo-500/30 text-center text-amber-300 font-bold text-xs py-1.5 rounded-xl"
               />
               <span className="text-slate-400 text-xs">ج.م (تسجل كإيراد فوري)</span>
             </div>
@@ -243,9 +243,9 @@ export const AddStudentTab: React.FC<AddStudentTabProps> = ({
 
           <button
             type="submit"
-            className="w-full py-3 bg-gradient-to-r from-amber-500 via-amber-400 to-yellow-300 hover:from-amber-400 hover:to-yellow-200 text-black font-black text-sm rounded-xl shadow-lg shadow-amber-500/20 transition-all flex items-center justify-center gap-2 transform active:scale-98"
+            className="w-full py-3.5 bg-gradient-to-r from-amber-400 via-amber-300 to-yellow-200 hover:from-amber-300 hover:to-yellow-100 text-slate-950 font-black text-sm rounded-2xl shadow-xl shadow-amber-500/25 transition-all flex items-center justify-center gap-2 transform active:scale-98 cursor-pointer font-tajawal"
           >
-            <Sparkles className="w-4 h-4" />
+            <Sparkles className="w-4 h-4 text-slate-950" />
             <span>حفظ وتأكيد تسجيل الطالب وفتح واتساب ولي الأمر 📲</span>
           </button>
         </form>

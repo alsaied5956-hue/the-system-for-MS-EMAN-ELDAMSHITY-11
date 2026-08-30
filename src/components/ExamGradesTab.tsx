@@ -107,17 +107,17 @@ export const ExamGradesTab: React.FC<ExamGradesTabProps> = ({
 
   return (
     <div className="max-w-2xl mx-auto space-y-6">
-      <div className="bg-[#121926]/90 border border-amber-500/30 p-6 rounded-2xl shadow-xl backdrop-blur-md">
-        <div className="flex flex-wrap items-center justify-between gap-3 pb-4 border-b border-amber-500/20 mb-5">
-          <div className="flex items-center gap-3">
-            <div className="p-2.5 rounded-xl bg-amber-500/20 text-amber-400">
+      <div className="glass-panel p-6 md:p-8 rounded-3xl shadow-2xl space-y-6">
+        <div className="flex flex-wrap items-center justify-between gap-3.5 pb-4 border-b border-indigo-500/20">
+          <div className="flex items-center gap-3.5">
+            <div className="w-12 h-12 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-400 flex items-center justify-center shadow-md">
               <FileCheck2 className="w-6 h-6" />
             </div>
             <div>
-              <h2 className="text-lg font-black text-amber-400">
+              <h2 className="text-xl font-bold font-fancy text-amber-300">
                 رصد وإضافة درجات الاختبارات الفورية
               </h2>
-              <p className="text-xs text-slate-400">
+              <p className="text-xs text-slate-400 font-tajawal mt-0.5">
                 بحث ذكي بالاسم أو الباركود وحساب النسب المئوية آلياً مع إشعار ولي الأمر
               </p>
             </div>
@@ -126,13 +126,13 @@ export const ExamGradesTab: React.FC<ExamGradesTabProps> = ({
           <button
             type="button"
             onClick={handleSendAllGradesToTeacher}
-            className="px-3 py-2 rounded-xl bg-gradient-to-r from-sky-500 to-cyan-400 hover:from-sky-400 text-black text-xs font-black transition-all shadow-md flex items-center gap-1.5"
+            className="px-4 py-2.5 rounded-2xl bg-gradient-to-r from-sky-500/20 to-cyan-500/10 hover:bg-sky-500/30 border border-sky-500/30 text-sky-300 text-xs font-bold transition-all shadow-md flex items-center gap-1.5 cursor-pointer font-tajawal"
           >
             <span>📲 إرسال الكشف لميس إيمان</span>
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-4 text-xs font-bold">
+        <form onSubmit={handleSubmit} className="space-y-4 text-xs font-bold font-tajawal">
           <div className="space-y-1.5">
             <label className="text-slate-300">عنوان أو موضوع الامتحان *</label>
             <input
@@ -141,7 +141,7 @@ export const ExamGradesTab: React.FC<ExamGradesTabProps> = ({
               value={examTitle}
               onChange={(e) => setExamTitle(e.target.value)}
               placeholder="مثال: اختبار الهندسة - الوحدة الأولى"
-              className="w-full bg-[#090e17] border border-amber-500/30 focus:border-amber-400 text-slate-100 px-3.5 py-2.5 rounded-xl outline-none text-sm font-medium"
+              className="w-full bg-[#080d1e] border border-indigo-500/30 focus:border-amber-400 text-slate-100 px-4 py-3 rounded-2xl outline-none text-sm font-medium transition-all"
             />
           </div>
 
@@ -166,9 +166,9 @@ export const ExamGradesTab: React.FC<ExamGradesTabProps> = ({
           </div>
 
           {selectedStudent && (
-            <div className="bg-[#090e17] border border-emerald-500/40 p-3 rounded-xl flex items-center justify-between animate-in fade-in">
+            <div className="glass-card border-emerald-500/40 p-4 rounded-2xl flex items-center justify-between animate-in fade-in">
               <div>
-                <h4 className="text-sm font-black text-emerald-400">{selectedStudent.name}</h4>
+                <h4 className="text-sm font-bold text-emerald-300 font-fancy">{selectedStudent.name}</h4>
                 <p className="text-xs text-slate-400 mt-0.5">
                   {selectedStudent.groupGrade} • {selectedStudent.groupDays} • باركود #{selectedStudent.barcode}
                 </p>
@@ -189,7 +189,7 @@ export const ExamGradesTab: React.FC<ExamGradesTabProps> = ({
                 value={maxScore}
                 onChange={(e) => setMaxScore(Number(e.target.value))}
                 placeholder="مثال: 50 أو 100"
-                className="w-full bg-[#090e17] border border-amber-500/30 text-slate-100 px-3.5 py-2.5 rounded-xl font-mono text-sm outline-none font-bold"
+                className="w-full bg-[#080d1e] border border-indigo-500/30 text-slate-100 px-4 py-3 rounded-2xl font-mono text-sm outline-none font-bold focus:border-amber-400 transition-all"
               />
             </div>
 
@@ -203,15 +203,15 @@ export const ExamGradesTab: React.FC<ExamGradesTabProps> = ({
                 value={studentScore}
                 onChange={(e) => setStudentScore(e.target.value === "" ? "" : Number(e.target.value))}
                 placeholder="مثال: 48.5"
-                className="w-full bg-[#090e17] border border-amber-400 text-amber-300 font-black px-3.5 py-2.5 rounded-xl text-lg outline-none"
+                className="w-full bg-[#080d1e] border border-amber-400 text-amber-300 font-black px-4 py-3 rounded-2xl text-lg outline-none font-mono focus:ring-2 focus:ring-amber-400/30 transition-all"
               />
             </div>
           </div>
 
           {studentScore !== "" && maxScore > 0 && (
-            <div className="p-3 bg-slate-900 rounded-xl text-center border border-slate-800">
+            <div className="p-3.5 bg-slate-950/60 rounded-2xl text-center border border-indigo-500/20">
               <span className="text-slate-400 text-xs">النسبة المحققة: </span>
-              <span className="text-base font-black text-amber-400">
+              <span className="text-lg font-black text-amber-300 font-mono">
                 {Math.round((Number(studentScore) / maxScore) * 100)}%
               </span>
             </div>
@@ -220,13 +220,13 @@ export const ExamGradesTab: React.FC<ExamGradesTabProps> = ({
           <button
             type="submit"
             disabled={!selectedStudent}
-            className={`w-full py-3.5 rounded-xl text-black font-black text-sm transition-all flex items-center justify-center gap-2 shadow-lg ${
+            className={`w-full py-3.5 rounded-2xl font-black text-sm transition-all flex items-center justify-center gap-2 shadow-xl ${
               selectedStudent
-                ? "bg-gradient-to-r from-amber-500 via-amber-400 to-yellow-300 hover:from-amber-400 shadow-amber-500/20 cursor-pointer"
-                : "bg-slate-700 text-slate-400 cursor-not-allowed opacity-60"
+                ? "bg-gradient-to-r from-amber-400 via-amber-300 to-yellow-200 hover:from-amber-300 hover:to-yellow-100 text-slate-950 shadow-amber-500/25 cursor-pointer active:scale-[0.99]"
+                : "bg-slate-800 text-slate-500 cursor-not-allowed opacity-50"
             }`}
           >
-            <Sparkles className="w-4 h-4" />
+            <Sparkles className="w-4 h-4 text-slate-950" />
             <span>حفظ النتيجة وإرسالها المباشر لولي الأمر 📲</span>
           </button>
         </form>
