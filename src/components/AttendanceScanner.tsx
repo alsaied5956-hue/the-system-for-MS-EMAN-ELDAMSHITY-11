@@ -1,35 +1,49 @@
 import React, { useState, useRef, useEffect, useMemo } from "react";
-import { Student, GradeName, GroupDays, PaymentRecord, GRADE_ORDER } from "../types";
-import { evaluateAttendanceStatus, openWhatsApp, getCurrentMonthKey, getTodayKey } from "../utils/helpers";
-import { enqueuePendingWhatsAppMessagesBatch, enqueuePendingWhatsAppMessage } from "../utils/storage";
+import {
+  Student,
+  GradeName,
+  GroupDays,
+  GRADE_ORDER,
+  PaymentRecord,
+} from "../types";
+import {
+  getCurrentMonthKey,
+  openWhatsApp,
+  evaluateAttendanceStatus,
+} from "../utils/helpers";
 import { playBeep, speakArabicGreeting } from "../utils/audio";
 import { StudentSearchBox } from "./StudentSearchBox";
 import { WhatsAppDispatchModal } from "./WhatsAppDispatchModal";
+import { enqueuePendingWhatsAppMessagesBatch } from "../utils/storage";
 import {
   ScanLine,
   UserCheck,
-  Clock,
   CheckCircle2,
+  Clock,
   XCircle,
-  Send,
   PlusCircle,
-  X,
-  Users,
   Search,
-  FileText,
   Sparkles,
+  Send,
+  X,
+  FileText,
   ArrowLeft,
-  Trash2,
+  Users,
+  AlertTriangle,
+  UserPlus,
+  BookOpen,
+  Phone,
+  RefreshCw,
 } from "lucide-react";
 
 interface AttendanceScannerProps {
-  students?: Student[];
-  attendanceToday?: Record<string, string>;
-  scanLogOrder?: string[];
-  scanLogTimes?: Record<string, string>;
-  payments?: Record<string, Record<string, PaymentRecord>>;
-  activeSessionSlotId?: string;
-  voiceEnabled?: boolean;
+  students: Student[];
+  attendanceToday: Record<string, string>;
+  scanLogOrder: string[];
+  scanLogTimes: Record<string, string>;
+  payments: Record<string, Record<string, PaymentRecord>>;
+  voiceEnabled: boolean;
+  activeSessionSlotId: string;
   onRecordAttendance?: (
     barcode: string,
     status: "حضور" | "تأخير",
@@ -39,33 +53,30 @@ interface AttendanceScannerProps {
   onFinishGroup?: (
     grade: GradeName,
     days: GroupDays,
-    absentList: { student: Student; message: string }[],
-    lateList: { student: Student; message: string }[]
+    absentList: { student: Student; message: string; type: "غائب" }[],
+    lateList: { student: Student; message: string; type: "تأخير" }[]
   ) => void;
-  onChangeStatus?: (barcode: string, dateKey: string, newStatus: string) => void;
   onNavigateToReport?: () => void;
 }
 
 export const AttendanceScanner: React.FC<AttendanceScannerProps> = ({
-  students = [],
-  attendanceToday = {},
-  scanLogOrder = [],
-  scanLogTimes = {},
-  payments = {},
-  activeSessionSlotId = "auto",
-  voiceEnabled = true,
+  students,
+  attendanceToday,
+  scanLogOrder,
+  scanLogTimes,
+  payments,
+  voiceEnabled,
+  activeSessionSlotId,
   onRecordAttendance,
   onFinishGroup,
-  onChangeStatus,
   onNavigateToReport,
 }) => {
-  // Persist selected grade and days so switching tabs NEVER loses the active session
   const [selectedGrade, setSelectedGrade] = useState<GradeName>(() => {
     if (typeof window !== "undefined") {
       const saved = localStorage.getItem("aiman_scanner_grade") as GradeName;
       if (saved && GRADE_ORDER.includes(saved)) return saved;
     }
-    return "الصف الرابع الابتدائي";
+    return "الصف الخامس الابتدائي";
   });
 
   const [selectedDays, setSelectedDays] = useState<GroupDays>(() => {
@@ -78,7 +89,9 @@ export const AttendanceScanner: React.FC<AttendanceScannerProps> = ({
 
   const [barcodeInput, setBarcodeInput] = useState("");
   const [isManualModalOpen, setIsManualModalOpen] = useState(false);
+  const [manualModalTab, setManualModalTab] = useState<"manual_search" | "other_days">("manual_search");
   const [manualSearchQuery, setManualSearchQuery] = useState("");
+  const [otherDaysSearchQuery, setOtherDaysSearchQuery] = useState("");
   const [selectedManualStudent, setSelectedManualStudent] = useState<Student | null>(null);
   const [tableSearch, setTableSearch] = useState("");
   const [viewFilter, setViewFilter] = useState<"current_group" | "all_scanned">("current_group");
@@ -113,6 +126,7 @@ export const AttendanceScanner: React.FC<AttendanceScannerProps> = ({
     time?: string;
     status?: string;
     isPaid?: boolean;
+    canAcceptMakeup?: boolean;
   } | null>(null);
 
   const inputRef = useRef<HTMLInputElement>(null);
@@ -121,6 +135,7 @@ export const AttendanceScanner: React.FC<AttendanceScannerProps> = ({
   const handleGradeChange = (grade: GradeName) => {
     setSelectedGrade(grade);
     setFinishedBanner(null);
+    setSelectedManualStudent(null);
     if (typeof window !== "undefined") {
       localStorage.setItem("aiman_scanner_grade", grade);
     }
@@ -129,6 +144,7 @@ export const AttendanceScanner: React.FC<AttendanceScannerProps> = ({
   const handleDaysChange = (days: GroupDays) => {
     setSelectedDays(days);
     setFinishedBanner(null);
+    setSelectedManualStudent(null);
     if (typeof window !== "undefined") {
       localStorage.setItem("aiman_scanner_days", days);
     }
@@ -144,17 +160,35 @@ export const AttendanceScanner: React.FC<AttendanceScannerProps> = ({
     }
   }, [scanAlert, isManualModalOpen, dispatchModal.isOpen]);
 
-  const processAttendance = (student: Student, overrideStatus?: "حضور" | "تأخير") => {
+  const processAttendance = (
+    student: Student,
+    overrideStatus?: "حضور" | "تأخير",
+    isMakeupAllowed = false
+  ) => {
     setFinishedBanner(null);
 
-    // Group verification check
-    if (student.groupGrade !== selectedGrade || student.groupDays !== selectedDays) {
+    // 1. Strict Grade verification: MUST BE SAME GRADE
+    if (student.groupGrade !== selectedGrade) {
       playBeep("error");
       setScanAlert({
-        type: "warning",
-        title: "⚠️ تنبيه: طالب من مجموعة أخرى!",
-        message: `الطالب (${student.name}) مقيد في [${student.groupGrade} - ${student.groupDays}]، بينما المجموعة المحددة بالقاعة الآن هي [${selectedGrade} - ${selectedDays}].`,
+        type: "error",
+        title: "🚫 غير مسموح: صف دراسي مختلف!",
+        message: `الطالب (${student.name}) مقيد في [${student.groupGrade}]، بينما الحصة الحالية بالقاعة لـ [${selectedGrade}]. التحضير التعويضي متاح فقط لطلاب نفس الصف الدراسي.`,
         student,
+      });
+      return;
+    }
+
+    // 2. Cross-day attendance verification
+    const isCrossDay = student.groupDays !== selectedDays;
+    if (isCrossDay && !isMakeupAllowed) {
+      playBeep("warning");
+      setScanAlert({
+        type: "warning",
+        title: "⚠️ تنبيه: طالب من أيام أخرى لنفس الصف",
+        message: `الطالب (${student.name}) مقيد في [${student.groupGrade} - ${student.groupDays}]. هل تود قبول تسجيل حضوره تعويضياً في حصة اليوم؟`,
+        student,
+        canAcceptMakeup: true,
       });
       return;
     }
@@ -175,8 +209,12 @@ export const AttendanceScanner: React.FC<AttendanceScannerProps> = ({
 
     setScanAlert({
       type: "success",
-      title: `🟢 أهلاً بك يا ${student.name}`,
-      message: `المجموعة: ${student.groupGrade} | ${student.groupDays}`,
+      title: isCrossDay
+        ? `🟢 تم تسجيل حضور تعويضي: ${student.name}`
+        : `🟢 أهلاً بك يا ${student.name}`,
+      message: isCrossDay
+        ? `🔄 طالب تعويض من مجموعة (${student.groupDays}) لنفس الصف (${student.groupGrade})`
+        : `المجموعة: ${student.groupGrade} | ${student.groupDays}`,
       student,
       time: nowTimeStr,
       status: calculatedStatus,
@@ -205,12 +243,14 @@ export const AttendanceScanner: React.FC<AttendanceScannerProps> = ({
     processAttendance(student);
   };
 
-  const handleRecordManual = (status: "حضور" | "تأخير") => {
-    if (!selectedManualStudent) return;
-    processAttendance(selectedManualStudent, status);
+  const handleRecordManual = (status: "حضور" | "تأخير", studentToRecord?: Student) => {
+    const target = studentToRecord || selectedManualStudent;
+    if (!target) return;
+    processAttendance(target, status, true);
     setIsManualModalOpen(false);
     setSelectedManualStudent(null);
     setManualSearchQuery("");
+    setOtherDaysSearchQuery("");
   };
 
   // Handler: Finish and Send Group Attendance
@@ -267,7 +307,6 @@ export const AttendanceScanner: React.FC<AttendanceScannerProps> = ({
     // 3. Persist messages to persistent WhatsApp Outbox Queue
     const combinedQueue = [...absentList, ...lateList];
     if (combinedQueue.length > 0) {
-      // Save all generated absent/late notices to persistent offline WhatsApp queue
       enqueuePendingWhatsAppMessagesBatch(
         combinedQueue.map((item) => ({
           studentBarcode: item.student.barcode,
@@ -306,6 +345,23 @@ export const AttendanceScanner: React.FC<AttendanceScannerProps> = ({
     );
   }, [students, selectedGrade, selectedDays]);
 
+  // Students of the SAME grade but OTHER days (available for makeup attendance)
+  const otherDaysSameGradeStudents = useMemo(() => {
+    return (students || []).filter(
+      (s) => s.groupGrade === selectedGrade && s.groupDays !== selectedDays
+    );
+  }, [students, selectedGrade, selectedDays]);
+
+  const filteredOtherDaysStudents = useMemo(() => {
+    if (!otherDaysSearchQuery.trim()) return otherDaysSameGradeStudents;
+    const q = otherDaysSearchQuery.trim().toLowerCase();
+    return otherDaysSameGradeStudents.filter((s) =>
+      s.name.toLowerCase().includes(q) ||
+      s.barcode.toLowerCase().includes(q) ||
+      s.parentPhone?.includes(q)
+    );
+  }, [otherDaysSameGradeStudents, otherDaysSearchQuery]);
+
   const totalGroupCount = currentGroupStudents.length;
 
   const currentGroupScanned = useMemo(() => {
@@ -320,6 +376,13 @@ export const AttendanceScanner: React.FC<AttendanceScannerProps> = ({
     (s) => attendanceToday?.[s.barcode] === "تأخير"
   ).length;
 
+  // Count makeup students of same grade who scanned today
+  const makeupScannedStudents = useMemo(() => {
+    return (scanLogOrder || [])
+      .map((b) => (students || []).find((st) => st.barcode === b))
+      .filter((s): s is Student => !!s && s.groupGrade === selectedGrade && s.groupDays !== selectedDays);
+  }, [scanLogOrder, students, selectedGrade, selectedDays]);
+
   const currentGroupUnscannedCount = totalGroupCount - currentGroupScanned.length;
 
   // Active Scanned list in the scanner table
@@ -327,9 +390,9 @@ export const AttendanceScanner: React.FC<AttendanceScannerProps> = ({
     return (scanLogOrder || []).filter((barcode) => {
       if (viewFilter === "all_scanned") return true;
       const s = students.find((st) => st.barcode === barcode);
-      return s && s.groupGrade === selectedGrade && s.groupDays === selectedDays;
+      return s && s.groupGrade === selectedGrade;
     });
-  }, [scanLogOrder, viewFilter, students, selectedGrade, selectedDays]);
+  }, [scanLogOrder, viewFilter, students, selectedGrade]);
 
   const filteredBarcodes = useMemo(() => {
     if (!tableSearch.trim()) return displayedBarcodes;
@@ -430,8 +493,8 @@ export const AttendanceScanner: React.FC<AttendanceScannerProps> = ({
         </div>
       )}
 
-      {/* Live Group Real-time Stats Chips (Redesigned Bento Grid) */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3.5">
+      {/* Live Group Real-time Stats Chips (Bento Grid) */}
+      <div className="grid grid-cols-2 sm:grid-cols-5 gap-3.5">
         <div className="glass-card p-4 rounded-3xl flex items-center justify-between shadow-lg hover:border-amber-400/40 transition-all duration-300 group">
           <div>
             <div className="text-[11px] text-slate-400 font-medium font-tajawal">إجمالي طلاب المجموعة</div>
@@ -444,11 +507,21 @@ export const AttendanceScanner: React.FC<AttendanceScannerProps> = ({
 
         <div className="glass-card p-4 rounded-3xl flex items-center justify-between shadow-lg hover:border-emerald-400/40 transition-all duration-300 group">
           <div>
-            <div className="text-[11px] text-emerald-400 font-medium font-tajawal">حاضرون بالقاعة الآن</div>
+            <div className="text-[11px] text-emerald-400 font-medium font-tajawal">حاضرون من المجموعة</div>
             <div className="text-2xl md:text-3xl font-black text-emerald-400 font-mono mt-1">{currentGroupPresentCount} <span className="text-xs font-normal text-slate-400">طالب</span></div>
           </div>
           <div className="p-3 bg-emerald-500/10 rounded-2xl border border-emerald-500/20 group-hover:scale-110 transition-transform">
             <CheckCircle2 className="w-6 h-6 text-emerald-400" />
+          </div>
+        </div>
+
+        <div className="glass-card p-4 rounded-3xl flex items-center justify-between shadow-lg hover:border-cyan-400/40 transition-all duration-300 group">
+          <div>
+            <div className="text-[11px] text-cyan-400 font-medium font-tajawal">حضور تعويض (أيام أخرى)</div>
+            <div className="text-2xl md:text-3xl font-black text-cyan-300 font-mono mt-1">{makeupScannedStudents.length} <span className="text-xs font-normal text-slate-400">طالب</span></div>
+          </div>
+          <div className="p-3 bg-cyan-500/10 rounded-2xl border border-cyan-500/20 group-hover:scale-110 transition-transform">
+            <RefreshCw className="w-6 h-6 text-cyan-400" />
           </div>
         </div>
 
@@ -473,15 +546,15 @@ export const AttendanceScanner: React.FC<AttendanceScannerProps> = ({
         </div>
       </div>
 
-      {/* Barcode Scanner Input Spotlight */}
-      <div className="max-w-2xl mx-auto text-center space-y-3.5">
+      {/* Barcode Scanner Input Spotlight & Manual Actions */}
+      <div className="max-w-3xl mx-auto text-center space-y-3.5">
         <label className="text-base md:text-lg font-bold text-amber-300 flex items-center justify-center gap-2 font-fancy">
           <Sparkles className="w-5 h-5 text-amber-400" />
           <span>مرر كارت الطالب أمام الإسكانر لتسجيل الحضور الفوري</span>
         </label>
 
-        <form onSubmit={handleScanSubmit} className="flex gap-2.5">
-          <div className="relative flex-1 group">
+        <form onSubmit={handleScanSubmit} className="flex flex-wrap sm:flex-nowrap gap-2.5">
+          <div className="relative flex-1 group min-w-[260px]">
             <input
               ref={inputRef}
               type="text"
@@ -494,95 +567,330 @@ export const AttendanceScanner: React.FC<AttendanceScannerProps> = ({
             <ScanLine className="w-7 h-7 text-amber-400/70 absolute left-4 top-4 pointer-events-none animate-pulse" />
           </div>
 
+          {/* Button 1: Smart Manual Search */}
           <button
             type="button"
             onClick={() => {
+              setManualModalTab("manual_search");
               setIsManualModalOpen(true);
               setManualSearchQuery("");
               setSelectedManualStudent(null);
             }}
-            className="px-5 py-3.5 bg-gradient-to-r from-sky-500 to-cyan-400 hover:from-sky-400 hover:to-cyan-300 text-slate-950 font-bold text-xs md:text-sm rounded-3xl shadow-xl shadow-cyan-500/20 transition-all flex items-center gap-2 shrink-0 cursor-pointer border border-cyan-300/40 transform hover:scale-[1.02] active:scale-95 font-tajawal"
-            title="بحث بالاسم أو الكود للتعويض اليدوي"
+            className="px-4 py-3.5 bg-gradient-to-r from-sky-500 to-cyan-400 hover:from-sky-400 hover:to-cyan-300 text-slate-950 font-bold text-xs md:text-sm rounded-3xl shadow-xl shadow-cyan-500/20 transition-all flex items-center gap-2 shrink-0 cursor-pointer border border-cyan-300/40 transform hover:scale-[1.02] active:scale-95 font-tajawal"
+            title="بحث بالاسم أو الكود للتحضير اليدوي"
           >
             <PlusCircle className="w-5 h-5" />
             <span>بحث يدوي ذكي</span>
           </button>
+
+          {/* Button 2: Cross-Day Makeup Attendance for Same Grade */}
+          <button
+            type="button"
+            onClick={() => {
+              setManualModalTab("other_days");
+              setIsManualModalOpen(true);
+              setOtherDaysSearchQuery("");
+              setSelectedManualStudent(null);
+            }}
+            className="px-4 py-3.5 bg-gradient-to-r from-amber-500 via-orange-500 to-amber-600 hover:from-amber-400 hover:to-orange-400 text-slate-950 font-black text-xs md:text-sm rounded-3xl shadow-xl shadow-amber-500/20 transition-all flex items-center gap-2 shrink-0 cursor-pointer border border-amber-300/40 transform hover:scale-[1.02] active:scale-95 font-tajawal"
+            title="حضور طالب من أيام أخرى لنفس الصف الدراسي"
+          >
+            <UserPlus className="w-5 h-5" />
+            <span>👥 حضور طالب من يوم آخر (تعويض)</span>
+          </button>
         </form>
       </div>
 
-      {/* Manual Search Modal */}
+      {/* Manual Search & Cross-Day Attendance Modal */}
       {isManualModalOpen && (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-md z-50 flex items-center justify-center p-4">
-          <div className="bg-[#0f1728] border-2 border-amber-500/40 w-full max-w-lg rounded-3xl p-6 shadow-2xl space-y-4 animate-in fade-in zoom-in-95">
-            <div className="flex items-center justify-between pb-3 border-b border-amber-500/20">
-              <h3 className="text-base font-black text-amber-400 flex items-center gap-2">
-                <UserCheck className="w-5 h-5" />
-                <span>تسجيل حضور يدوي سريع بالبحث الذكي</span>
-              </h3>
+          <div className="bg-[#0f1728] border-2 border-amber-500/40 w-full max-w-2xl rounded-3xl p-6 shadow-2xl space-y-4 animate-in fade-in zoom-in-95 max-h-[90vh] flex flex-col">
+            
+            {/* Modal Header */}
+            <div className="flex items-center justify-between pb-3 border-b border-amber-500/20 shrink-0">
+              <div className="flex items-center gap-2.5">
+                <div className="w-10 h-10 rounded-2xl bg-amber-500/20 border border-amber-500/40 flex items-center justify-center text-amber-400">
+                  <UserCheck className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-black text-amber-300 font-fancy">
+                    تسجيل الحضور اليدوي والتعويضي
+                  </h3>
+                  <p className="text-xs text-slate-400 font-tajawal">
+                    الحصة النشطة بالقاعة: <span className="text-amber-300 font-bold">{selectedGrade}</span> ({selectedDays})
+                  </p>
+                </div>
+              </div>
               <button
                 type="button"
                 onClick={() => setIsManualModalOpen(false)}
-                className="p-1.5 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
+                className="p-2 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            <div className="space-y-2">
-              <label className="text-xs text-slate-300 font-bold block">
-                ابحث بالاسم (مثال: أحمد علي) أو برقم الهاتف أو الباركود:
-              </label>
-              <StudentSearchBox
-                students={students}
-                value={manualSearchQuery}
-                onChange={(val) => {
-                  setManualSearchQuery(val);
-                  if (!val) setSelectedManualStudent(null);
+            {/* Modal Tab Switcher */}
+            <div className="grid grid-cols-2 gap-2 bg-[#080d1a] p-1.5 rounded-2xl border border-indigo-500/25 shrink-0 font-tajawal">
+              <button
+                type="button"
+                onClick={() => {
+                  setManualModalTab("manual_search");
+                  setSelectedManualStudent(null);
                 }}
-                onSelectStudent={(s) => setSelectedManualStudent(s)}
-                placeholder="اكتب اسم الطالب وتجاوز الأسماء الوسطى..."
-                autoFocus
-              />
+                className={`py-2.5 px-3 rounded-xl font-bold text-xs md:text-sm flex items-center justify-center gap-2 transition-all ${
+                  manualModalTab === "manual_search"
+                    ? "bg-gradient-to-r from-amber-500 to-amber-600 text-slate-950 shadow-md"
+                    : "text-slate-400 hover:text-white"
+                }`}
+              >
+                <Search className="w-4 h-4" />
+                <span>🔍 بحث يدوي ذكي (كل الطلاب)</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setManualModalTab("other_days");
+                  setSelectedManualStudent(null);
+                }}
+                className={`py-2.5 px-3 rounded-xl font-bold text-xs md:text-sm flex items-center justify-center gap-2 transition-all ${
+                  manualModalTab === "other_days"
+                    ? "bg-gradient-to-r from-orange-500 to-amber-500 text-slate-950 shadow-md font-black"
+                    : "text-slate-400 hover:text-white"
+                }`}
+              >
+                <Users className="w-4 h-4" />
+                <span>🔄 طلاب نفس الصف من الأيام الأخرى ({otherDaysSameGradeStudents.length})</span>
+              </button>
             </div>
 
-            {selectedManualStudent && (
-              <div className="bg-[#080d17] border border-emerald-500/40 p-4 rounded-2xl space-y-3 shadow-lg">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <h4 className="text-base font-black text-emerald-400">{selectedManualStudent.name}</h4>
-                    <p className="text-xs text-slate-300 mt-0.5">
-                      {selectedManualStudent.groupGrade} • {selectedManualStudent.groupDays}
-                    </p>
-                  </div>
-                  <span className="font-mono text-xs text-amber-300 bg-slate-900 px-3 py-1.5 rounded-xl border border-slate-800">
-                    #{selectedManualStudent.barcode}
-                  </span>
+            {/* Tab 1: General Smart Search */}
+            {manualModalTab === "manual_search" && (
+              <div className="space-y-4 overflow-y-auto pr-1">
+                <div className="space-y-2">
+                  <label className="text-xs text-slate-300 font-bold block font-tajawal">
+                    ابحث بالاسم (مثال: أحمد علي) أو برقم الهاتف أو الباركود:
+                  </label>
+                  <StudentSearchBox
+                    students={students}
+                    value={manualSearchQuery}
+                    onChange={(val) => {
+                      setManualSearchQuery(val);
+                      if (!val) setSelectedManualStudent(null);
+                    }}
+                    onSelectStudent={(s) => setSelectedManualStudent(s)}
+                    placeholder="اكتب اسم الطالب وتجاوز الأسماء الوسطى..."
+                    autoFocus
+                  />
                 </div>
 
-                <div className="grid grid-cols-2 gap-2.5 pt-2 border-t border-slate-800">
-                  <button
-                    type="button"
-                    onClick={() => handleRecordManual("حضور")}
-                    className="py-3 rounded-2xl bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs transition-all flex items-center justify-center gap-1.5 shadow-md shadow-emerald-600/30"
-                  >
-                    <CheckCircle2 className="w-4 h-4" />
-                    <span>تسجيل (حضور)</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleRecordManual("تأخير")}
-                    className="py-3 rounded-2xl bg-amber-500 hover:bg-amber-400 text-black font-black text-xs transition-all flex items-center justify-center gap-1.5 shadow-md shadow-amber-500/30"
-                  >
-                    <Clock className="w-4 h-4" />
-                    <span>تسجيل (تأخير)</span>
-                  </button>
+                {selectedManualStudent && (
+                  <div className="bg-[#080d17] border border-amber-500/40 p-4 rounded-2xl space-y-3 shadow-lg font-tajawal animate-in fade-in">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <div>
+                        <h4 className="text-base font-black text-amber-300">{selectedManualStudent.name}</h4>
+                        <div className="flex items-center gap-2 text-xs text-slate-300 mt-1">
+                          <span className="flex items-center gap-1 text-indigo-300 font-bold">
+                            <BookOpen className="w-3.5 h-3.5" />
+                            {selectedManualStudent.groupGrade}
+                          </span>
+                          <span>•</span>
+                          <span className="text-slate-400">{selectedManualStudent.groupDays}</span>
+                        </div>
+                      </div>
+                      <span className="font-mono text-xs text-amber-300 bg-slate-900 px-3 py-1.5 rounded-xl border border-slate-800">
+                        #{selectedManualStudent.barcode}
+                      </span>
+                    </div>
+
+                    {/* Grade & Day Validation Banner */}
+                    {selectedManualStudent.groupGrade !== selectedGrade ? (
+                      <div className="p-3 bg-rose-500/15 border border-rose-500/40 rounded-xl text-rose-300 text-xs flex items-center gap-2">
+                        <AlertTriangle className="w-4 h-4 shrink-0 text-rose-400" />
+                        <span>
+                          🚫 <strong>غير مسموح:</strong> الطالب مقيد في [<strong>{selectedManualStudent.groupGrade}</strong>] بينما الحصة الحالية لـ [<strong>{selectedGrade}</strong>]. التحضير التعويضي مسموح فقط لطلاب نفس الصف الدراسي!
+                        </span>
+                      </div>
+                    ) : selectedManualStudent.groupDays !== selectedDays ? (
+                      <div className="p-3 bg-amber-500/15 border border-amber-500/40 rounded-xl text-amber-300 text-xs flex items-center gap-2">
+                        <RefreshCw className="w-4 h-4 shrink-0 text-amber-400" />
+                        <span>
+                          🔄 <strong>حضور تعويضي:</strong> الطالب مقيد في أيام [<strong>{selectedManualStudent.groupDays}</strong>] لنفس الصف [<strong>{selectedGrade}</strong>]. سيتم تسجيل حضوره تعويضياً لحصة اليوم.
+                        </span>
+                      </div>
+                    ) : (
+                      <div className="p-2.5 bg-emerald-500/15 border border-emerald-500/30 rounded-xl text-emerald-300 text-xs flex items-center gap-2">
+                        <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-400" />
+                        <span>طالب مقيد في نفس المجموعة النشطة حالياً.</span>
+                      </div>
+                    )}
+
+                    {/* Action Buttons (Disabled if different grade) */}
+                    {selectedManualStudent.groupGrade === selectedGrade ? (
+                      <div className="grid grid-cols-2 gap-2.5 pt-2 border-t border-slate-800">
+                        <button
+                          type="button"
+                          onClick={() => handleRecordManual("حضور")}
+                          className="py-3 rounded-2xl bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs md:text-sm transition-all flex items-center justify-center gap-1.5 shadow-md shadow-emerald-600/30 cursor-pointer"
+                        >
+                          <CheckCircle2 className="w-4 h-4" />
+                          <span>
+                            {selectedManualStudent.groupDays !== selectedDays
+                              ? "تسجيل حضور تعويضي (حضور)"
+                              : "تسجيل (حضور)"}
+                          </span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleRecordManual("تأخير")}
+                          className="py-3 rounded-2xl bg-amber-500 hover:bg-amber-400 text-black font-black text-xs md:text-sm transition-all flex items-center justify-center gap-1.5 shadow-md shadow-amber-500/30 cursor-pointer"
+                        >
+                          <Clock className="w-4 h-4" />
+                          <span>
+                            {selectedManualStudent.groupDays !== selectedDays
+                              ? "تسجيل حضور تعويضي (تأخير)"
+                              : "تسجيل (تأخير)"}
+                          </span>
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="text-center py-2 text-xs text-rose-400 font-bold bg-slate-900/60 rounded-xl">
+                        لا يمكن تحضير طالب من صف دراسي آخر في هذه الحصة
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                <div className="text-[11px] text-slate-400 bg-slate-900/80 p-3 rounded-2xl border border-slate-800">
+                  💡 يمكنك البحث بالاسم الأول والأخير معاً وسيقوم النظام بمطابقة الطالب فوراً.
                 </div>
               </div>
             )}
 
-            <div className="text-[11px] text-slate-400 bg-slate-900/80 p-3 rounded-2xl border border-slate-800">
-              💡 يمكنك كتابة الاسم الأول والأخير معاً وسيقوم النظام بمطابقة الطالب فوراً حتى لو نسيت الأسماء الوسطى.
-            </div>
+            {/* Tab 2: Same Grade from Other Days (Direct Cross-Day List) */}
+            {manualModalTab === "other_days" && (
+              <div className="space-y-3 overflow-hidden flex flex-col flex-1">
+                
+                {/* Search Bar for Other Days Students */}
+                <div className="relative shrink-0">
+                  <input
+                    type="text"
+                    value={otherDaysSearchQuery}
+                    onChange={(e) => setOtherDaysSearchQuery(e.target.value)}
+                    placeholder={`بحث في طلاب (${selectedGrade}) المقيدين في أيام أخرى...`}
+                    className="w-full bg-[#080d1a] border border-amber-500/30 text-xs md:text-sm text-white px-4 py-2.5 pr-9 rounded-2xl outline-none focus:border-amber-400 shadow-inner font-tajawal"
+                    autoFocus
+                  />
+                  <Search className="w-4 h-4 text-amber-400/70 absolute right-3 top-3 pointer-events-none" />
+                  {otherDaysSearchQuery && (
+                    <button
+                      onClick={() => setOtherDaysSearchQuery("")}
+                      className="absolute left-3 top-2.5 text-slate-400 hover:text-white"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  )}
+                </div>
+
+                {/* List of Other-Day Students */}
+                <div className="overflow-y-auto space-y-2 flex-1 pr-1 max-h-[340px]">
+                  {filteredOtherDaysStudents.length === 0 ? (
+                    <div className="text-center p-8 text-slate-400 text-xs md:text-sm font-tajawal space-y-2">
+                      <p className="font-bold text-slate-300">
+                        {otherDaysSearchQuery
+                          ? `لا توجد نتائج مطابقة لـ "${otherDaysSearchQuery}"`
+                          : `لا يوجد طلاب مسجلين في الأيام الأخرى لـ (${selectedGrade})`}
+                      </p>
+                      <p className="text-[11px] text-slate-500">
+                        جميع الطلاب المعروضين هنا هم من نفس الصف الدراسي ({selectedGrade}) ومقيدون في أيام مختلفة لتمكين الحضور التعويضي بكل سهولة.
+                      </p>
+                    </div>
+                  ) : (
+                    filteredOtherDaysStudents.map((student) => {
+                      const isAlreadyAttended = !!attendanceToday?.[student.barcode];
+                      const currentStatus = attendanceToday?.[student.barcode];
+                      const isPaid = !!payments?.[currentMonthKey]?.[student.barcode];
+
+                      return (
+                        <div
+                          key={student.barcode}
+                          className="bg-[#080d17] border border-indigo-500/25 hover:border-amber-500/40 p-3.5 rounded-2xl flex flex-wrap items-center justify-between gap-3 transition-all font-tajawal"
+                        >
+                          <div className="flex items-center gap-3 min-w-[200px]">
+                            <div className="w-9 h-9 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-400 shrink-0 font-bold text-xs">
+                              #{student.barcode}
+                            </div>
+                            <div>
+                              <h4 className="text-sm font-black text-white flex items-center gap-2">
+                                <span>{student.name}</span>
+                                {isPaid ? (
+                                  <span className="text-[10px] bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 px-1.5 py-0.2 rounded">
+                                    مدفوع
+                                  </span>
+                                ) : (
+                                  <span className="text-[10px] bg-rose-500/20 text-rose-300 border border-rose-500/30 px-1.5 py-0.2 rounded">
+                                    مستحق
+                                  </span>
+                                )}
+                              </h4>
+                              <div className="flex items-center gap-2 text-[11px] text-slate-400 mt-0.5">
+                                <span className="text-amber-300/90 font-medium">
+                                  مجموعته الأصلية: {student.groupDays}
+                                </span>
+                                {student.parentPhone && (
+                                  <>
+                                    <span>•</span>
+                                    <span className="flex items-center gap-1 font-mono text-slate-300">
+                                      <Phone className="w-3 h-3 text-emerald-400" />
+                                      {student.parentPhone}
+                                    </span>
+                                  </>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Action Buttons / Attended Status */}
+                          <div className="flex items-center gap-2 shrink-0">
+                            {isAlreadyAttended ? (
+                              <div className="flex items-center gap-2 bg-emerald-500/15 border border-emerald-500/30 px-3 py-1.5 rounded-xl text-emerald-300 text-xs font-bold">
+                                <CheckCircle2 className="w-4 h-4" />
+                                <span>مسجل حاضر اليوم ({currentStatus})</span>
+                              </div>
+                            ) : (
+                              <>
+                                <button
+                                  type="button"
+                                  onClick={() => handleRecordManual("حضور", student)}
+                                  className="px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs transition-all flex items-center gap-1 shadow-md shadow-emerald-600/20 cursor-pointer"
+                                >
+                                  <CheckCircle2 className="w-3.5 h-3.5" />
+                                  <span>حضور تعويض</span>
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleRecordManual("تأخير", student)}
+                                  className="px-3 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs transition-all flex items-center gap-1 shadow-md shadow-amber-500/20 cursor-pointer"
+                                >
+                                  <Clock className="w-3.5 h-3.5" />
+                                  <span>تأخير تعويض</span>
+                                </button>
+                              </>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+
+                <div className="text-[11px] text-amber-300/80 bg-amber-500/10 p-2.5 rounded-2xl border border-amber-500/20 text-center font-tajawal shrink-0">
+                  ✨ يتيح لك هذا التبويب تحضير أي طالب من نفس الصف ({selectedGrade}) حضر في غير موعده لتعويض حصة سابقة بكل سلاسة ودون التأثير على قيد مجموعته الأصلية.
+                </div>
+              </div>
+            )}
+
           </div>
         </div>
       )}
@@ -594,7 +902,7 @@ export const AttendanceScanner: React.FC<AttendanceScannerProps> = ({
             scanAlert.type === "success"
               ? "glass-panel border-emerald-500/50 text-white"
               : scanAlert.type === "warning"
-              ? "bg-rose-950/80 border-rose-500/60 text-rose-200"
+              ? "bg-amber-950/80 border-amber-500/60 text-amber-200"
               : "bg-rose-900/80 border-rose-500 text-rose-100"
           }`}
         >
@@ -615,21 +923,60 @@ export const AttendanceScanner: React.FC<AttendanceScannerProps> = ({
                     {scanAlert.isPaid ? "✅ اشتراك الشهر مدفوع" : "⚠️ اشتراك الشهر مستحق"}
                   </span>
 
-                  <span
-                    className={`text-xs px-3 py-1 rounded-full font-bold border font-tajawal ${
-                      scanAlert.status === "تأخير"
-                        ? "bg-amber-500/20 text-amber-300 border-amber-500/40"
-                        : "bg-emerald-500/20 text-emerald-300 border-emerald-500/40"
-                    }`}
-                  >
-                    {scanAlert.status === "تأخير" ? "🟡 تأخير" : "🟢 حضور"}
-                  </span>
+                  {scanAlert.status && (
+                    <span
+                      className={`text-xs px-3 py-1 rounded-full font-bold border font-tajawal ${
+                        scanAlert.status === "تأخير"
+                          ? "bg-amber-500/20 text-amber-300 border-amber-500/40"
+                          : "bg-emerald-500/20 text-emerald-300 border-emerald-500/40"
+                      }`}
+                    >
+                      {scanAlert.status === "تأخير" ? "🟡 تأخير" : "🟢 حضور"}
+                    </span>
+                  )}
 
                   {scanAlert.student.customMonthlyFee !== undefined && (
                     <span className="text-xs px-3 py-1 rounded-full font-bold bg-purple-500/20 text-purple-300 border border-purple-500/40 font-tajawal">
                       🏷️ اشتراك مخصص: {scanAlert.student.customMonthlyFee} ج.م
                     </span>
                   )}
+                </div>
+              )}
+
+              {/* Inline Action for Makeup Acceptance when scanned via barcode */}
+              {scanAlert.canAcceptMakeup && scanAlert.student && (
+                <div className="pt-3 flex flex-wrap items-center gap-2 font-tajawal">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (scanAlert.student) {
+                        processAttendance(scanAlert.student, "حضور", true);
+                      }
+                    }}
+                    className="px-4 py-2 rounded-2xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs flex items-center gap-1.5 shadow-lg shadow-emerald-600/30 cursor-pointer"
+                  >
+                    <CheckCircle2 className="w-4 h-4" />
+                    <span>قبول وتسجيل حضور تعويضي (حضور)</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (scanAlert.student) {
+                        processAttendance(scanAlert.student, "تأخير", true);
+                      }
+                    }}
+                    className="px-4 py-2 rounded-2xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs flex items-center gap-1.5 shadow-lg shadow-amber-500/30 cursor-pointer"
+                  >
+                    <Clock className="w-4 h-4" />
+                    <span>تسجيل تأخير تعويضي</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setScanAlert(null)}
+                    className="px-3 py-2 rounded-2xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs cursor-pointer"
+                  >
+                    إلغاء
+                  </button>
                 </div>
               )}
             </div>
@@ -687,7 +1034,7 @@ export const AttendanceScanner: React.FC<AttendanceScannerProps> = ({
                     : "text-slate-400 hover:text-white"
                 }`}
               >
-                المجموعة الحالية ({currentGroupScanned.length})
+                طلاب الصف ({displayedBarcodes.length})
               </button>
               <button
                 type="button"
@@ -726,7 +1073,7 @@ export const AttendanceScanner: React.FC<AttendanceScannerProps> = ({
                       في انتظار قراءة أول كارت بالسكانر لهذه الحصة...
                     </p>
                     <p className="text-xs text-slate-500 font-tajawal">
-                      مرر كارت الطالب أمام السكانر، أو استخدم "بحث يدوي ذكي". وبمجرد الانتهاء اضغط على "حفظ وإرسال الغياب للكل" لترحيل البيانات لتقرير الحضور وتفريغ الشاشة للحصة التالية.
+                      مرر كارت الطالب أمام السكانر، أو استخدم "بحث يدوي ذكي" أو "حضور طالب من يوم آخر (تعويض)". وبمجرد الانتهاء اضغط على "حفظ وإرسال الغياب للكل" لترحيل البيانات لتقرير الحضور وتفريغ الشاشة للحصة التالية.
                     </p>
                   </td>
                 </tr>
@@ -745,6 +1092,8 @@ export const AttendanceScanner: React.FC<AttendanceScannerProps> = ({
                       })
                     : "--:--";
 
+                  const isCrossDayMakeup = student.groupDays !== selectedDays;
+
                   return (
                     <tr
                       key={barcode + idx}
@@ -752,7 +1101,14 @@ export const AttendanceScanner: React.FC<AttendanceScannerProps> = ({
                     >
                       <td className="p-3.5 font-black text-amber-400 font-mono">#{orderNumber}</td>
                       <td className="p-3.5 font-mono text-slate-300 font-bold">{student.barcode}</td>
-                      <td className="p-3.5 font-bold text-white">{student.name}</td>
+                      <td className="p-3.5 font-bold text-white flex items-center gap-2">
+                        <span>{student.name}</span>
+                        {isCrossDayMakeup && (
+                          <span className="text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/40 px-2 py-0.5 rounded-full">
+                            🔄 تعويض ({student.groupDays})
+                          </span>
+                        )}
+                      </td>
                       <td className="p-3.5 text-slate-300 text-xs">
                         {student.groupGrade} • {student.groupDays}
                       </td>

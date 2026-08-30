@@ -12,6 +12,7 @@ import {
   loadInitialData,
   saveStudentsData,
   saveAttendanceTodayData,
+  saveAttendanceAndStudentsBatch,
   savePaymentsData,
   saveGroupPricesData,
   saveUsersData,
@@ -263,8 +264,7 @@ export default function App() {
     setScanLogTimes(updatedTimes);
     setStudents(updatedStudents);
 
-    saveAttendanceTodayData(updatedToday, updatedOrder, updatedTimes);
-    saveStudentsData(updatedStudents);
+    saveAttendanceAndStudentsBatch(updatedToday, updatedOrder, updatedTimes, updatedStudents);
   };
 
   // Handler: Finish and Lock Group Session
@@ -319,8 +319,7 @@ export default function App() {
     setAttendanceHistory(updatedHistory);
     setStudents(updatedStudents);
 
-    saveAttendanceTodayData(updatedToday, remainingScanOrder, remainingScanTimes);
-    saveStudentsData(updatedStudents);
+    saveAttendanceAndStudentsBatch(updatedToday, remainingScanOrder, remainingScanTimes, updatedStudents);
   };
 
   // Handler: Add Single Student

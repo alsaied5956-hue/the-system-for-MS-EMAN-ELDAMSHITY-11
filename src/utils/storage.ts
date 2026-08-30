@@ -64,17 +64,23 @@ export const INITIAL_SYSTEM_DATA: SystemData = {
   pendingWhatsAppMessages: [],
 };
 
-// Internal state & cache
+// Internal memory cache & sync flags
 let memoryCachedData: SystemData | null = null;
 let lastSyncedDataHash: string = "";
 let debounceSyncTimer: ReturnType<typeof setTimeout> | null = null;
 let isCurrentlySyncing: boolean = false;
+let syncTimeoutTimer: ReturnType<typeof setTimeout> | null = null;
+let prevStatusSnapshot: string = "";
 
 // Subscribed listeners for sync status changes
 const syncStatusListeners: Array<(status: SyncStatus) => void> = [];
 
 function notifySyncStatusChange(): void {
   const status = getSyncStatus();
+  const serialized = `${status.isOnline}_${status.isSyncing}_${status.hasPendingSync}_${status.lastSyncTime}`;
+  if (serialized === prevStatusSnapshot) return;
+  prevStatusSnapshot = serialized;
+
   syncStatusListeners.forEach((cb) => {
     try {
       cb(status);
@@ -195,8 +201,13 @@ function cleanForFirestore(obj: unknown): unknown {
 export async function flushPendingSyncToCloud(): Promise<boolean> {
   if (typeof window === "undefined") return false;
   if (!navigator.onLine) {
+    isCurrentlySyncing = false;
     notifySyncStatusChange();
     return false;
+  }
+
+  if (isCurrentlySyncing) {
+    return true;
   }
 
   const data = loadLocalData();
@@ -206,6 +217,15 @@ export async function flushPendingSyncToCloud(): Promise<boolean> {
 
   isCurrentlySyncing = true;
   notifySyncStatusChange();
+
+  // Safety fallback: if network hangs, release the 'isSyncing' flag after 4 seconds
+  if (syncTimeoutTimer) clearTimeout(syncTimeoutTimer);
+  syncTimeoutTimer = setTimeout(() => {
+    if (isCurrentlySyncing) {
+      isCurrentlySyncing = false;
+      notifySyncStatusChange();
+    }
+  }, 4000);
 
   try {
     const dataHash = JSON.stringify(data);
@@ -225,6 +245,7 @@ export async function flushPendingSyncToCloud(): Promise<boolean> {
     localStorage.setItem(LAST_SYNC_TIME_KEY, nowIso);
 
     isCurrentlySyncing = false;
+    if (syncTimeoutTimer) clearTimeout(syncTimeoutTimer);
     notifySyncStatusChange();
 
     // Dispatch global custom event so UI can display a success toast if needed
@@ -236,9 +257,10 @@ export async function flushPendingSyncToCloud(): Promise<boolean> {
 
     return true;
   } catch (e) {
-    console.warn("Cloud sync to Firestore failed, kept in local queue for retry:", e);
+    console.warn("Cloud sync to Firestore notice (offline queue active):", e);
     localStorage.setItem(PENDING_SYNC_KEY, "true");
     isCurrentlySyncing = false;
+    if (syncTimeoutTimer) clearTimeout(syncTimeoutTimer);
     notifySyncStatusChange();
     return false;
   }
@@ -257,16 +279,16 @@ export function syncDataToCloud(data: SystemData): void {
     notifySyncStatusChange();
   }
 
-  // 2. Debounce cloud network push by 300ms to eliminate UI stutter
+  // 2. Debounce cloud network push by 600ms to eliminate UI stutter and merge rapid consecutive edits
   if (debounceSyncTimer) {
     clearTimeout(debounceSyncTimer);
   }
 
   debounceSyncTimer = setTimeout(async () => {
-    if (typeof window !== "undefined" && navigator.onLine) {
+    if (typeof window !== "undefined" && navigator.onLine && !isCurrentlySyncing) {
       await flushPendingSyncToCloud();
     }
-  }, 300);
+  }, 600);
 }
 
 export function loadInitialData(): SystemData {
@@ -287,6 +309,11 @@ export function subscribeToCloudData(
     const unsubscribe = onSnapshot(
       systemDocRef,
       (snapshot) => {
+        // Skip local write echoes to prevent UI lag and infinite write-loops
+        if (snapshot.metadata.hasPendingWrites) {
+          return;
+        }
+
         if (snapshot.exists()) {
           const val = snapshot.data();
           if (val) {
@@ -309,27 +336,17 @@ export function subscribeToCloudData(
             }
 
             const incomingHash = JSON.stringify(merged);
-            // Skip updating state if the incoming snapshot is our own local write echo
+            // Skip updating state if there are no actual differences
             if (incomingHash === lastSyncedDataHash) {
-              return;
-            }
-
-            // If we have pending local writes that were not pushed yet, prefer local over remote to avoid rollback
-            const hasPendingSync = typeof window !== "undefined" && localStorage.getItem(PENDING_SYNC_KEY) === "true";
-            if (hasPendingSync) {
-              // Flush local to remote instead of overwriting local
-              flushPendingSyncToCloud();
               return;
             }
 
             lastSyncedDataHash = incomingHash;
             saveToLocalStorage(merged);
+            localStorage.setItem(PENDING_SYNC_KEY, "false");
+            notifySyncStatusChange();
             onUpdate(merged);
           }
-        } else {
-          // If remote cloud document doesn't exist yet, seed it with current local data
-          const currentLocal = loadLocalData();
-          syncDataToCloud(currentLocal);
         }
       },
       (error) => {
@@ -352,14 +369,12 @@ export function subscribeToCloudData(
 if (typeof window !== "undefined") {
   // 1. Flush immediately when network connection is restored
   window.addEventListener("online", () => {
-    console.log("🌐 Internet reconnected, flushing offline sync queue to cloud...");
     notifySyncStatusChange();
     flushPendingSyncToCloud();
   });
 
   // 2. Notify when offline
   window.addEventListener("offline", () => {
-    console.log("⚡ Switched to Offline mode. All changes will be safely stored locally.");
     notifySyncStatusChange();
   });
 
@@ -367,13 +382,13 @@ if (typeof window !== "undefined") {
   document.addEventListener("visibilitychange", () => {
     if (document.visibilityState === "visible" && navigator.onLine) {
       const hasPending = localStorage.getItem(PENDING_SYNC_KEY) === "true";
-      if (hasPending) {
+      if (hasPending && !isCurrentlySyncing) {
         flushPendingSyncToCloud();
       }
     }
   });
 
-  // 4. Periodic background sync checker every 12 seconds
+  // 4. Periodic background sync checker every 20 seconds
   setInterval(() => {
     if (navigator.onLine) {
       const hasPending = localStorage.getItem(PENDING_SYNC_KEY) === "true";
@@ -381,7 +396,7 @@ if (typeof window !== "undefined") {
         flushPendingSyncToCloud();
       }
     }
-  }, 12000);
+  }, 20000);
 }
 
 // Helper methods for saving specific slices of system data
@@ -407,6 +422,31 @@ export function saveAttendanceTodayData(
     },
     scanLogOrder: scanLogOrder !== undefined ? scanLogOrder : (current.scanLogOrder || []),
     scanLogTimes: scanLogTimes !== undefined ? scanLogTimes : (current.scanLogTimes || {}),
+  };
+  syncDataToCloud(updated);
+}
+
+/**
+ * Efficient atomic batch save for attendance + updated student counts in a SINGLE sync operation
+ */
+export function saveAttendanceAndStudentsBatch(
+  attendanceToday: Record<string, string>,
+  scanLogOrder: string[],
+  scanLogTimes: Record<string, string>,
+  students: Student[]
+): void {
+  const current = loadLocalData();
+  const todayKey = getTodayKey();
+  const updated: SystemData = {
+    ...current,
+    students,
+    attendanceToday,
+    attendanceHistory: {
+      ...current.attendanceHistory,
+      [todayKey]: attendanceToday,
+    },
+    scanLogOrder,
+    scanLogTimes,
   };
   syncDataToCloud(updated);
 }
@@ -530,3 +570,4 @@ export function deletePendingWhatsAppMessage(id: string): void {
 export function clearAllPendingWhatsAppMessages(): void {
   savePendingWhatsAppMessages([]);
 }
+
