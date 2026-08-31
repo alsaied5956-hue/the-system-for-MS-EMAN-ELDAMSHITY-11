@@ -1,10 +1,28 @@
 import React, { useState, useMemo } from "react";
-import { Student } from "../types";
+import { Student, WhatsAppMessageType } from "../types";
 import { openWhatsApp, sortStudentsByGradeAndName, getExamAverage, getAbsenceRate } from "../utils/helpers";
 import { enqueuePendingWhatsAppMessage } from "../utils/storage";
 import { StudentSearchBox } from "./StudentSearchBox";
 import { matchStudentSearch } from "../utils/search";
-import { MessageSquare, Send, AlertTriangle, Search, User, X, Clock, Flame } from "lucide-react";
+import {
+  MessageSquare,
+  Send,
+  AlertTriangle,
+  Search,
+  User,
+  X,
+  Clock,
+  Flame,
+  UserX,
+  RotateCcw,
+  GraduationCap,
+  ShieldAlert,
+  Copy,
+  CheckCircle2,
+  BookmarkPlus,
+  BookOpen,
+  DollarSign,
+} from "lucide-react";
 
 interface WhatsAppDirectTabProps {
   students: Student[];
@@ -20,6 +38,9 @@ export const WhatsAppDirectTab: React.FC<WhatsAppDirectTabProps> = ({
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
   const [customMessage, setCustomMessage] = useState("");
+  const [activeMessageType, setActiveMessageType] = useState<WhatsAppMessageType>("تنبيه");
+  const [activeTemplateKey, setActiveTemplateKey] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
   const [sideSearchQuery, setSideSearchQuery] = useState("");
 
   const sortedStudents = useMemo(() => {
@@ -37,22 +58,154 @@ export const WhatsAppDirectTab: React.FC<WhatsAppDirectTabProps> = ({
   const handleSelectStudent = (student: Student) => {
     setSelectedStudent(student);
     setSearchQuery(student.name);
+    // If a template was active, re-generate it for the new student
+    if (activeTemplateKey) {
+      applyTemplate(activeTemplateKey, student);
+    }
   };
 
-  const handleSendHomeworkAlert = (type: "shortage" | "no_hw") => {
-    if (!selectedStudent) {
-      alert("⚠️ يرجى اختيار طالب أولاً من القائمة أو بالبحث!");
+  const applyTemplate = (templateKey: string, studentOverride?: Student | null) => {
+    const student = studentOverride !== undefined ? studentOverride : selectedStudent;
+    if (!student) {
+      alert("⚠️ يرجى اختيار الطالب أولاً لتجهيز نص الرسالة ببياناته الخاصة!");
       return;
     }
 
+    setActiveTemplateKey(templateKey);
     let text = "";
-    if (type === "shortage") {
-      text = `تنبيه من منظومة الأستاذة إيمان الدمشيتي 📐\nنفيدكم بعلم أن الطالب/ة: (${selectedStudent.name})\nلديه تقصير في أداء واجب الرياضيات المطلوب منه اليوم.\nنرجو المتابعة والحرص ✨`;
-    } else {
-      text = `تنبيه هام وعاجل من منظومة الأستاذة إيمان الدمشيتي 📐\nنفيدكم بعلم أن الطالب/ة: (${selectedStudent.name})\nلم يقم بعمل واجب الرياضيات المطلوب منه نهائياً اليوم.\nنرجو التنبيه والمتابعة الفورية ✨`;
+    let msgType: WhatsAppMessageType = "تنبيه";
+
+    switch (templateKey) {
+      case "absence":
+        msgType = "غياب";
+        text =
+          `تنبيه غياب من منظومة الأستاذة إيمان الدمشيتي 📐\n` +
+          `نفيدكم بعلم أن الطالب/ة: (${student.name})\n` +
+          `المقيد في مجموعة: [${student.groupGrade} - ${student.groupDays}]\n` +
+          `قد غاب عن حصة الرياضيات اليوم.\n` +
+          `نرجو الاطمئنان عليه ومتابعة سبب الغياب حرصاً على مستواه العلمي والتزامه بالدروس ✨`;
+        break;
+
+      case "late":
+        msgType = "تأخير";
+        text =
+          `تنبيه تأخير من منظومة الأستاذة إيمان الدمشيتي 📐\n` +
+          `نفيدكم بعلم أن الطالب/ة: (${student.name})\n` +
+          `المقيد في مجموعة: [${student.groupGrade} - ${student.groupDays}]\n` +
+          `قد حضر متأخراً عن موعد بدء الحصة اليوم.\n` +
+          `نرجو حث الطالب على الحضور في الموعد المحدد لعدم فوات شرح بداية الحصة ✨`;
+        break;
+
+      case "cross_days":
+        msgType = "عكس_أيام";
+        text =
+          `تنبيه حضور تعويضي من منظومة الأستاذة إيمان الدمشيتي 📐\n` +
+          `نفيدكم بعلم أن الطالب/ة: (${student.name})\n` +
+          `المقيد أساساً في مجموعة: [${student.groupGrade} - ${student.groupDays}]\n` +
+          `قد حضر اليوم في حصة تعويضية بمجموعة أخرى (عكس الأيام).\n` +
+          `تم تسجيل حضوره ومتابعته في القاعة بنجاح ✨`;
+        break;
+
+      case "hw_shortage":
+        msgType = "تنبيه";
+        text =
+          `تنبيه واجب من منظومة الأستاذة إيمان الدمشيتي 📐\n` +
+          `نفيدكم بعلم أن الطالب/ة: (${student.name})\n` +
+          `المقيد في: [${student.groupGrade} - ${student.groupDays}]\n` +
+          `لديه تقصير في أداء واجب الرياضيات المطلوب منه اليوم.\n` +
+          `نرجو المتابعة والحرص على إكمال الواجبات أولاً بأول ✨`;
+        break;
+
+      case "no_hw":
+        msgType = "تنبيه";
+        text =
+          `تنبيه عاجل من منظومة الأستاذة إيمان الدمشيتي 📐\n` +
+          `نفيدكم بعلم أن الطالب/ة: (${student.name})\n` +
+          `المقيد في: [${student.groupGrade} - ${student.groupDays}]\n` +
+          `لم يقم بعمل واجب الرياضيات المطلوب منه نهائياً اليوم.\n` +
+          `نرجو التنبيه والمتابعة الفورية حرصاً على مستواه الدراسي ✨`;
+        break;
+
+      case "last_exam":
+        msgType = "درجات";
+        {
+          const avg = getExamAverage(student);
+          const scoreInfo = student.lastExamScore
+            ? `درجة (${student.lastExamScore})`
+            : student.totalExamScores && student.totalExamScores.length > 0
+            ? `متوسط درجات (${avg}%)`
+            : `درجة متميزة`;
+          const examTitle = student.lastExamTitle ? `في اختبار (${student.lastExamTitle})` : `في آخر اختبار رياضيات`;
+
+          text =
+            `تقرير نتيجة اختبار من منظومة الأستاذة إيمان الدمشيتي 📐\n` +
+            `نفيدكم بأن الطالب/ة: (${student.name})\n` +
+            `الصف: [${student.groupGrade}]\n` +
+            `قد حصل ${examTitle} على: ${scoreInfo}.\n` +
+            (avg > 0 ? `المعدل التراكمي للاختبارات: (${avg}%).\n` : "") +
+            `نرجو الاستمرار في التحفيز والمتابعة المستمرة لمزيد من التفوق 🌟`;
+        }
+        break;
+
+      case "bad_behavior":
+        msgType = "سلوك";
+        text =
+          `تنبيه هام بشأن الانضباط من منظومة الأستاذة إيمان الدمشيتي 📐\n` +
+          `نفيدكم بعلم أن الطالب/ة: (${student.name})\n` +
+          `المقيد في: [${student.groupGrade} - ${student.groupDays}]\n` +
+          `صدر منه سلوك غير منضبط / عدم تركيز وتشتيت داخل الحصة اليوم، مما أثر على استيعابه وسير الشرح.\n` +
+          `نرجو التحدث معه والتوجيه لضمان الالتزام والهدوء التام في القاعة ✨`;
+        break;
+
+      case "fee_reminder":
+        msgType = "مصاريف";
+        text =
+          `تذكير من منظومة الأستاذة إيمان الدمشيتي 📐\n` +
+          `تحية طيبة لولي أمر الطالب/ة: (${student.name})\n` +
+          `المقيد في: [${student.groupGrade}]\n` +
+          `نود التذكير بسداد المصروفات الشهرية المستحقة لحصة الرياضيات.\n` +
+          `شاكرين حسن تعاونكم وحرصكم الدائم ✨`;
+        break;
+
+      default:
+        msgType = "تنبيه";
+        text = "";
+        break;
     }
 
+    setActiveMessageType(msgType);
     setCustomMessage(text);
+  };
+
+  const handleCopyMessage = () => {
+    if (!customMessage) return;
+    navigator.clipboard.writeText(customMessage);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  const handleSaveToOutboxOnly = () => {
+    if (!selectedStudent) {
+      alert("⚠️ يرجى اختيار طالب أولاً!");
+      return;
+    }
+    if (!customMessage.trim()) {
+      alert("⚠️ يرجى كتابة نص الرسالة أولاً!");
+      return;
+    }
+
+    enqueuePendingWhatsAppMessage({
+      studentBarcode: selectedStudent.barcode,
+      studentName: selectedStudent.name,
+      grade: selectedStudent.groupGrade,
+      phone: selectedStudent.parentPhone,
+      messageType: activeMessageType,
+      message: customMessage.trim(),
+    });
+
+    alert(
+      `📥 تم حفظ الرسالة بنجاح في "طابور رسائل الواتساب المعلقة"!\nيمكنك إرسالها لاحقاً في أي وقت بنقرة واحدة.`
+    );
   };
 
   const handleSendMessage = () => {
@@ -73,13 +226,13 @@ export const WhatsAppDirectTab: React.FC<WhatsAppDirectTabProps> = ({
       studentName: selectedStudent.name,
       grade: selectedStudent.groupGrade,
       phone: selectedStudent.parentPhone,
-      messageType: "تنبيه",
+      messageType: activeMessageType,
       message: customMessage.trim(),
     });
 
     if (isOnline) {
       openWhatsApp(selectedStudent.parentPhone, customMessage.trim());
-      alert(`✅ تم إرسال الرسالة لولي أمر (${selectedStudent.name}) عبر الواتساب!`);
+      alert(`✅ جاري فتح الواتساب لإرسال الرسالة لولي أمر (${selectedStudent.name})!`);
     } else {
       alert(
         `⚡ أنت في وضع الأوفلاين (بدون إنترنت):\nتم حفظ الرسالة بنجاح في "طابور رسائل الواتساب المعلقة".\nيمكنك فتح الطابور وإرسال كافة الرسائل بضغطة زر فور عودة الاتصال!`
@@ -106,7 +259,7 @@ export const WhatsAppDirectTab: React.FC<WhatsAppDirectTabProps> = ({
                 )}
               </h3>
               <p className="text-xs text-slate-400 mt-0.5">
-                تخزين رسائل الغياب والتأخير والدرجات والمصاريف أوفلاين وإرسالها دفعة واحدة فور عودة الشبكة
+                تخزين رسائل الغياب والتأخير وعكس الأيام والدرجات والواجب والسلوك أوفلاين وإرسالها تتابعياً
               </p>
             </div>
           </div>
@@ -135,7 +288,7 @@ export const WhatsAppDirectTab: React.FC<WhatsAppDirectTabProps> = ({
                   نظام المراسلة الفردية المباشرة
                 </h2>
                 <p className="text-xs text-slate-400 mt-0.5">
-                  إرسال تنبيهات الواجب، الملاحظات، والتقارير الفردية لولي أمر طالب محدد عبر الواتساب
+                  إرسال رسائل الغياب، التأخير، التعويض (عكس الأيام)، الواجبات، نتائج الامتحانات، وتنبيهات السلوك لولي الأمر
                 </p>
               </div>
             </div>
@@ -149,11 +302,13 @@ export const WhatsAppDirectTab: React.FC<WhatsAppDirectTabProps> = ({
                   value={searchQuery}
                   onChange={(val) => {
                     setSearchQuery(val);
-                    if (!val) setSelectedStudent(null);
+                    if (!val) {
+                      setSelectedStudent(null);
+                      setActiveTemplateKey(null);
+                    }
                   }}
                   onSelectStudent={(s) => {
-                    setSelectedStudent(s);
-                    setSearchQuery(s.name);
+                    handleSelectStudent(s);
                   }}
                   placeholder="ابحث بالاسم (مثال: أحمد علي) أو برقم الهاتف أو الباركود..."
                 />
@@ -163,9 +318,15 @@ export const WhatsAppDirectTab: React.FC<WhatsAppDirectTabProps> = ({
               {selectedStudent && (
                 <div className="glass-card border-amber-500/40 p-4 rounded-2xl flex items-center justify-between shadow-inner animate-in fade-in">
                   <div>
-                    <h4 className="text-base font-bold text-amber-300 font-fancy">{selectedStudent.name}</h4>
-                    <p className="text-xs text-slate-400 mt-0.5">
-                      {selectedStudent.groupGrade} • {selectedStudent.groupDays} • ولي الأمر: <span className="font-mono text-slate-300">{selectedStudent.parentPhone}</span>
+                    <h4 className="text-base font-bold text-amber-300 font-fancy flex items-center gap-2">
+                      <User className="w-4 h-4 text-amber-400" />
+                      <span>{selectedStudent.name}</span>
+                    </h4>
+                    <p className="text-xs text-slate-400 mt-1">
+                      {selectedStudent.groupGrade} • {selectedStudent.groupDays} • هاتف ولي الأمر:{" "}
+                      <span className="font-mono text-amber-300 font-bold" dir="ltr">
+                        {selectedStudent.parentPhone}
+                      </span>
                     </p>
                   </div>
                   <button
@@ -173,6 +334,8 @@ export const WhatsAppDirectTab: React.FC<WhatsAppDirectTabProps> = ({
                     onClick={() => {
                       setSelectedStudent(null);
                       setSearchQuery("");
+                      setActiveTemplateKey(null);
+                      setCustomMessage("");
                     }}
                     className="px-3.5 py-1.5 bg-rose-500/10 hover:bg-rose-500/20 text-rose-300 border border-rose-500/30 rounded-xl text-xs font-bold transition-all cursor-pointer"
                   >
@@ -181,61 +344,208 @@ export const WhatsAppDirectTab: React.FC<WhatsAppDirectTabProps> = ({
                 </div>
               )}
 
-              {/* Quick Templates */}
-              <div className="space-y-2 pt-1">
-                <label className="text-slate-400 text-xs">قوالب رسائل سريعة بضغطة زر:</label>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                  <button
-                    type="button"
-                    onClick={() => handleSendHomeworkAlert("shortage")}
-                    className="py-2.5 px-3.5 rounded-2xl bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 text-amber-300 text-xs font-bold transition-all text-right flex items-center gap-2 cursor-pointer"
-                  >
-                    <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0" />
-                    <span>⚠️ تنبيه: تقصير في الواجب</span>
-                  </button>
+              {/* Quick Templates Categories */}
+              <div className="space-y-3 pt-1">
+                <div className="flex items-center justify-between">
+                  <label className="text-slate-300 text-xs font-bold flex items-center gap-1.5">
+                    <span>قوالب الرسائل الجاهزة (اختر قالباً للتعبئة التلقائية):</span>
+                  </label>
+                  {activeTemplateKey && (
+                    <span className="text-[11px] text-amber-400 bg-amber-500/10 border border-amber-500/30 px-2 py-0.5 rounded-lg">
+                      قالب مفعل
+                    </span>
+                  )}
+                </div>
 
+                {/* Section 1: Attendance, Delay & Makeup */}
+                <div className="space-y-1.5">
+                  <p className="text-[11px] text-slate-400 font-semibold">📌 الحضور والغياب والتعويض:</p>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => applyTemplate("absence")}
+                      className={`p-2.5 rounded-2xl border text-xs font-bold transition-all text-right flex items-center gap-2 cursor-pointer ${
+                        activeTemplateKey === "absence"
+                          ? "bg-rose-500/25 border-rose-400 text-rose-200 shadow-md"
+                          : "bg-rose-500/10 hover:bg-rose-500/20 border-rose-500/30 text-rose-300"
+                      }`}
+                    >
+                      <UserX className="w-4 h-4 text-rose-400 shrink-0" />
+                      <span>🔴 إشعار غياب اليوم</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => applyTemplate("late")}
+                      className={`p-2.5 rounded-2xl border text-xs font-bold transition-all text-right flex items-center gap-2 cursor-pointer ${
+                        activeTemplateKey === "late"
+                          ? "bg-amber-500/25 border-amber-400 text-amber-200 shadow-md"
+                          : "bg-amber-500/10 hover:bg-amber-500/20 border-amber-500/30 text-amber-300"
+                      }`}
+                    >
+                      <Clock className="w-4 h-4 text-amber-400 shrink-0" />
+                      <span>🟡 إشعار تأخير عن الحصة</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => applyTemplate("cross_days")}
+                      className={`p-2.5 rounded-2xl border text-xs font-bold transition-all text-right flex items-center gap-2 cursor-pointer ${
+                        activeTemplateKey === "cross_days"
+                          ? "bg-cyan-500/25 border-cyan-400 text-cyan-200 shadow-md"
+                          : "bg-cyan-500/10 hover:bg-cyan-500/20 border-cyan-500/30 text-cyan-300"
+                      }`}
+                    >
+                      <RotateCcw className="w-4 h-4 text-cyan-400 shrink-0" />
+                      <span>🔄 تعويض (عكس الأيام)</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Section 2: Homework, Exam & Behavior */}
+                <div className="space-y-1.5 pt-1">
+                  <p className="text-[11px] text-slate-400 font-semibold">📌 الواجبات والامتحانات والسلوك:</p>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => applyTemplate("hw_shortage")}
+                      className={`p-2.5 rounded-2xl border text-xs font-bold transition-all text-right flex items-center gap-2 cursor-pointer ${
+                        activeTemplateKey === "hw_shortage"
+                          ? "bg-amber-500/25 border-amber-400 text-amber-200 shadow-md"
+                          : "bg-amber-500/10 hover:bg-amber-500/20 border-amber-500/30 text-amber-300"
+                      }`}
+                    >
+                      <BookOpen className="w-4 h-4 text-amber-400 shrink-0" />
+                      <span>⚠️ تقصير في الواجب</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => applyTemplate("no_hw")}
+                      className={`p-2.5 rounded-2xl border text-xs font-bold transition-all text-right flex items-center gap-2 cursor-pointer ${
+                        activeTemplateKey === "no_hw"
+                          ? "bg-rose-500/25 border-rose-400 text-rose-200 shadow-md"
+                          : "bg-rose-500/10 hover:bg-rose-500/20 border-rose-500/30 text-rose-300"
+                      }`}
+                    >
+                      <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0" />
+                      <span>🚨 لم يقم بالواجب</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => applyTemplate("last_exam")}
+                      className={`p-2.5 rounded-2xl border text-xs font-bold transition-all text-right flex items-center gap-2 cursor-pointer ${
+                        activeTemplateKey === "last_exam"
+                          ? "bg-sky-500/25 border-sky-400 text-sky-200 shadow-md"
+                          : "bg-sky-500/10 hover:bg-sky-500/20 border-sky-500/30 text-sky-300"
+                      }`}
+                    >
+                      <GraduationCap className="w-4 h-4 text-sky-400 shrink-0" />
+                      <span>📊 آخر درجة امتحان</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => applyTemplate("bad_behavior")}
+                      className={`p-2.5 rounded-2xl border text-xs font-bold transition-all text-right flex items-center gap-2 cursor-pointer ${
+                        activeTemplateKey === "bad_behavior"
+                          ? "bg-purple-500/25 border-purple-400 text-purple-200 shadow-md"
+                          : "bg-purple-500/10 hover:bg-purple-500/20 border-purple-500/30 text-purple-300"
+                      }`}
+                    >
+                      <ShieldAlert className="w-4 h-4 text-purple-400 shrink-0" />
+                      <span>🛑 تنبيه سلوك سيئ</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Section 3: Fee Reminder */}
+                <div className="pt-1">
                   <button
                     type="button"
-                    onClick={() => handleSendHomeworkAlert("no_hw")}
-                    className="py-2.5 px-3.5 rounded-2xl bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 text-rose-300 text-xs font-bold transition-all text-right flex items-center gap-2 cursor-pointer"
+                    onClick={() => applyTemplate("fee_reminder")}
+                    className={`w-full p-2.5 rounded-2xl border text-xs font-bold transition-all text-right flex items-center justify-center gap-2 cursor-pointer ${
+                      activeTemplateKey === "fee_reminder"
+                        ? "bg-emerald-500/25 border-emerald-400 text-emerald-200 shadow-md"
+                        : "bg-emerald-500/10 hover:bg-emerald-500/20 border-emerald-500/30 text-emerald-300"
+                    }`}
                   >
-                    <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0" />
-                    <span>🚨 تنبيه: لم يتم عمل الواجب</span>
+                    <DollarSign className="w-4 h-4 text-emerald-400 shrink-0" />
+                    <span>💵 تذكير بالمصروفات الشهرية المستحقة</span>
                   </button>
                 </div>
               </div>
 
               {/* Message Textarea */}
-              <div className="space-y-1.5 pt-1">
-                <label className="text-slate-300">نص الرسالة المرسلة:</label>
+              <div className="space-y-1.5 pt-2">
+                <div className="flex items-center justify-between">
+                  <label className="text-slate-300">نص الرسالة المرسلة (يمكنك التعديل والإضافة بحرية):</label>
+                  {customMessage && (
+                    <button
+                      type="button"
+                      onClick={handleCopyMessage}
+                      className="text-xs text-amber-400 hover:text-amber-300 flex items-center gap-1 cursor-pointer transition-colors"
+                    >
+                      {copied ? (
+                        <>
+                          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+                          <span className="text-emerald-400">تم النسخ!</span>
+                        </>
+                      ) : (
+                        <>
+                          <Copy className="w-3.5 h-3.5" />
+                          <span>نسخ النص</span>
+                        </>
+                      )}
+                    </button>
+                  )}
+                </div>
                 <textarea
-                  rows={5}
+                  rows={6}
                   value={customMessage}
                   onChange={(e) => setCustomMessage(e.target.value)}
-                  placeholder="اكتب نص الرسالة هنا..."
+                  placeholder="اختر طالباً وقالب رسالة أعلاه، أو اكتب نص الرسالة هنا مباشرة..."
                   className="w-full bg-[#080d1e] border border-indigo-500/30 focus:border-amber-400 text-slate-100 p-4 rounded-2xl outline-none text-xs leading-relaxed transition-all font-medium"
                 />
               </div>
 
-              <button
-                type="button"
-                onClick={handleSendMessage}
-                disabled={!selectedStudent}
-                className={`w-full py-3.5 rounded-2xl font-black text-sm transition-all flex items-center justify-center gap-2 shadow-xl ${
-                  selectedStudent
-                    ? "bg-gradient-to-r from-emerald-500 to-teal-400 hover:from-emerald-400 text-slate-950 shadow-emerald-500/20 cursor-pointer active:scale-[0.99]"
-                    : "bg-slate-800 text-slate-500 cursor-not-allowed opacity-50"
-                }`}
-              >
-                <Send className="w-4 h-4" />
-                <span>إرسال الرسالة الآن عبر الواتساب 📲</span>
-              </button>
+              {/* Action Buttons */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={handleSendMessage}
+                  disabled={!selectedStudent}
+                  className={`py-3.5 rounded-2xl font-black text-xs md:text-sm transition-all flex items-center justify-center gap-2 shadow-xl ${
+                    selectedStudent
+                      ? "bg-gradient-to-r from-emerald-500 to-teal-400 hover:from-emerald-400 text-slate-950 shadow-emerald-500/20 cursor-pointer active:scale-[0.99]"
+                      : "bg-slate-800 text-slate-500 cursor-not-allowed opacity-50"
+                  }`}
+                >
+                  <Send className="w-4 h-4" />
+                  <span>إرسال عبر الواتساب الآن 📲</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleSaveToOutboxOnly}
+                  disabled={!selectedStudent}
+                  className={`py-3.5 rounded-2xl font-bold text-xs md:text-sm transition-all flex items-center justify-center gap-2 border ${
+                    selectedStudent
+                      ? "bg-slate-800/80 hover:bg-slate-700/80 text-amber-300 border-amber-500/30 cursor-pointer active:scale-[0.99]"
+                      : "bg-slate-800/40 text-slate-600 border-slate-800 cursor-not-allowed opacity-50"
+                  }`}
+                >
+                  <BookmarkPlus className="w-4 h-4 text-amber-400" />
+                  <span>حفظ في طابور المعلق فقط ⏳</span>
+                </button>
+              </div>
             </div>
           </div>
         </div>
 
         {/* Directory Side List (1 Column) */}
-        <div className="glass-panel p-5 rounded-3xl shadow-2xl flex flex-col h-[650px]">
+        <div className="glass-panel p-5 rounded-3xl shadow-2xl flex flex-col h-[700px]">
           <h3 className="text-sm font-bold font-fancy text-amber-300 pb-3 border-b border-indigo-500/20 mb-3 flex items-center justify-between">
             <span>👥 دليل الطلاب ومؤشرات الأداء</span>
             <span className="text-[11px] text-slate-400 font-mono font-normal">{sortedStudents.length} طالب</span>

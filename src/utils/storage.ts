@@ -343,7 +343,7 @@ export function syncDataToCloud(data: SystemData): void {
     return;
   }
 
-  // 2. Debounce cloud network push by 400ms to merge rapid consecutive edits
+  // 2. Debounce cloud network push by 1200ms to merge rapid consecutive scans/edits
   if (debounceSyncTimer) {
     clearTimeout(debounceSyncTimer);
   }
@@ -352,7 +352,7 @@ export function syncDataToCloud(data: SystemData): void {
     if (typeof window !== "undefined" && navigator.onLine && !isCurrentlySyncing) {
       await flushPendingSyncToCloud(false);
     }
-  }, 400);
+  }, 1200);
 }
 
 export function loadInitialData(): SystemData {
@@ -385,19 +385,18 @@ export function subscribeToCloudData(
             const localUpdatedAt = currentLocal.updatedAt || 0;
             const hasPending = typeof window !== "undefined" && localStorage.getItem(PENDING_SYNC_KEY) === "true";
 
-            // If local data has pending changes or is newer than cloud snapshot, do NOT overwrite local changes!
-            if (hasPending || (localUpdatedAt > cloudUpdatedAt && currentLocal.students.length >= (val.students?.length || 0))) {
-              if (!isQuotaExceeded || Date.now() >= quotaExceededUntil) {
-                flushPendingSyncToCloud(false);
-              }
+            // If local data has unpushed edits, do NOT overwrite local data from cloud snapshot
+            if (hasPending) {
               return;
             }
 
-            // If cloud has empty students but local has students, protect local students against accidental wipe
+            // If cloud is older than local, ignore snapshot
+            if (cloudUpdatedAt <= localUpdatedAt && currentLocal.students.length >= (val.students?.length || 0)) {
+              return;
+            }
+
+            // Protect local students against accidental remote wipe
             if ((!val.students || val.students.length === 0) && currentLocal.students.length > 0) {
-              if (!isQuotaExceeded || Date.now() >= quotaExceededUntil) {
-                flushPendingSyncToCloud(false);
-              }
               return;
             }
 
@@ -430,12 +429,6 @@ export function subscribeToCloudData(
             localStorage.setItem(PENDING_SYNC_KEY, "false");
             notifySyncStatusChange();
             onUpdate(merged);
-          }
-        } else {
-          // Document doesn't exist yet on Firestore: push initial local data if not quota limited
-          const local = loadLocalData();
-          if (local.students.length > 0 && (!isQuotaExceeded || Date.now() >= quotaExceededUntil)) {
-            flushPendingSyncToCloud(false);
           }
         }
       },

@@ -123,6 +123,7 @@ export type WhatsAppMessageType =
   | "درجات"
   | "مصاريف"
   | "تنبيه"
+  | "سلوك"
   | "عام";
 
 export interface PendingWhatsAppMessage {

@@ -254,27 +254,26 @@ export default function App() {
     const updatedTimes = { ...scanLogTimes, [barcode]: timeIso };
 
     const prevStatus = attendanceToday[barcode];
-    const updatedStudents = students.map((s) => {
-      if (s.barcode === barcode) {
-        let attCount = s.totalAttendanceDays || 0;
-        let absCount = s.totalAbsentDays || 0;
-        if (!prevStatus) {
-          attCount += 1;
+    let updatedStudents = students;
+    
+    // Only update student record if attendance state actually newly increments
+    if (!prevStatus) {
+      updatedStudents = students.map((s) => {
+        if (s.barcode === barcode) {
+          return {
+            ...s,
+            totalAttendanceDays: (s.totalAttendanceDays || 0) + 1,
+          };
         }
-        return {
-          ...s,
-          totalAttendanceDays: attCount,
-          totalAbsentDays: absCount,
-        };
-      }
-      return s;
-    });
+        return s;
+      });
+      setStudents(updatedStudents);
+    }
 
     setAttendanceToday(updatedToday);
     setAttendanceHistory(updatedHistory);
     setScanLogOrder(updatedOrder);
     setScanLogTimes(updatedTimes);
-    setStudents(updatedStudents);
 
     saveAttendanceAndStudentsBatch(updatedToday, updatedOrder, updatedTimes, updatedStudents);
   }, [attendanceToday, attendanceHistory, scanLogOrder, scanLogTimes, students]);

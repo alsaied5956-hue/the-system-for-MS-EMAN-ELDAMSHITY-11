@@ -222,7 +222,14 @@ export const PendingWhatsAppOutboxModal: React.FC<PendingWhatsAppOutboxModalProp
         return (
           <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-purple-500/15 border border-purple-500/30 text-purple-400 text-xs font-black">
             <AlertTriangle className="w-3.5 h-3.5" />
-            <span>تنبيه واجب / سلوك</span>
+            <span>تنبيه واجب</span>
+          </span>
+        );
+      case "سلوك":
+        return (
+          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-rose-500/15 border border-rose-500/30 text-rose-400 text-xs font-black">
+            <AlertTriangle className="w-3.5 h-3.5" />
+            <span>تنبيه سلوك</span>
           </span>
         );
       default:
@@ -382,7 +389,8 @@ export const PendingWhatsAppOutboxModal: React.FC<PendingWhatsAppOutboxModalProp
               { id: "عكس_أيام", label: "🔄 عكس الأيام" },
               { id: "درجات", label: "📊 درجات" },
               { id: "مصاريف", label: "💵 مصاريف" },
-              { id: "تنبيه", label: "📢 تنبيهات" },
+              { id: "تنبيه", label: "📢 واجب" },
+              { id: "سلوك", label: "⚠️ سلوك" },
               { id: "sent", label: `✅ مرسل (${sentOnlyList.length})` },
             ].map((tab) => (
               <button

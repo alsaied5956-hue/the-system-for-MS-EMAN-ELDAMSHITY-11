@@ -371,6 +371,17 @@ export const AttendanceScanner: React.FC<AttendanceScannerProps> = ({
   };
 
   const currentMonthKey = getCurrentMonthKey();
+
+  // Fast O(1) student lookup map to eliminate slow array searches
+  const studentMap = useMemo(() => {
+    const map = new Map<string, Student>();
+    (students || []).forEach((s) => {
+      if (s?.barcode) {
+        map.set(String(s.barcode).trim(), s);
+      }
+    });
+    return map;
+  }, [students]);
   
   // Real-time group counts for active group
   const currentGroupStudents = useMemo(() => {
@@ -399,7 +410,8 @@ export const AttendanceScanner: React.FC<AttendanceScannerProps> = ({
   const totalGroupCount = currentGroupStudents.length;
 
   const currentGroupScanned = useMemo(() => {
-    return currentGroupStudents.filter((s) => (scanLogOrder || []).includes(s.barcode));
+    const scanSet = new Set(scanLogOrder || []);
+    return currentGroupStudents.filter((s) => scanSet.has(s.barcode));
   }, [currentGroupStudents, scanLogOrder]);
 
   const currentGroupPresentCount = currentGroupScanned.filter(
@@ -413,9 +425,9 @@ export const AttendanceScanner: React.FC<AttendanceScannerProps> = ({
   // Count makeup students of same grade who scanned today
   const makeupScannedStudents = useMemo(() => {
     return (scanLogOrder || [])
-      .map((b) => (students || []).find((st) => st.barcode === b))
+      .map((b) => studentMap.get(String(b).trim()))
       .filter((s): s is Student => !!s && s.groupGrade === selectedGrade && s.groupDays !== selectedDays);
-  }, [scanLogOrder, students, selectedGrade, selectedDays]);
+  }, [scanLogOrder, studentMap, selectedGrade, selectedDays]);
 
   const currentGroupUnscannedCount = totalGroupCount - currentGroupScanned.length;
 
@@ -423,16 +435,16 @@ export const AttendanceScanner: React.FC<AttendanceScannerProps> = ({
   const displayedBarcodes = useMemo(() => {
     return (scanLogOrder || []).filter((barcode) => {
       if (viewFilter === "all_scanned") return true;
-      const s = students.find((st) => st.barcode === barcode);
+      const s = studentMap.get(String(barcode).trim());
       return s && s.groupGrade === selectedGrade;
     });
-  }, [scanLogOrder, viewFilter, students, selectedGrade]);
+  }, [scanLogOrder, viewFilter, studentMap, selectedGrade]);
 
   const filteredBarcodes = useMemo(() => {
     if (!tableSearch.trim()) return displayedBarcodes;
     const q = tableSearch.trim().toLowerCase();
     return displayedBarcodes.filter((barcode) => {
-      const s = students.find((st) => st.barcode === barcode);
+      const s = studentMap.get(String(barcode).trim());
       if (!s) return false;
       return (
         s.name.toLowerCase().includes(q) ||
@@ -440,7 +452,7 @@ export const AttendanceScanner: React.FC<AttendanceScannerProps> = ({
         s.parentPhone?.includes(q)
       );
     });
-  }, [displayedBarcodes, tableSearch, students]);
+  }, [displayedBarcodes, tableSearch, studentMap]);
 
   return (
     <div className="space-y-6">
@@ -1116,7 +1128,7 @@ export const AttendanceScanner: React.FC<AttendanceScannerProps> = ({
                 </tr>
               ) : (
                 filteredBarcodes.map((barcode, idx) => {
-                  const student = (students || []).find((s) => String(s.barcode).trim() === barcode);
+                  const student = studentMap.get(String(barcode).trim());
                   if (!student) return null;
                   const isPaid = !!payments?.[currentMonthKey]?.[barcode];
                   const statusToday = attendanceToday?.[barcode] || "حضور";
