@@ -283,8 +283,9 @@ export default function App() {
   const handleFinishGroup = useCallback((
     grade: GradeName,
     days: GroupDays,
-    absentList: { student: Student; message: string }[],
-    lateList: { student: Student; message: string }[]
+    absentList: { student: Student; message: string; type?: "غائب" }[],
+    lateList: { student: Student; message: string; type?: "تأخير" }[],
+    crossDayList?: { student: Student; message: string; type?: "عكس_أيام" }[]
   ) => {
     const groupStudents = students.filter(
       (s) => s.groupGrade === grade && s.groupDays === days
@@ -316,17 +317,25 @@ export default function App() {
       return s;
     });
 
-    // Clear the finished group's barcodes AND any makeup students of this grade from the active scanner screen
-    const groupBarcodes = new Set<string>(groupStudents.map((s) => s.barcode));
-    const attendedMakeupOfGrade = students
-      .filter((s) => s.groupGrade === grade && scanLogOrder.includes(s.barcode))
-      .map((s) => s.barcode);
+    // Clear the finished group's barcodes AND any makeup / cross-day students from the active scanner screen
+    const barcodesToRemove = new Set<string>();
+    groupStudents.forEach((s) => barcodesToRemove.add(s.barcode));
     
-    attendedMakeupOfGrade.forEach((b) => groupBarcodes.add(b));
+    // Add all students of this grade who were scanned (including cross-day attendees)
+    students.forEach((s) => {
+      if (s.groupGrade === grade && scanLogOrder.includes(s.barcode)) {
+        barcodesToRemove.add(s.barcode);
+      }
+    });
 
-    const remainingScanOrder = scanLogOrder.filter((b) => !groupBarcodes.has(b));
+    // Also remove any explicitly passed cross-day attendees
+    if (crossDayList) {
+      crossDayList.forEach((c) => barcodesToRemove.add(c.student.barcode));
+    }
+
+    const remainingScanOrder = scanLogOrder.filter((b) => !barcodesToRemove.has(b));
     const remainingScanTimes = { ...scanLogTimes };
-    groupBarcodes.forEach((b) => {
+    barcodesToRemove.forEach((b) => {
       delete remainingScanTimes[b];
     });
 

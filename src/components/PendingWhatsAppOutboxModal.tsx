@@ -211,6 +211,13 @@ export const PendingWhatsAppOutboxModal: React.FC<PendingWhatsAppOutboxModalProp
             <span>إيصال سداد</span>
           </span>
         );
+      case "عكس_أيام":
+        return (
+          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-cyan-500/15 border border-cyan-500/30 text-cyan-400 text-xs font-black">
+            <RotateCcw className="w-3.5 h-3.5" />
+            <span>حضور عكس الأيام</span>
+          </span>
+        );
       case "تنبيه":
         return (
           <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-purple-500/15 border border-purple-500/30 text-purple-400 text-xs font-black">
@@ -372,6 +379,7 @@ export const PendingWhatsAppOutboxModal: React.FC<PendingWhatsAppOutboxModalProp
               { id: "pending", label: `⏳ معلق (${pendingOnlyList.length})` },
               { id: "غياب", label: "🔴 غياب" },
               { id: "تأخير", label: "🟡 تأخير" },
+              { id: "عكس_أيام", label: "🔄 عكس الأيام" },
               { id: "درجات", label: "📊 درجات" },
               { id: "مصاريف", label: "💵 مصاريف" },
               { id: "تنبيه", label: "📢 تنبيهات" },

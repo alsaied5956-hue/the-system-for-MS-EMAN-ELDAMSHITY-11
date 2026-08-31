@@ -54,7 +54,8 @@ interface AttendanceScannerProps {
     grade: GradeName,
     days: GroupDays,
     absentList: { student: Student; message: string; type: "غائب" }[],
-    lateList: { student: Student; message: string; type: "تأخير" }[]
+    lateList: { student: Student; message: string; type: "تأخير" }[],
+    crossDayList?: { student: Student; message: string; type: "عكس_أيام" }[]
   ) => void;
   onRemoveFromScanner?: (barcode: string) => void;
   onChangeStatus?: (barcode: string, dateKey: string, newStatus: string) => void;
@@ -107,6 +108,7 @@ export const AttendanceScanner: React.FC<AttendanceScannerProps> = ({
     present: number;
     late: number;
     absent: number;
+    crossDay?: number;
   } | null>(null);
 
   // WhatsApp Sequential Dispatch Modal State
@@ -114,7 +116,7 @@ export const AttendanceScanner: React.FC<AttendanceScannerProps> = ({
     isOpen: boolean;
     grade: GradeName;
     days: GroupDays;
-    items: { student: Student; message: string; type: "غائب" | "تأخير" }[];
+    items: { student: Student; message: string; type: "غائب" | "تأخير" | "عكس_أيام" }[];
   }>({
     isOpen: false,
     grade: selectedGrade,
@@ -270,6 +272,7 @@ export const AttendanceScanner: React.FC<AttendanceScannerProps> = ({
 
     const absentList: { student: Student; message: string; type: "غائب" }[] = [];
     const lateList: { student: Student; message: string; type: "تأخير" }[] = [];
+    const crossDayList: { student: Student; message: string; type: "عكس_أيام" }[] = [];
     let presentCount = 0;
 
     groupStudents.forEach((student) => {
@@ -293,9 +296,35 @@ export const AttendanceScanner: React.FC<AttendanceScannerProps> = ({
       }
     });
 
-    // 1. Permanently record attendance in today's state and history, and clear group from active scanner queue
+    // Find all cross-day makeup students (students in scanLogOrder belonging to this grade but different registered groupDays)
+    (scanLogOrder || []).forEach((barcode) => {
+      const st = (students || []).find((s) => s.barcode === barcode);
+      if (!st) return;
+      if (st.groupGrade === selectedGrade && st.groupDays !== selectedDays) {
+        const timeIso = scanLogTimes?.[barcode];
+        const timeStr = timeIso
+          ? new Date(timeIso).toLocaleTimeString("ar-EG", { hour: "2-digit", minute: "2-digit" })
+          : "";
+        const statusToday = attendanceToday?.[barcode] || "حضور";
+
+        const msg = `تنبيه من منظومة الأستاذة إيمان الدمشيتي 📐\n` +
+          `نفيدكم بعلم أن الطالب/ة: (${st.name})\n` +
+          `المقيد في مجموعة: [${st.groupGrade} - ${st.groupDays}]\n` +
+          `قد حضر اليوم في مجموعة عكس الأيام: [${selectedGrade} - ${selectedDays}]\n` +
+          `حالة التسجيل: (${statusToday})${timeStr ? ` في تمام الساعة (${timeStr})` : ""}.\n` +
+          `تم تسجيل حضوره تعويضياً بنجاح.`;
+
+        crossDayList.push({
+          student: st,
+          message: msg,
+          type: "عكس_أيام",
+        });
+      }
+    });
+
+    // 1. Permanently record attendance in today's state and history, and clear group & cross-day from active scanner queue
     if (onFinishGroup) {
-      onFinishGroup(selectedGrade, selectedDays, absentList, lateList);
+      onFinishGroup(selectedGrade, selectedDays, absentList, lateList, crossDayList);
     }
 
     // 2. Set finished banner info
@@ -305,11 +334,12 @@ export const AttendanceScanner: React.FC<AttendanceScannerProps> = ({
       present: presentCount,
       late: lateList.length,
       absent: absentList.length,
+      crossDay: crossDayList.length,
     });
     setScanAlert(null);
 
     // 3. Persist messages to persistent WhatsApp Outbox Queue
-    const combinedQueue = [...absentList, ...lateList];
+    const combinedQueue = [...absentList, ...lateList, ...crossDayList];
     if (combinedQueue.length > 0) {
       enqueuePendingWhatsAppMessagesBatch(
         combinedQueue.map((item) => ({
@@ -317,7 +347,7 @@ export const AttendanceScanner: React.FC<AttendanceScannerProps> = ({
           studentName: item.student.name,
           grade: item.student.groupGrade,
           phone: item.student.parentPhone,
-          messageType: item.type === "غائب" ? "غياب" : "تأخير",
+          messageType: item.type === "غائب" ? "غياب" : item.type === "تأخير" ? "تأخير" : "عكس_أيام",
           message: item.message,
         }))
       );
@@ -332,7 +362,7 @@ export const AttendanceScanner: React.FC<AttendanceScannerProps> = ({
         });
       } else {
         alert(
-          `⚡ أنت في وضع الأوفلاين (بدون نت):\nتم حفظ سجلات الحضور بنجاح، وتم حفظ عدد (${combinedQueue.length}) رسالة غياب وتأخير في "طابور رسائل الواتساب المعلقة".\nعند عودة الإنترنت يمكنك الضغط على زرار (طابور الواتساب) في الشريط العلوي لإرسال الكل دفعة واحدة!`
+          `⚡ أنت في وضع الأوفلاين (بدون نت):\nتم حفظ سجلات الحضور بنجاح، وتم حفظ عدد (${combinedQueue.length}) رسالة غياب وتأخير وحضور عكس الأيام في "طابور رسائل الواتساب المعلقة".\nعند عودة الإنترنت يمكنك الضغط على زرار (طابور الواتساب) في الشريط العلوي لإرسال الكل دفعة واحدة!`
         );
       }
     } else {
@@ -478,7 +508,10 @@ export const AttendanceScanner: React.FC<AttendanceScannerProps> = ({
               <p className="text-xs md:text-sm text-slate-300 mt-0.5 font-tajawal">
                 تم تثبيت: <span className="text-emerald-400 font-bold">{finishedBanner.present} حاضر</span> •{" "}
                 <span className="text-amber-400 font-bold">{finishedBanner.late} متأخر</span> •{" "}
-                <span className="text-rose-400 font-bold">{finishedBanner.absent} غائب</span>. الاسكانر مفرغ وجاهز الآن للمجموعة القادمة.
+                <span className="text-rose-400 font-bold">{finishedBanner.absent} غائب</span>
+                {finishedBanner.crossDay ? (
+                  <> • <span className="text-cyan-400 font-bold">{finishedBanner.crossDay} تعويض عكس أيام</span></>
+                ) : null}. الاسكانر مفرغ وجاهز الآن للمجموعة القادمة.
               </p>
             </div>
           </div>
@@ -1144,12 +1177,23 @@ export const AttendanceScanner: React.FC<AttendanceScannerProps> = ({
                         <div className="flex items-center justify-center gap-1.5">
                           <button
                             type="button"
-                            onClick={() =>
-                              openWhatsApp(
-                                student.parentPhone,
-                                `السلام عليكم ورحمة الله، نفيدكم بتسجيل حضور الطالب/ة (${student.name}) في حصة الرياضيات.`
-                              )
-                            }
+                            onClick={() => {
+                              if (isCrossDayMakeup) {
+                                const timeStr = formattedTime !== "--:--" ? ` في تمام الساعة (${formattedTime})` : "";
+                                const msg = `تنبيه من منظومة الأستاذة إيمان الدمشيتي 📐\n` +
+                                  `نفيدكم بعلم أن الطالب/ة: (${student.name})\n` +
+                                  `المقيد في مجموعة: [${student.groupGrade} - ${student.groupDays}]\n` +
+                                  `قد حضر اليوم في مجموعة عكس الأيام: [${selectedGrade} - ${selectedDays}]\n` +
+                                  `حالة التسجيل: (${statusToday})${timeStr}.\n` +
+                                  `تم تسجيل حضوره تعويضياً بنجاح.`;
+                                openWhatsApp(student.parentPhone, msg);
+                              } else {
+                                openWhatsApp(
+                                  student.parentPhone,
+                                  `السلام عليكم ورحمة الله، نفيدكم بتسجيل حضور الطالب/ة (${student.name}) في حصة الرياضيات.`
+                                );
+                              }
+                            }}
                             className="px-2.5 py-1 rounded-xl bg-emerald-500/10 hover:bg-emerald-500 text-emerald-400 hover:text-white border border-emerald-500/30 text-xs font-bold transition-all inline-flex items-center gap-1 cursor-pointer"
                             title="إرسال رسالة واتساب لولي الأمر"
                           >

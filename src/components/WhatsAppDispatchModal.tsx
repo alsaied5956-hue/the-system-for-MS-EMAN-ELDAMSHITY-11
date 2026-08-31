@@ -21,12 +21,13 @@ import {
   Keyboard,
   ShieldCheck,
   Zap,
+  RefreshCw,
 } from "lucide-react";
 
 export interface DispatchItem {
   student: Student;
   message: string;
-  type: "غائب" | "تأخير";
+  type: "غائب" | "تأخير" | "عكس_أيام";
   status: "pending" | "sent" | "skipped";
   sentAt?: string;
 }
@@ -39,7 +40,7 @@ interface WhatsAppDispatchModalProps {
   initialItems: {
     student: Student;
     message: string;
-    type: "غائب" | "تأخير";
+    type: "غائب" | "تأخير" | "عكس_أيام";
   }[];
 }
 
@@ -55,7 +56,7 @@ export const WhatsAppDispatchModal: React.FC<WhatsAppDispatchModalProps> = ({
   const [isAutoSending, setIsAutoSending] = useState<boolean>(false);
   const [autoTimerCountdown, setAutoTimerCountdown] = useState<number>(2.5);
   const [copiedId, setCopiedId] = useState<string | null>(null);
-  const [activeFilter, setActiveFilter] = useState<"all" | "absent" | "late">("all");
+  const [activeFilter, setActiveFilter] = useState<"all" | "absent" | "late" | "cross_days">("all");
   const [isCompleted, setIsCompleted] = useState<boolean>(false);
 
   // Initialize Queue when modal opens or items change
@@ -233,6 +234,7 @@ export const WhatsAppDispatchModal: React.FC<WhatsAppDispatchModalProps> = ({
   const filteredItems = items.filter((it) => {
     if (activeFilter === "absent") return it.type === "غائب";
     if (activeFilter === "late") return it.type === "تأخير";
+    if (activeFilter === "cross_days") return it.type === "عكس_أيام";
     return true;
   });
 
@@ -362,11 +364,25 @@ export const WhatsAppDispatchModal: React.FC<WhatsAppDispatchModalProps> = ({
                         className={`text-xs px-3 py-1 rounded-full font-black flex items-center gap-1.5 shadow-md ${
                           activeItem.type === "غائب"
                             ? "bg-rose-500/20 text-rose-300 border border-rose-500/40"
-                            : "bg-amber-500/20 text-amber-300 border border-amber-500/40"
+                            : activeItem.type === "تأخير"
+                            ? "bg-amber-500/20 text-amber-300 border border-amber-500/40"
+                            : "bg-cyan-500/20 text-cyan-300 border border-cyan-500/40"
                         }`}
                       >
-                        {activeItem.type === "غائب" ? <UserX className="w-3.5 h-3.5" /> : <Clock className="w-3.5 h-3.5" />}
-                        <span>{activeItem.type === "غائب" ? "🔴 إشعار غياب اليوم" : "🟡 إشعار تأخير عن الحصة"}</span>
+                        {activeItem.type === "غائب" ? (
+                          <UserX className="w-3.5 h-3.5" />
+                        ) : activeItem.type === "تأخير" ? (
+                          <Clock className="w-3.5 h-3.5" />
+                        ) : (
+                          <RefreshCw className="w-3.5 h-3.5 text-cyan-400" />
+                        )}
+                        <span>
+                          {activeItem.type === "غائب"
+                            ? "🔴 إشعار غياب اليوم"
+                            : activeItem.type === "تأخير"
+                            ? "🟡 إشعار تأخير عن الحصة"
+                            : "🔄 إشعار حضور في مجموعة عكس الأيام"}
+                        </span>
                       </span>
 
                       <span className="font-mono text-xs text-amber-300 bg-slate-900/90 px-2.5 py-1 rounded-lg border border-slate-800">
@@ -514,6 +530,17 @@ export const WhatsAppDispatchModal: React.FC<WhatsAppDispatchModalProps> = ({
                 >
                   التأخير ({items.filter((i) => i.type === "تأخير").length})
                 </button>
+                {items.some((i) => i.type === "عكس_أيام") && (
+                  <button
+                    type="button"
+                    onClick={() => setActiveFilter("cross_days")}
+                    className={`px-2.5 py-1 rounded-lg font-bold transition-colors ${
+                      activeFilter === "cross_days" ? "bg-cyan-500 text-black" : "text-cyan-400 hover:text-white"
+                    }`}
+                  >
+                    عكس الأيام ({items.filter((i) => i.type === "عكس_أيام").length})
+                  </button>
+                )}
               </div>
             </div>
 
@@ -560,10 +587,12 @@ export const WhatsAppDispatchModal: React.FC<WhatsAppDispatchModalProps> = ({
                             className={`text-[10px] px-1.5 py-0.5 rounded font-extrabold ${
                               item.type === "غائب"
                                 ? "bg-rose-500/20 text-rose-300"
-                                : "bg-amber-500/20 text-amber-300"
+                                : item.type === "تأخير"
+                                ? "bg-amber-500/20 text-amber-300"
+                                : "bg-cyan-500/20 text-cyan-300"
                             }`}
                           >
-                            {item.type}
+                            {item.type === "عكس_أيام" ? "🔄 عكس الأيام" : item.type}
                           </span>
                         </div>
                         <span className="font-mono text-[11px] text-slate-400" dir="ltr">
