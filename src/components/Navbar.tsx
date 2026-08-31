@@ -26,6 +26,7 @@ interface NavbarProps {
   isOnline?: boolean;
   isSyncing?: boolean;
   hasPendingSync?: boolean;
+  isQuotaExceeded?: boolean;
   onManualSync?: () => void;
   pendingWhatsAppCount?: number;
   onOpenWhatsAppOutbox?: () => void;
@@ -47,6 +48,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   isOnline = true,
   isSyncing = false,
   hasPendingSync = false,
+  isQuotaExceeded = false,
   onManualSync,
   pendingWhatsAppCount = 0,
   onOpenWhatsAppOutbox,
@@ -186,6 +188,8 @@ export const Navbar: React.FC<NavbarProps> = ({
             className={`flex items-center gap-1.5 px-3.5 py-2 rounded-2xl text-xs font-bold border transition-all cursor-pointer transform active:scale-95 ${
               isSyncing
                 ? "bg-amber-500/15 text-amber-300 border-amber-500/40 animate-pulse"
+                : isQuotaExceeded
+                ? "bg-amber-500/15 text-amber-300 border-amber-500/40 shadow-sm hover:bg-amber-500/25"
                 : hasPendingSync
                 ? "bg-amber-500/20 text-amber-300 border-amber-500/50 shadow-md shadow-amber-500/20 hover:bg-amber-500/30"
                 : isOnline
@@ -195,6 +199,8 @@ export const Navbar: React.FC<NavbarProps> = ({
             title={
               isSyncing
                 ? "جارٍ مزامنة وتحديث البيانات مع السحابة..."
+                : isQuotaExceeded
+                ? "بياناتك محفوظة بالكامل محلياً على جهازك 100% (تم الوصول للحد اليومي المجاني لكوتة السحابة) - انقر لمحاولة المزامنة يدوياً"
                 : hasPendingSync
                 ? "توجد بيانات مسجلة أوفلاين بانتظار المزامنة - اضغط للمزامنة فوراً"
                 : isOnline
@@ -204,6 +210,8 @@ export const Navbar: React.FC<NavbarProps> = ({
           >
             {isSyncing ? (
               <RefreshCw className="w-3.5 h-3.5 text-amber-400 animate-spin" />
+            ) : isQuotaExceeded ? (
+              <Shield className="w-3.5 h-3.5 text-amber-400" />
             ) : hasPendingSync ? (
               <RefreshCw className="w-3.5 h-3.5 text-amber-400" />
             ) : isOnline ? (
@@ -218,6 +226,8 @@ export const Navbar: React.FC<NavbarProps> = ({
             <span className="hidden sm:inline font-tajawal">
               {isSyncing
                 ? "جارٍ المزامنة..."
+                : isQuotaExceeded
+                ? "محفوظ محلياً"
                 : hasPendingSync
                 ? "مزامنة المعلق"
                 : isOnline

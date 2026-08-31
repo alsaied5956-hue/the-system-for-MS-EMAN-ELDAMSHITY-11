@@ -1,7 +1,7 @@
-import { Student, UserAccount, GradeName, PaymentRecord, PermissionKey, PendingWhatsAppMessage, WhatsAppMessageType } from "../types";
+import { Student, UserAccount, GradeName, PaymentRecord, PermissionKey, PendingWhatsAppMessage } from "../types";
 import { DEFAULT_GRADE_PRICES, getTodayKey, formatTimeArabic } from "./helpers";
 import { db } from "./firebase";
-import { doc, setDoc, onSnapshot } from "firebase/firestore";
+import { doc, setDoc, onSnapshot, disableNetwork, enableNetwork } from "firebase/firestore";
 
 const STORAGE_KEY = "center_data_v2";
 const PENDING_SYNC_KEY = "center_pending_sync_v2";
@@ -18,6 +18,7 @@ export interface SystemData {
   groupPrices: Record<GradeName, number>;
   activeSessionSlotId: string;
   pendingWhatsAppMessages: PendingWhatsAppMessage[];
+  updatedAt?: number; // Epoch timestamp in ms for conflict resolution
 }
 
 export interface SyncStatus {
@@ -25,6 +26,8 @@ export interface SyncStatus {
   isSyncing: boolean;
   hasPendingSync: boolean;
   lastSyncTime: string | null;
+  isQuotaExceeded?: boolean;
+  quotaMessage?: string;
 }
 
 export const ALL_PERMISSIONS: PermissionKey[] = [
@@ -62,6 +65,7 @@ export const INITIAL_SYSTEM_DATA: SystemData = {
   groupPrices: DEFAULT_GRADE_PRICES,
   activeSessionSlotId: "auto",
   pendingWhatsAppMessages: [],
+  updatedAt: Date.now(),
 };
 
 // Internal memory cache & sync flags
@@ -71,13 +75,15 @@ let debounceSyncTimer: ReturnType<typeof setTimeout> | null = null;
 let isCurrentlySyncing: boolean = false;
 let syncTimeoutTimer: ReturnType<typeof setTimeout> | null = null;
 let prevStatusSnapshot: string = "";
+let isQuotaExceeded: boolean = false;
+let quotaExceededUntil: number = 0;
 
 // Subscribed listeners for sync status changes
 const syncStatusListeners: Array<(status: SyncStatus) => void> = [];
 
 function notifySyncStatusChange(): void {
   const status = getSyncStatus();
-  const serialized = `${status.isOnline}_${status.isSyncing}_${status.hasPendingSync}_${status.lastSyncTime}`;
+  const serialized = `${status.isOnline}_${status.isSyncing}_${status.hasPendingSync}_${status.lastSyncTime}_${status.isQuotaExceeded}`;
   if (serialized === prevStatusSnapshot) return;
   prevStatusSnapshot = serialized;
 
@@ -88,6 +94,23 @@ function notifySyncStatusChange(): void {
       console.warn("Error in sync status listener callback:", e);
     }
   });
+}
+
+/**
+ * Check if an error is a Firebase Firestore quota exceeded error
+ */
+export function isFirestoreQuotaError(e: unknown): boolean {
+  if (!e) return false;
+  const errorObj = e as { code?: string; message?: string };
+  const code = errorObj.code || "";
+  const msg = errorObj.message || "";
+  return (
+    code === "resource-exhausted" ||
+    code.includes("resource-exhausted") ||
+    msg.includes("Quota limit exceeded") ||
+    msg.includes("resource-exhausted") ||
+    msg.includes("quota metric")
+  );
 }
 
 /**
@@ -103,11 +126,17 @@ export function getSyncStatus(): SyncStatus {
     lastSyncTime = localStorage.getItem(LAST_SYNC_TIME_KEY);
   }
 
+  const quotaActive = isQuotaExceeded && Date.now() < quotaExceededUntil;
+
   return {
     isOnline,
     isSyncing: isCurrentlySyncing,
     hasPendingSync,
     lastSyncTime,
+    isQuotaExceeded: quotaActive,
+    quotaMessage: quotaActive
+      ? "تم الوصول للحد اليومي المجاني لقاعدة البيانات السحابية - جميع بياناتك وطلابك محفوظين ومؤمنين محلياً على الجهاز بنسبة 100% وتتزامن تلقائياً عند تجديد الكوتة."
+      : undefined,
   };
 }
 
@@ -148,6 +177,7 @@ export function loadLocalData(): SystemData {
         groupPrices: { ...DEFAULT_GRADE_PRICES, ...(parsed.groupPrices || {}) },
         activeSessionSlotId: parsed.activeSessionSlotId || "auto",
         pendingWhatsAppMessages: Array.isArray(parsed.pendingWhatsAppMessages) ? parsed.pendingWhatsAppMessages : [],
+        updatedAt: typeof parsed.updatedAt === "number" ? parsed.updatedAt : Date.now(),
       };
       memoryCachedData = loaded;
       return loaded;
@@ -160,32 +190,25 @@ export function loadLocalData(): SystemData {
   return INITIAL_SYSTEM_DATA;
 }
 
-let localSaveTimeout: ReturnType<typeof setTimeout> | null = null;
-
 /**
- * Save data to browser LocalStorage as high-speed instant cache (0ms latency, throttled write)
+ * Save data to browser LocalStorage SYNCHRONOUSLY and IMMEDIATELY (guaranteed persistence)
  */
 export function saveToLocalStorage(data: SystemData): void {
-  memoryCachedData = data;
-  if (typeof window === "undefined") return;
-
   const todayKey = getTodayKey();
   if (!data.attendanceHistory) data.attendanceHistory = {};
   data.attendanceHistory[todayKey] = data.attendanceToday || {};
+  data.updatedAt = Date.now();
 
-  // Debounce actual localStorage disk write by 60ms to prevent main thread blocking during fast typing/scanning
-  if (localSaveTimeout) {
-    clearTimeout(localSaveTimeout);
+  memoryCachedData = data;
+
+  if (typeof window === "undefined") return;
+
+  try {
+    const serialized = JSON.stringify(data);
+    localStorage.setItem(STORAGE_KEY, serialized);
+  } catch (e) {
+    console.error("Local storage synchronous save error:", e);
   }
-
-  localSaveTimeout = setTimeout(() => {
-    try {
-      const serialized = JSON.stringify(data);
-      localStorage.setItem(STORAGE_KEY, serialized);
-    } catch (e) {
-      console.error("Local storage save error:", e);
-    }
-  }, 60);
 }
 
 /**
@@ -208,9 +231,16 @@ function cleanForFirestore(obj: unknown): unknown {
 /**
  * Perform a direct, guaranteed push of local data to Firestore Cloud Database
  */
-export async function flushPendingSyncToCloud(): Promise<boolean> {
+export async function flushPendingSyncToCloud(forceManual: boolean = false): Promise<boolean> {
   if (typeof window === "undefined") return false;
   if (!navigator.onLine) {
+    isCurrentlySyncing = false;
+    notifySyncStatusChange();
+    return false;
+  }
+
+  // If cloud quota is currently exceeded and cooldown is active, skip background automatic pushes
+  if (isQuotaExceeded && Date.now() < quotaExceededUntil && !forceManual) {
     isCurrentlySyncing = false;
     notifySyncStatusChange();
     return false;
@@ -241,10 +271,17 @@ export async function flushPendingSyncToCloud(): Promise<boolean> {
     const dataHash = JSON.stringify(data);
     lastSyncedDataHash = dataHash;
 
+    if (isQuotaExceeded && forceManual) {
+      try {
+        await enableNetwork(db);
+      } catch {}
+    }
+
     const systemDocRef = doc(db, "system_state", "main_center_data");
     const cleaned = cleanForFirestore({
       ...data,
-      updatedAt: new Date().toISOString(),
+      updatedAt: data.updatedAt || Date.now(),
+      syncedAtIso: new Date().toISOString(),
     });
 
     await setDoc(systemDocRef, cleaned as Record<string, unknown>, { merge: true });
@@ -254,6 +291,8 @@ export async function flushPendingSyncToCloud(): Promise<boolean> {
     const nowIso = new Date().toLocaleTimeString("ar-EG", { hour: "2-digit", minute: "2-digit" });
     localStorage.setItem(LAST_SYNC_TIME_KEY, nowIso);
 
+    isQuotaExceeded = false;
+    quotaExceededUntil = 0;
     isCurrentlySyncing = false;
     if (syncTimeoutTimer) clearTimeout(syncTimeoutTimer);
     notifySyncStatusChange();
@@ -267,7 +306,17 @@ export async function flushPendingSyncToCloud(): Promise<boolean> {
 
     return true;
   } catch (e) {
-    console.warn("Cloud sync to Firestore notice (offline queue active):", e);
+    if (isFirestoreQuotaError(e)) {
+      // Cloud free tier quota limit exceeded: activate cooldown and disable firestore background retry network
+      isQuotaExceeded = true;
+      quotaExceededUntil = Date.now() + 15 * 60 * 1000;
+      try {
+        await disableNetwork(db);
+      } catch {}
+    } else {
+      console.warn("Cloud sync to Firestore notice (offline queue active):", e);
+    }
+    
     localStorage.setItem(PENDING_SYNC_KEY, "true");
     isCurrentlySyncing = false;
     if (syncTimeoutTimer) clearTimeout(syncTimeoutTimer);
@@ -280,7 +329,7 @@ export async function flushPendingSyncToCloud(): Promise<boolean> {
  * Sync entire system data state to Firestore cloud database with automatic offline queueing
  */
 export function syncDataToCloud(data: SystemData): void {
-  // 1. Instant local persistence (0ms latency, works 100% offline)
+  // 1. Instant synchronous local persistence (0ms latency, works 100% offline)
   saveToLocalStorage(data);
 
   if (typeof window !== "undefined") {
@@ -289,16 +338,21 @@ export function syncDataToCloud(data: SystemData): void {
     notifySyncStatusChange();
   }
 
-  // 2. Debounce cloud network push by 600ms to eliminate UI stutter and merge rapid consecutive edits
+  // If quota is exceeded, do not schedule immediate background cloud attempts
+  if (isQuotaExceeded && Date.now() < quotaExceededUntil) {
+    return;
+  }
+
+  // 2. Debounce cloud network push by 400ms to merge rapid consecutive edits
   if (debounceSyncTimer) {
     clearTimeout(debounceSyncTimer);
   }
 
   debounceSyncTimer = setTimeout(async () => {
     if (typeof window !== "undefined" && navigator.onLine && !isCurrentlySyncing) {
-      await flushPendingSyncToCloud();
+      await flushPendingSyncToCloud(false);
     }
-  }, 600);
+  }, 400);
 }
 
 export function loadInitialData(): SystemData {
@@ -306,8 +360,7 @@ export function loadInitialData(): SystemData {
 }
 
 /**
- * Real-time continuous listener to Firestore cloud database
- * Updates local UI only when genuine changes from other devices arrive
+ * Real-time continuous listener to Firestore cloud database with timestamp conflict resolution
  */
 export function subscribeToCloudData(
   onUpdate: (data: SystemData) => void,
@@ -327,17 +380,39 @@ export function subscribeToCloudData(
         if (snapshot.exists()) {
           const val = snapshot.data();
           if (val) {
+            const currentLocal = loadLocalData();
+            const cloudUpdatedAt = typeof val.updatedAt === "number" ? val.updatedAt : 0;
+            const localUpdatedAt = currentLocal.updatedAt || 0;
+            const hasPending = typeof window !== "undefined" && localStorage.getItem(PENDING_SYNC_KEY) === "true";
+
+            // If local data has pending changes or is newer than cloud snapshot, do NOT overwrite local changes!
+            if (hasPending || (localUpdatedAt > cloudUpdatedAt && currentLocal.students.length >= (val.students?.length || 0))) {
+              if (!isQuotaExceeded || Date.now() >= quotaExceededUntil) {
+                flushPendingSyncToCloud(false);
+              }
+              return;
+            }
+
+            // If cloud has empty students but local has students, protect local students against accidental wipe
+            if ((!val.students || val.students.length === 0) && currentLocal.students.length > 0) {
+              if (!isQuotaExceeded || Date.now() >= quotaExceededUntil) {
+                flushPendingSyncToCloud(false);
+              }
+              return;
+            }
+
             const merged: SystemData = {
-              students: Array.isArray(val.students) ? val.students : [],
-              attendanceHistory: val.attendanceHistory || {},
-              attendanceToday: val.attendanceToday || {},
-              scanLogTimes: val.scanLogTimes || {},
-              payments: val.payments || {},
-              scanLogOrder: Array.isArray(val.scanLogOrder) ? val.scanLogOrder : [],
-              usersList: Array.isArray(val.usersList) && val.usersList.length > 0 ? val.usersList : DEFAULT_USERS,
-              groupPrices: { ...DEFAULT_GRADE_PRICES, ...(val.groupPrices || {}) },
-              activeSessionSlotId: val.activeSessionSlotId || "auto",
-              pendingWhatsAppMessages: Array.isArray(val.pendingWhatsAppMessages) ? val.pendingWhatsAppMessages : [],
+              students: Array.isArray(val.students) ? val.students : currentLocal.students,
+              attendanceHistory: val.attendanceHistory || currentLocal.attendanceHistory,
+              attendanceToday: val.attendanceToday || currentLocal.attendanceToday,
+              scanLogTimes: val.scanLogTimes || currentLocal.scanLogTimes,
+              payments: val.payments || currentLocal.payments,
+              scanLogOrder: Array.isArray(val.scanLogOrder) ? val.scanLogOrder : currentLocal.scanLogOrder,
+              usersList: Array.isArray(val.usersList) && val.usersList.length > 0 ? val.usersList : currentLocal.usersList,
+              groupPrices: { ...DEFAULT_GRADE_PRICES, ...(val.groupPrices || currentLocal.groupPrices) },
+              activeSessionSlotId: val.activeSessionSlotId || currentLocal.activeSessionSlotId || "auto",
+              pendingWhatsAppMessages: Array.isArray(val.pendingWhatsAppMessages) ? val.pendingWhatsAppMessages : currentLocal.pendingWhatsAppMessages,
+              updatedAt: cloudUpdatedAt || Date.now(),
             };
 
             const todayKey = getTodayKey();
@@ -346,7 +421,6 @@ export function subscribeToCloudData(
             }
 
             const incomingHash = JSON.stringify(merged);
-            // Skip updating state if there are no actual differences
             if (incomingHash === lastSyncedDataHash) {
               return;
             }
@@ -357,30 +431,54 @@ export function subscribeToCloudData(
             notifySyncStatusChange();
             onUpdate(merged);
           }
+        } else {
+          // Document doesn't exist yet on Firestore: push initial local data if not quota limited
+          const local = loadLocalData();
+          if (local.students.length > 0 && (!isQuotaExceeded || Date.now() >= quotaExceededUntil)) {
+            flushPendingSyncToCloud(false);
+          }
         }
       },
       (error) => {
-        console.warn("Firestore snapshot listener notice (working locally):", error);
+        if (isFirestoreQuotaError(error)) {
+          isQuotaExceeded = true;
+          quotaExceededUntil = Date.now() + 15 * 60 * 1000;
+          try {
+            disableNetwork(db);
+          } catch {}
+          notifySyncStatusChange();
+        } else {
+          console.warn("Firestore snapshot listener notice (working locally):", error);
+        }
         if (onError) onError(error);
       }
     );
 
     return unsubscribe;
   } catch (err) {
-    console.warn("Firebase Firestore subscription notice (working locally):", err);
+    if (isFirestoreQuotaError(err)) {
+      isQuotaExceeded = true;
+      quotaExceededUntil = Date.now() + 15 * 60 * 1000;
+      try {
+        disableNetwork(db);
+      } catch {}
+      notifySyncStatusChange();
+    }
     if (onError) onError(err);
     return () => {};
   }
 }
 
 // -------------------------------------------------------------
-// Auto-Sync Event Handlers: Online, Visibility, and Heartbeat
+// Auto-Sync Event Handlers: Online, Visibility, Unload, and Heartbeat
 // -------------------------------------------------------------
 if (typeof window !== "undefined") {
   // 1. Flush immediately when network connection is restored
   window.addEventListener("online", () => {
     notifySyncStatusChange();
-    flushPendingSyncToCloud();
+    if (!isQuotaExceeded || Date.now() >= quotaExceededUntil) {
+      flushPendingSyncToCloud(false);
+    }
   });
 
   // 2. Notify when offline
@@ -392,18 +490,35 @@ if (typeof window !== "undefined") {
   document.addEventListener("visibilitychange", () => {
     if (document.visibilityState === "visible" && navigator.onLine) {
       const hasPending = localStorage.getItem(PENDING_SYNC_KEY) === "true";
-      if (hasPending && !isCurrentlySyncing) {
-        flushPendingSyncToCloud();
+      if (hasPending && !isCurrentlySyncing && (!isQuotaExceeded || Date.now() >= quotaExceededUntil)) {
+        flushPendingSyncToCloud(false);
       }
     }
   });
 
-  // 4. Periodic background sync checker every 20 seconds
+  // 4. Guaranteed flush on tab close / reload
+  window.addEventListener("beforeunload", () => {
+    if (memoryCachedData) {
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(memoryCachedData));
+      } catch (e) {}
+    }
+  });
+
+  window.addEventListener("pagehide", () => {
+    if (memoryCachedData) {
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(memoryCachedData));
+      } catch (e) {}
+    }
+  });
+
+  // 5. Periodic background sync checker every 20 seconds (with quota protection)
   setInterval(() => {
     if (navigator.onLine) {
       const hasPending = localStorage.getItem(PENDING_SYNC_KEY) === "true";
-      if (hasPending && !isCurrentlySyncing) {
-        flushPendingSyncToCloud();
+      if (hasPending && !isCurrentlySyncing && (!isQuotaExceeded || Date.now() >= quotaExceededUntil)) {
+        flushPendingSyncToCloud(false);
       }
     }
   }, 20000);
@@ -580,4 +695,5 @@ export function deletePendingWhatsAppMessage(id: string): void {
 export function clearAllPendingWhatsAppMessages(): void {
   savePendingWhatsAppMessages([]);
 }
+
 

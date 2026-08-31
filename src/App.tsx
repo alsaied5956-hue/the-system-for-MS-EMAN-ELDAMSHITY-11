@@ -13,6 +13,7 @@ import {
   saveStudentsData,
   saveAttendanceTodayData,
   saveAttendanceAndStudentsBatch,
+  saveScanLogData,
   savePaymentsData,
   saveGroupPricesData,
   saveUsersData,
@@ -24,6 +25,7 @@ import {
   subscribeToCloudData,
   subscribeToSyncStatus,
   flushPendingSyncToCloud,
+  getSyncStatus,
   SyncStatus,
 } from "./utils/storage";
 import {
@@ -212,7 +214,7 @@ export default function App() {
 
   // Manual Trigger for Cloud Sync
   const handleManualSync = async () => {
-    const success = await flushPendingSyncToCloud();
+    const success = await flushPendingSyncToCloud(true);
     if (success) {
       setSyncBanner({
         show: true,
@@ -220,6 +222,16 @@ export default function App() {
         message: "تمت المزامنة السحابية الفورية بنجاح!",
       });
       setTimeout(() => setSyncBanner(null), 4000);
+    } else {
+      const status = getSyncStatus();
+      if (status.isQuotaExceeded) {
+        setSyncBanner({
+          show: true,
+          type: "offline-mode",
+          message: "البيانات محفوظة بالكامل محلياً على جهازك 100% ومؤمنة (كوتة السحابة اليومية ممتلئة وستتزامن تلقائياً عند التجديد).",
+        });
+        setTimeout(() => setSyncBanner(null), 6000);
+      }
     }
   };
 
@@ -304,8 +316,14 @@ export default function App() {
       return s;
     });
 
-    // Clear the finished group's barcodes from the active scanner screen so it is fresh for next group
+    // Clear the finished group's barcodes AND any makeup students of this grade from the active scanner screen
     const groupBarcodes = new Set<string>(groupStudents.map((s) => s.barcode));
+    const attendedMakeupOfGrade = students
+      .filter((s) => s.groupGrade === grade && scanLogOrder.includes(s.barcode))
+      .map((s) => s.barcode);
+    
+    attendedMakeupOfGrade.forEach((b) => groupBarcodes.add(b));
+
     const remainingScanOrder = scanLogOrder.filter((b) => !groupBarcodes.has(b));
     const remainingScanTimes = { ...scanLogTimes };
     groupBarcodes.forEach((b) => {
@@ -321,6 +339,17 @@ export default function App() {
 
     saveAttendanceAndStudentsBatch(updatedToday, remainingScanOrder, remainingScanTimes, updatedStudents);
   }, [students, attendanceToday, attendanceHistory, scanLogOrder, scanLogTimes]);
+
+  // Handler: Remove single student from active scanner screen
+  const handleRemoveFromScanner = useCallback((barcode: string) => {
+    const updatedOrder = scanLogOrder.filter((b) => b !== barcode);
+    const updatedTimes = { ...scanLogTimes };
+    delete updatedTimes[barcode];
+
+    setScanLogOrder(updatedOrder);
+    setScanLogTimes(updatedTimes);
+    saveScanLogData(updatedOrder, updatedTimes);
+  }, [scanLogOrder, scanLogTimes]);
 
   // Handler: Add Single Student
   const handleAddStudent = useCallback((newStudent: Student, cardFee = 0) => {
@@ -362,12 +391,35 @@ export default function App() {
     saveStudentsData(updated);
   }, [students]);
 
-  // Handler: Update Student Info
+  // Handler: Update Student Info (with full barcode migration)
   const handleUpdateStudent = useCallback((oldBarcode: string, updatedStudent: Student) => {
     const updated = students.map((s) => (s.barcode === oldBarcode ? updatedStudent : s));
     setStudents(updated);
-    saveStudentsData(updated);
-  }, [students]);
+
+    if (oldBarcode !== updatedStudent.barcode) {
+      // Migrate attendance today
+      const newAttToday = { ...attendanceToday };
+      if (newAttToday[oldBarcode]) {
+        newAttToday[updatedStudent.barcode] = newAttToday[oldBarcode];
+        delete newAttToday[oldBarcode];
+        setAttendanceToday(newAttToday);
+      }
+
+      // Migrate scan log
+      const newScanOrder = scanLogOrder.map((b) => (b === oldBarcode ? updatedStudent.barcode : b));
+      const newScanTimes = { ...scanLogTimes };
+      if (newScanTimes[oldBarcode]) {
+        newScanTimes[updatedStudent.barcode] = newScanTimes[oldBarcode];
+        delete newScanTimes[oldBarcode];
+      }
+      setScanLogOrder(newScanOrder);
+      setScanLogTimes(newScanTimes);
+
+      saveAttendanceAndStudentsBatch(newAttToday, newScanOrder, newScanTimes, updated);
+    } else {
+      saveStudentsData(updated);
+    }
+  }, [students, attendanceToday, scanLogOrder, scanLogTimes]);
 
   // Handler: Delete Single Student
   const handleDeleteStudent = useCallback((barcode: string) => {
@@ -636,6 +688,7 @@ export default function App() {
             isOnline={syncStatus.isOnline}
             isSyncing={syncStatus.isSyncing}
             hasPendingSync={syncStatus.hasPendingSync}
+            isQuotaExceeded={syncStatus.isQuotaExceeded}
             onManualSync={handleManualSync}
             pendingWhatsAppCount={pendingWhatsAppCount}
             onOpenWhatsAppOutbox={() => setIsWhatsAppOutboxOpen(true)}
@@ -734,8 +787,9 @@ export default function App() {
                   voiceEnabled={voiceEnabled}
                   onRecordAttendance={handleRecordAttendance}
                   onFinishGroup={handleFinishGroup}
+                  onRemoveFromScanner={handleRemoveFromScanner}
                   onChangeStatus={handleChangeAttendanceStatus}
-                  onNavigateToReport={() => setActiveTab("daily-report")}
+                  onNavigateToReport={() => setActiveTab("stats")}
                 />
               )}
 

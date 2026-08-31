@@ -9,9 +9,9 @@ import {
 } from "firebase/firestore";
 import config from "../../firebase-applet-config.json";
 
-// Suppress benign connection retry / offline notice logs from spamming console
+// Suppress benign connection retry / quota / offline notice logs from spamming console
 try {
-  setLogLevel("error");
+  setLogLevel("silent");
 } catch {
   // Ignore
 }

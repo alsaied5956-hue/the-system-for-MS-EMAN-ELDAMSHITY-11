@@ -56,6 +56,8 @@ interface AttendanceScannerProps {
     absentList: { student: Student; message: string; type: "غائب" }[],
     lateList: { student: Student; message: string; type: "تأخير" }[]
   ) => void;
+  onRemoveFromScanner?: (barcode: string) => void;
+  onChangeStatus?: (barcode: string, dateKey: string, newStatus: string) => void;
   onNavigateToReport?: () => void;
 }
 
@@ -69,6 +71,8 @@ export const AttendanceScanner: React.FC<AttendanceScannerProps> = ({
   activeSessionSlotId,
   onRecordAttendance,
   onFinishGroup,
+  onRemoveFromScanner,
+  onChangeStatus,
   onNavigateToReport,
 }) => {
   const [selectedGrade, setSelectedGrade] = useState<GradeName>(() => {
@@ -1062,7 +1066,7 @@ export const AttendanceScanner: React.FC<AttendanceScannerProps> = ({
                 <th className="p-3.5">الاشتراك الشهري</th>
                 <th className="p-3.5">حالة الدخول</th>
                 <th className="p-3.5">وقت التسجيل</th>
-                <th className="p-3.5 text-center">مراسلة سريعة</th>
+                <th className="p-3.5 text-center">إجراءات ومراسلة</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-indigo-950/50">
@@ -1137,18 +1141,32 @@ export const AttendanceScanner: React.FC<AttendanceScannerProps> = ({
                       </td>
                       <td className="p-3.5 font-mono text-slate-300">{formattedTime}</td>
                       <td className="p-3.5 text-center">
-                        <button
-                          type="button"
-                          onClick={() =>
-                            openWhatsApp(
-                              student.parentPhone,
-                              `السلام عليكم ورحمة الله، نفيدكم بتسجيل حضور الطالب/ة (${student.name}) في حصة الرياضيات.`
-                            )
-                          }
-                          className="px-3 py-1.5 rounded-xl bg-emerald-500/10 hover:bg-emerald-500 text-emerald-400 hover:text-white border border-emerald-500/30 text-xs font-bold transition-all inline-flex items-center gap-1 cursor-pointer"
-                        >
-                          📲 واتساب
-                        </button>
+                        <div className="flex items-center justify-center gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() =>
+                              openWhatsApp(
+                                student.parentPhone,
+                                `السلام عليكم ورحمة الله، نفيدكم بتسجيل حضور الطالب/ة (${student.name}) في حصة الرياضيات.`
+                              )
+                            }
+                            className="px-2.5 py-1 rounded-xl bg-emerald-500/10 hover:bg-emerald-500 text-emerald-400 hover:text-white border border-emerald-500/30 text-xs font-bold transition-all inline-flex items-center gap-1 cursor-pointer"
+                            title="إرسال رسالة واتساب لولي الأمر"
+                          >
+                            📲 <span className="hidden sm:inline">واتساب</span>
+                          </button>
+                          {onRemoveFromScanner && (
+                            <button
+                              type="button"
+                              onClick={() => onRemoveFromScanner(barcode)}
+                              className="px-2 py-1 rounded-xl bg-rose-500/10 hover:bg-rose-500 text-rose-400 hover:text-white border border-rose-500/30 text-xs font-bold transition-all inline-flex items-center gap-1 cursor-pointer"
+                              title="إزالة من قائمة الاسكانر الحالية"
+                            >
+                              <X className="w-3.5 h-3.5" />
+                              <span className="hidden sm:inline">إزالة</span>
+                            </button>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   );
