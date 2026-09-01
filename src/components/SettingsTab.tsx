@@ -265,7 +265,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
               )}
             </div>
             <p className="text-[11px] leading-relaxed text-slate-300">
-              يفتح متصفح Google Chrome تلقائياً في نافذة جديدة مع نص الرسالة ورقم ولي الأمر جاهزاً للإرسال.
+              يفتح متصفح Google Chrome تلقائياً مع تجهيز المحادثة ورقم ولي الأمر ونص الرسالة بالكامل للضغط على إرسال فورا.
             </p>
           </button>
 
@@ -284,7 +284,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
                 <div className="p-2 rounded-xl bg-sky-500/20 text-sky-400 border border-sky-500/30">
                   <Smartphone className="w-5 h-5" />
                 </div>
-                <span className="font-bold text-sm text-slate-100">تطبيق WhatsApp</span>
+                <span className="font-bold text-sm text-slate-100">تطبيق WhatsApp للكمبيوتر</span>
               </div>
               {waMode === "app" && (
                 <span className="text-[10px] bg-emerald-400 text-slate-950 font-black px-2.5 py-0.5 rounded-full">

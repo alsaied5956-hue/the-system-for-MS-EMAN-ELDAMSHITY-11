@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { Student, GradeName, PaymentRecord } from "../types";
 import { getCurrentMonthKey, getTodayKey, openWhatsApp, DEFAULT_GRADE_PRICES } from "../utils/helpers";
-import { enqueuePendingWhatsAppMessage } from "../utils/storage";
+import { enqueuePendingWhatsAppMessage, markWhatsAppMessageSent } from "../utils/storage";
 import { playBeep } from "../utils/audio";
 import { StudentSearchBox } from "./StudentSearchBox";
 import { StudentFinancialLedgerModal } from "./StudentFinancialLedgerModal";
@@ -105,7 +105,7 @@ export const PayExpensesTab: React.FC<PayExpensesTabProps> = ({
     const isOnline = typeof navigator !== "undefined" ? navigator.onLine : true;
 
     // Enqueue message into persistent WhatsApp queue
-    enqueuePendingWhatsAppMessage({
+    const queuedMsg = enqueuePendingWhatsAppMessage({
       studentBarcode: selectedStudent.barcode,
       studentName: selectedStudent.name,
       grade: selectedStudent.groupGrade,
@@ -116,9 +116,13 @@ export const PayExpensesTab: React.FC<PayExpensesTabProps> = ({
 
     if (isOnline) {
       openWhatsApp(selectedStudent.parentPhone, receiptMsg);
+      // Mark as sent immediately so it doesn't duplicate in the pending queue
+      if (queuedMsg?.id) {
+        markWhatsAppMessageSent(queuedMsg.id);
+      }
       setFeedback({
         type: "success",
-        message: `✅ تم إثبات سداد ${amount} ج.م للطالب (${selectedStudent.name}) وإرسال إيصال الواتساب بنجاح!`,
+        message: `✅ تم إثبات سداد ${amount} ج.م للطالب (${selectedStudent.name}) وفتح إيصال الواتساب بنجاح!`,
       });
     } else {
       setFeedback({

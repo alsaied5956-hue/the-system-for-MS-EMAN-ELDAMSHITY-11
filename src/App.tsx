@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import {
   Student,
   PaymentRecord,
@@ -71,7 +71,28 @@ export default function App() {
     message: string;
   } | null>(null);
 
-  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(() => {
+    if (typeof window !== "undefined") {
+      return window.innerWidth >= 1024;
+    }
+    return true;
+  });
+
+  // Dedicated per-tab isolated scroll positions
+  const mainScrollRef = useRef<HTMLElement>(null);
+  const tabScrollPositions = useRef<Record<string, number>>({});
+
+  // Restore/Reset independent scroll position on tab switch
+  useEffect(() => {
+    if (mainScrollRef.current) {
+      const savedPos = tabScrollPositions.current[activeTab] || 0;
+      mainScrollRef.current.scrollTo({ top: savedPos, behavior: "instant" });
+    }
+  }, [activeTab]);
+
+  const handleMainScroll = (e: React.UIEvent<HTMLElement>) => {
+    tabScrollPositions.current[activeTab] = e.currentTarget.scrollTop;
+  };
   const [activeSessionSlotId, setActiveSessionSlotId] = useState<string>("auto");
   const [voiceEnabled, setVoiceEnabled] = useState<boolean>(true);
   const [theme, setTheme] = useState<"dark" | "light">(() => {
@@ -762,7 +783,7 @@ export default function App() {
       )}
 
       {currentUser && (
-        <div className="flex flex-col min-h-screen">
+        <div className="flex flex-col h-screen overflow-hidden">
           {/* Top Navbar */}
           <Navbar
             currentUser={currentUser}
@@ -783,6 +804,7 @@ export default function App() {
             onChangeSessionSlot={(slotId) => setActiveSessionSlotId(slotId)}
             onOpenQuickScan={() => setActiveTab("attendance-scan")}
             onOpenPrintAllPDF={() => setPrintModal({ open: true, type: "all" })}
+            isSidebarOpen={isSidebarOpen}
             onToggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)}
           />
 
@@ -840,25 +862,33 @@ export default function App() {
             </div>
           )}
 
-          {/* Main Layout Area */}
-          <div className="flex flex-1 min-w-0">
+          {/* Main Layout Area: Separated into isolated scrolling Sidebar & isolated Main Container */}
+          <div className="flex flex-1 min-w-0 overflow-hidden relative">
             {/* Sidebar Navigation */}
             <Sidebar
               activeTab={activeTab}
               currentUser={currentUser}
               isOpen={isSidebarOpen}
+              onToggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)}
               onSelectTab={(tab) => {
                 setActiveTab(tab);
-                setIsSidebarOpen(false);
+                if (typeof window !== "undefined" && window.innerWidth < 1024) {
+                  setIsSidebarOpen(false);
+                }
               }}
               onCloseMobile={() => setIsSidebarOpen(false)}
               onOpenPdfModal={(type) => setPrintModal({ open: true, type })}
               onOpenPrintCards={() => setIsCardsModalOpen(true)}
             />
 
-            {/* Tab Body View Container */}
-            <main className="flex-1 p-4 md:p-6 lg:p-8 max-w-7xl mx-auto w-full min-w-0">
-              {activeTab === "attendance-scan" && (
+            {/* Tab Body View Container with dedicated independent scrolling */}
+            <main
+              ref={mainScrollRef}
+              onScroll={handleMainScroll}
+              className="flex-1 overflow-y-auto h-full p-3 md:p-6 lg:p-8 max-w-full min-w-0 custom-scrollbar relative"
+            >
+              <div className="max-w-7xl mx-auto w-full min-w-0 pb-16">
+                {activeTab === "attendance-scan" && (
                 <AttendanceScanner
                   students={students}
                   attendanceToday={attendanceToday}
@@ -992,6 +1022,7 @@ export default function App() {
                   onUpdateGroupPrice={handleUpdateGroupPrice}
                 />
               )}
+              </div>
             </main>
           </div>
         </div>

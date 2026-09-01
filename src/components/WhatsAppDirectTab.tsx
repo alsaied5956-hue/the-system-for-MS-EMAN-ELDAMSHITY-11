@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from "react";
 import { Student, WhatsAppMessageType } from "../types";
 import { openWhatsApp, sortStudentsByGradeAndName, getExamAverage, getAbsenceRate } from "../utils/helpers";
-import { enqueuePendingWhatsAppMessage } from "../utils/storage";
+import { enqueuePendingWhatsAppMessage, markWhatsAppMessageSent } from "../utils/storage";
 import { StudentSearchBox } from "./StudentSearchBox";
 import { matchStudentSearch } from "../utils/search";
 import {
@@ -221,7 +221,7 @@ export const WhatsAppDirectTab: React.FC<WhatsAppDirectTabProps> = ({
     const isOnline = typeof navigator !== "undefined" ? navigator.onLine : true;
 
     // Enqueue message into persistent WhatsApp queue
-    enqueuePendingWhatsAppMessage({
+    const queuedMsg = enqueuePendingWhatsAppMessage({
       studentBarcode: selectedStudent.barcode,
       studentName: selectedStudent.name,
       grade: selectedStudent.groupGrade,
@@ -232,6 +232,9 @@ export const WhatsAppDirectTab: React.FC<WhatsAppDirectTabProps> = ({
 
     if (isOnline) {
       openWhatsApp(selectedStudent.parentPhone, customMessage.trim());
+      if (queuedMsg?.id) {
+        markWhatsAppMessageSent(queuedMsg.id);
+      }
       alert(`✅ جاري فتح الواتساب لإرسال الرسالة لولي أمر (${selectedStudent.name})!`);
     } else {
       alert(

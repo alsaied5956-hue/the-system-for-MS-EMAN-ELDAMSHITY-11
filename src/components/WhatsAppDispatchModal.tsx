@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
-import { Student, GradeName, GroupDays } from "../types";
+import { Student, GradeName, GroupDays, WhatsAppMessageType } from "../types";
 import { openWhatsApp, cleanPhoneNumber } from "../utils/helpers";
+import { markWhatsAppMessageSentByBarcodeAndType } from "../utils/storage";
 import { playBeep } from "../utils/audio";
 import confetti from "canvas-confetti";
 import {
@@ -85,7 +86,12 @@ export const WhatsAppDispatchModal: React.FC<WhatsAppDispatchModalProps> = ({
     openWhatsApp(activeItem.student.parentPhone, activeItem.message);
     playBeep("success");
 
-    // 2. Mark as sent
+    // 2. Mark as sent in storage queue so it won't appear in pending outbox
+    const msgType: WhatsAppMessageType =
+      activeItem.type === "غائب" ? "غياب" : activeItem.type === "تأخير" ? "تأخير" : "عكس_أيام";
+    markWhatsAppMessageSentByBarcodeAndType(activeItem.student.barcode, msgType);
+
+    // 3. Mark as sent locally
     const updated = [...items];
     updated[currentIndex] = {
       ...updated[currentIndex],
@@ -94,7 +100,7 @@ export const WhatsAppDispatchModal: React.FC<WhatsAppDispatchModalProps> = ({
     };
     setItems(updated);
 
-    // 3. Find next pending index
+    // 4. Find next pending index
     const nextPendingIdx = updated.findIndex((it, idx) => idx > currentIndex && it.status === "pending");
 
     if (nextPendingIdx !== -1) {
@@ -622,6 +628,9 @@ export const WhatsAppDispatchModal: React.FC<WhatsAppDispatchModalProps> = ({
                         type="button"
                         onClick={() => {
                           openWhatsApp(item.student.parentPhone, item.message);
+                          const msgType: WhatsAppMessageType =
+                            item.type === "غائب" ? "غياب" : item.type === "تأخير" ? "تأخير" : "عكس_أيام";
+                          markWhatsAppMessageSentByBarcodeAndType(item.student.barcode, msgType);
                           const up = [...items];
                           up[originalIndex] = {
                             ...up[originalIndex],

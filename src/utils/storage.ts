@@ -1,4 +1,4 @@
-import { Student, UserAccount, GradeName, PaymentRecord, PermissionKey, PendingWhatsAppMessage } from "../types";
+import { Student, UserAccount, GradeName, PaymentRecord, PermissionKey, PendingWhatsAppMessage, WhatsAppMessageType } from "../types";
 import { DEFAULT_GRADE_PRICES, getTodayKey, formatTimeArabic } from "./helpers";
 import { db } from "./firebase";
 import { doc, setDoc, onSnapshot, disableNetwork, enableNetwork } from "firebase/firestore";
@@ -948,6 +948,21 @@ export function markWhatsAppMessageSent(id: string): void {
   const nowTime = formatTimeArabic();
   const updatedList = existing.map((m) =>
     m.id === id ? { ...m, status: "sent" as const, sentAt: nowTime } : m
+  );
+  savePendingWhatsAppMessages(updatedList);
+}
+
+export function markWhatsAppMessageSentByBarcodeAndType(
+  barcode: string,
+  messageType: WhatsAppMessageType
+): void {
+  const current = loadLocalData();
+  const existing = current.pendingWhatsAppMessages || [];
+  const nowTime = formatTimeArabic();
+  const updatedList = existing.map((m) =>
+    m.studentBarcode === barcode && m.messageType === messageType && m.status === "pending"
+      ? { ...m, status: "sent" as const, sentAt: nowTime }
+      : m
   );
   savePendingWhatsAppMessages(updatedList);
 }

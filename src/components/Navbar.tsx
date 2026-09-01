@@ -18,6 +18,8 @@ import {
   Sparkles,
   CheckCircle2,
   MessageSquare,
+  PanelRightClose,
+  PanelRightOpen,
 } from "lucide-react";
 
 interface NavbarProps {
@@ -39,6 +41,7 @@ interface NavbarProps {
   onChangeSessionSlot?: (slotId: string) => void;
   onOpenQuickScan?: () => void;
   onOpenPrintAllPDF?: () => void;
+  isSidebarOpen?: boolean;
   onToggleSidebar?: () => void;
 }
 
@@ -60,19 +63,31 @@ export const Navbar: React.FC<NavbarProps> = ({
   activeSessionSlotId = "auto",
   onChangeSessionSlot,
   onOpenPrintAllPDF,
+  isSidebarOpen = true,
   onToggleSidebar,
 }) => {
   return (
-    <header className="no-print bg-[#080d1f]/85 backdrop-blur-2xl border-b border-indigo-500/15 px-4 md:px-8 py-3.5 flex flex-wrap items-center justify-between gap-4 sticky top-0 z-30 shadow-2xl transition-all">
+    <header className="no-print bg-[#080d1f]/85 backdrop-blur-2xl border-b border-indigo-500/15 px-4 md:px-8 py-3 flex flex-wrap items-center justify-between gap-4 sticky top-0 z-30 shadow-2xl transition-all">
       {/* Brand & Teacher Logo */}
       <div className="flex items-center gap-3.5">
         {onToggleSidebar && (
           <button
             onClick={onToggleSidebar}
-            className="md:hidden p-2.5 rounded-2xl bg-slate-800/80 border border-slate-700/60 text-amber-400 hover:bg-slate-700/80 active:scale-95 transition-all shadow-md cursor-pointer"
-            title="القائمة الجانبية"
+            className={`p-2.5 rounded-2xl border transition-all shadow-md cursor-pointer flex items-center gap-2 text-xs font-bold active:scale-95 ${
+              isSidebarOpen
+                ? "bg-slate-800/90 border-slate-700/70 text-slate-300 hover:text-amber-400 hover:bg-slate-700/80"
+                : "bg-amber-500/20 border-amber-400/40 text-amber-300 hover:bg-amber-500/30 shadow-amber-500/10"
+            }`}
+            title={isSidebarOpen ? "إخفاء القائمة الجانبية (توسيع الشاشة)" : "إظهار القائمة الجانبية"}
           >
-            <Menu className="w-5 h-5" />
+            {isSidebarOpen ? (
+              <PanelRightClose className="w-5 h-5 text-amber-400" />
+            ) : (
+              <PanelRightOpen className="w-5 h-5 text-amber-400 animate-pulse" />
+            )}
+            <span className="hidden xl:inline font-tajawal text-[11px]">
+              {isSidebarOpen ? "إخفاء القائمة" : "القائمة الجانبية"}
+            </span>
           </button>
         )}
 
