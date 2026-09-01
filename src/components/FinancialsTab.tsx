@@ -47,7 +47,31 @@ export const FinancialsTab: React.FC<FinancialsTabProps> = ({
   onUpdatePayment,
   onDeletePayment,
 }) => {
-  const [selectedMonth, setSelectedMonth] = useState(getCurrentMonthKey());
+  // Determine available months with recorded payments
+  const monthsWithRecords = useMemo(() => {
+    const map: Record<string, number> = {};
+    Object.entries(payments || {}).forEach(([mKey, recMap]) => {
+      const count = Object.keys(recMap || {}).length;
+      if (count > 0) {
+        map[mKey] = count;
+      }
+    });
+    return map;
+  }, [payments]);
+
+  // Default to a month with recorded payments if current month has 0, or fallback to current month
+  const defaultInitialMonth = useMemo(() => {
+    const cur = getCurrentMonthKey();
+    if (monthsWithRecords[cur]) return cur;
+    const keys = Object.keys(monthsWithRecords);
+    if (keys.length > 0) {
+      // Pick the latest month that has payments
+      return keys.sort().reverse()[0];
+    }
+    return cur;
+  }, [monthsWithRecords]);
+
+  const [selectedMonth, setSelectedMonth] = useState<string>(defaultInitialMonth);
   const [filterGrade, setFilterGrade] = useState("ALL");
   const [filterStatus, setFilterStatus] = useState<"ALL" | "PAID" | "UNPAID">("ALL");
   const [searchQuery, setSearchQuery] = useState("");
@@ -60,11 +84,51 @@ export const FinancialsTab: React.FC<FinancialsTabProps> = ({
   } | null>(null);
 
   const todayKey = getTodayKey();
-  const monthPayments = payments[selectedMonth] || {};
+  const isAllMonthsMode = selectedMonth === "ALL_MONTHS";
+  const monthPayments = isAllMonthsMode ? {} : (payments[selectedMonth] || {});
 
+  // Academic months list for easy tabs
+  const monthPillsList = useMemo(() => {
+    const now = new Date();
+    const curYear = now.getFullYear();
+    const pills = [
+      { key: `${curYear}-08`, label: `شهر 8 (أغسطس ${curYear})`, monthNum: 8 },
+      { key: `${curYear}-09`, label: `شهر 9 (سبتمبر ${curYear})`, monthNum: 9 },
+      { key: `${curYear}-10`, label: `شهر 10 (أكتوبر ${curYear})`, monthNum: 10 },
+      { key: `${curYear}-11`, label: `شهر 11 (نوفمبر ${curYear})`, monthNum: 11 },
+      { key: `${curYear}-12`, label: `شهر 12 (ديسمبر ${curYear})`, monthNum: 12 },
+      { key: `${curYear + 1}-01`, label: `شهر 1 (يناير ${curYear + 1})`, monthNum: 1 },
+      { key: `${curYear + 1}-02`, label: `شهر 2 (فبراير ${curYear + 1})`, monthNum: 2 },
+      { key: `${curYear + 1}-03`, label: `شهر 3 (مارس ${curYear + 1})`, monthNum: 3 },
+      { key: `${curYear + 1}-04`, label: `شهر 4 (أبريل ${curYear + 1})`, monthNum: 4 },
+      { key: `${curYear + 1}-05`, label: `شهر 5 (مايو ${curYear + 1})`, monthNum: 5 },
+      { key: `${curYear + 1}-06`, label: `شهر 6 (يونيو ${curYear + 1})`, monthNum: 6 },
+      { key: `${curYear + 1}-07`, label: `شهر 7 (يوليو ${curYear + 1})`, monthNum: 7 },
+    ];
+
+    // Include any custom keys in payments that aren't in the list
+    Object.keys(payments || {}).forEach((k) => {
+      if (!pills.some((p) => p.key === k)) {
+        pills.push({ key: k, label: `شهر (${k})`, monthNum: 0 });
+      }
+    });
+
+    return pills;
+  }, [payments]);
+
+  // Filter students based on selection
   const filteredStudents = useMemo(() => {
     const base = students.filter((s) => {
       if (filterGrade !== "ALL" && s.groupGrade !== filterGrade) return false;
+
+      if (isAllMonthsMode) {
+        // In all months mode, check if student has paid in any month
+        const hasAnyPayment = Object.values(payments || {}).some((recMap) => !!recMap[s.barcode]);
+        if (filterStatus === "PAID" && !hasAnyPayment) return false;
+        if (filterStatus === "UNPAID" && hasAnyPayment) return false;
+        return true;
+      }
+
       const isPaid = !!monthPayments[s.barcode];
       if (filterStatus === "PAID" && !isPaid) return false;
       if (filterStatus === "UNPAID" && isPaid) return false;
@@ -84,24 +148,46 @@ export const FinancialsTab: React.FC<FinancialsTabProps> = ({
     }
 
     return sortStudentsByGradeAndName(base);
-  }, [students, filterGrade, filterStatus, searchQuery, monthPayments]);
+  }, [students, filterGrade, filterStatus, searchQuery, monthPayments, isAllMonthsMode, payments]);
 
-  const { paidCount, unpaidCount, todayAmount, monthTotalAmount } = useMemo(() => {
+  const { paidCount, unpaidCount, todayAmount, monthTotalAmount, totalAllTimeRevenue } = useMemo(() => {
     let paid = 0;
     let unpaid = 0;
     let todayTot = 0;
     let monthTot = 0;
+    let allTimeTot = 0;
+
+    // Calculate all time total
+    Object.values(payments || {}).forEach((recMap) => {
+      Object.values(recMap || {}).forEach((p) => {
+        if (p?.amount) allTimeTot += p.amount;
+      });
+    });
 
     filteredStudents.forEach((s) => {
-      const pay = monthPayments[s.barcode];
-      if (pay) {
-        paid++;
-        monthTot += pay.amount;
-        if (pay.date === todayKey) {
-          todayTot += pay.amount;
-        }
+      if (isAllMonthsMode) {
+        let studentTotal = 0;
+        Object.values(payments || {}).forEach((recMap) => {
+          const p = recMap[s.barcode];
+          if (p) {
+            studentTotal += p.amount;
+            if (p.date === todayKey) todayTot += p.amount;
+          }
+        });
+        if (studentTotal > 0) paid++;
+        else unpaid++;
+        monthTot += studentTotal;
       } else {
-        unpaid++;
+        const pay = monthPayments[s.barcode];
+        if (pay) {
+          paid++;
+          monthTot += pay.amount;
+          if (pay.date === todayKey) {
+            todayTot += pay.amount;
+          }
+        } else {
+          unpaid++;
+        }
       }
     });
 
@@ -110,8 +196,9 @@ export const FinancialsTab: React.FC<FinancialsTabProps> = ({
       unpaidCount: unpaid,
       todayAmount: todayTot,
       monthTotalAmount: monthTot,
+      totalAllTimeRevenue: allTimeTot,
     };
-  }, [filteredStudents, monthPayments, todayKey]);
+  }, [filteredStudents, monthPayments, todayKey, isAllMonthsMode, payments]);
 
   const exportFinancialsExcel = () => {
     const rows = filteredStudents.map((s, idx) => {
@@ -122,15 +209,22 @@ export const FinancialsTab: React.FC<FinancialsTabProps> = ({
         DEFAULT_GRADE_PRICES[s.groupGrade] ??
         100;
 
+      // Find all paid months for this student
+      const studentPaidMonths = Object.entries(payments || {})
+        .filter(([_, recMap]) => !!recMap[s.barcode])
+        .map(([mKey, recMap]) => `${mKey} (${recMap[s.barcode].amount}ج)`)
+        .join("، ");
+
       return {
         "م": idx + 1,
         "الباركود": s.barcode,
         "اسم الطالب": s.name,
         "الصف الدراسي": s.groupGrade,
         "الاشتراك المحدد (ج.م)": fee,
-        "المبلغ المسدد": pay ? pay.amount : 0,
-        "حالة السداد": pay ? "مدفوع" : "غير مدفوع",
+        "المبلغ المسدد للشهر الحالي": pay ? pay.amount : 0,
+        "حالة سداد الشهر الحالي": pay ? "مدفوع" : "غير مدفوع",
         "تاريخ وساعة السداد": pay ? `${pay.date} ${pay.time}` : "-",
+        "كافة الشهور المسددة للطالب": studentPaidMonths || "لا يوجد",
         "ملاحظات": pay?.note || (s.discountReason ? `خصم: ${s.discountReason}` : "-"),
         "رقم ولي الأمر": s.parentPhone,
       };
@@ -143,12 +237,110 @@ export const FinancialsTab: React.FC<FinancialsTabProps> = ({
     XLSX.writeFile(workbook, `الإحصاء_المالي_${selectedMonth}.xlsx`);
   };
 
+  // Find if other months have recorded payments when current selected month is empty
+  const otherActiveMonths = useMemo(() => {
+    return Object.entries(monthsWithRecords)
+      .filter(([mKey, count]) => mKey !== selectedMonth && count > 0)
+      .sort((a, b) => b[0].localeCompare(a[0]));
+  }, [monthsWithRecords, selectedMonth]);
+
   return (
     <div className="space-y-6 font-tajawal">
+      {/* Month Switcher Bar / Fast Navigation Pills */}
+      <div className="glass-panel p-3.5 rounded-3xl shadow-xl flex flex-col gap-2.5">
+        <div className="flex items-center justify-between gap-2 flex-wrap pb-2 border-b border-indigo-500/20">
+          <div className="flex items-center gap-2">
+            <Calendar className="w-5 h-5 text-amber-400" />
+            <span className="text-sm font-bold text-slate-200">اختر شهر السداد والمصروفات:</span>
+          </div>
+          <div className="text-xs text-slate-400 font-medium">
+            إجمالي كافة المدفوعات المسجلة في السجل: <span className="font-bold text-amber-300 font-mono">{totalAllTimeRevenue} ج.م</span>
+          </div>
+        </div>
+
+        {/* Scrollable Month Pills */}
+        <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-thin">
+          <button
+            type="button"
+            onClick={() => setSelectedMonth("ALL_MONTHS")}
+            className={`px-3.5 py-2 rounded-2xl text-xs font-bold whitespace-nowrap transition-all flex items-center gap-1.5 cursor-pointer ${
+              selectedMonth === "ALL_MONTHS"
+                ? "bg-gradient-to-r from-amber-500 to-amber-600 text-slate-950 shadow-md scale-105 font-black"
+                : "bg-slate-900/80 text-slate-300 hover:bg-slate-800 border border-slate-700/50"
+            }`}
+          >
+            <span>📑 كافة الشهور التراكمية</span>
+          </button>
+
+          {monthPillsList.map((pill) => {
+            const isSelected = selectedMonth === pill.key;
+            const paidCountInThisMonth = monthsWithRecords[pill.key] || 0;
+            const hasData = paidCountInThisMonth > 0;
+
+            return (
+              <button
+                key={pill.key}
+                type="button"
+                onClick={() => setSelectedMonth(pill.key)}
+                className={`px-3.5 py-2 rounded-2xl text-xs font-bold whitespace-nowrap transition-all flex items-center gap-1.5 cursor-pointer ${
+                  isSelected
+                    ? "bg-gradient-to-r from-indigo-600 to-indigo-500 text-white shadow-lg ring-2 ring-amber-400 font-black scale-105"
+                    : hasData
+                    ? "bg-emerald-950/60 text-emerald-300 border border-emerald-500/40 hover:bg-emerald-900/50"
+                    : "bg-slate-900/60 text-slate-400 border border-slate-800 hover:bg-slate-800"
+                }`}
+              >
+                <span>{pill.label}</span>
+                {hasData && (
+                  <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-mono font-black ${
+                    isSelected ? "bg-amber-400 text-slate-950" : "bg-emerald-500/30 text-emerald-300"
+                  }`}>
+                    {paidCountInThisMonth} مدفوع
+                  </span>
+                )}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Helpful Smart Notice Banner if Selected Month has 0 payments but other months have data */}
+      {!isAllMonthsMode && paidCount === 0 && otherActiveMonths.length > 0 && (
+        <div className="p-4 rounded-3xl bg-gradient-to-r from-amber-500/15 via-indigo-500/15 to-transparent border border-amber-400/40 flex items-center justify-between gap-3 flex-wrap shadow-lg animate-pulse">
+          <div className="flex items-center gap-2.5">
+            <AlertTriangle className="w-5 h-5 text-amber-400 shrink-0" />
+            <div className="text-xs text-slate-200">
+              <span className="font-bold text-amber-300">ملاحظة هامة: </span>
+              أنت تعرض حالياً شهر <span className="font-bold underline text-white">{selectedMonth}</span> ولم تُسجل فيه مدفوعات بعد.
+              يوجد مدفوعات مسجلة ومحفوظة بالكامل في:{" "}
+              {otherActiveMonths.map(([mKey, count]) => (
+                <span key={mKey} className="font-bold text-emerald-300 mx-1">
+                  شهر {mKey} ({count} طالب مسدد)
+                </span>
+              ))}
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            {otherActiveMonths.map(([mKey]) => (
+              <button
+                key={mKey}
+                type="button"
+                onClick={() => setSelectedMonth(mKey)}
+                className="px-3 py-1.5 rounded-xl bg-amber-400 text-slate-950 text-xs font-black hover:bg-amber-300 transition-all shadow cursor-pointer"
+              >
+                انتقل لشهر {mKey} 👈
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Financial Metrics Cards */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3.5">
         <div className="glass-card p-4.5 rounded-3xl text-center shadow-lg hover:border-emerald-400/40 transition-all duration-300">
-          <p className="text-xs text-emerald-400 font-tajawal font-medium mb-1">الاشتراكات المدفوعة</p>
+          <p className="text-xs text-emerald-400 font-tajawal font-medium mb-1">
+            {isAllMonthsMode ? "طلاب سددوا (أي شهر)" : `الاشتراكات المدفوعة (${selectedMonth})`}
+          </p>
           <p className="text-2xl md:text-3xl font-black text-emerald-400 font-mono">{paidCount}</p>
         </div>
 
@@ -171,7 +363,9 @@ export const FinancialsTab: React.FC<FinancialsTabProps> = ({
         </div>
 
         <div className="glass-card p-4.5 rounded-3xl text-center shadow-lg hover:border-amber-400/40 transition-all duration-300">
-          <p className="text-xs text-amber-400 font-tajawal font-medium mb-1">إجمالي تحصيل شهر ({selectedMonth})</p>
+          <p className="text-xs text-amber-400 font-tajawal font-medium mb-1">
+            {isAllMonthsMode ? "إجمالي كافة المدفوعات المسجلة" : `إجمالي تحصيل شهر (${selectedMonth})`}
+          </p>
           <p className="text-2xl md:text-3xl font-black text-amber-300 font-mono">{monthTotalAmount} <span className="text-sm font-tajawal font-normal text-slate-400">ج.م</span></p>
         </div>
       </div>
@@ -179,12 +373,12 @@ export const FinancialsTab: React.FC<FinancialsTabProps> = ({
       {/* Filter and Action Controls */}
       <div className="glass-panel p-4 md:p-5 rounded-3xl flex flex-wrap items-center justify-between gap-3.5 shadow-xl font-tajawal">
         <div className="flex flex-wrap items-center gap-3 flex-1 min-w-[300px]">
-          {/* Month Selector */}
+          {/* Month Selector Input */}
           <div className="flex items-center gap-2 bg-[#080d1e] border border-indigo-500/30 px-3.5 py-2.5 rounded-2xl">
             <Calendar className="w-4 h-4 text-amber-400" />
             <input
               type="month"
-              value={selectedMonth}
+              value={selectedMonth === "ALL_MONTHS" ? "" : selectedMonth}
               onChange={(e) => setSelectedMonth(e.target.value)}
               className="bg-transparent text-xs font-bold text-slate-100 outline-none cursor-pointer"
             />
@@ -290,6 +484,19 @@ export const FinancialsTab: React.FC<FinancialsTabProps> = ({
                     DEFAULT_GRADE_PRICES[student.groupGrade] ??
                     100;
 
+                  // Get all payments recorded for this student across all months
+                  const studentAllPayments = Object.entries(payments || {})
+                    .filter(([_, recMap]) => !!recMap[student.barcode])
+                    .map(([mKey, recMap]) => ({
+                      monthKey: mKey,
+                      record: recMap[student.barcode],
+                    }));
+
+                  const totalPaidByStudent = studentAllPayments.reduce(
+                    (sum, item) => sum + item.record.amount,
+                    0
+                  );
+
                   return (
                     <tr key={student.barcode} className="hover:bg-indigo-500/10 transition-colors font-medium">
                       <td className="p-3.5 font-mono text-slate-400">{idx + 1}</td>
@@ -305,21 +512,58 @@ export const FinancialsTab: React.FC<FinancialsTabProps> = ({
                         )}
                       </td>
                       <td className="p-3.5 font-mono text-slate-400">
-                        {pay ? `${pay.date} ${pay.time}` : "-"}
+                        {isAllMonthsMode ? (
+                          studentAllPayments.length > 0 ? (
+                            <div className="flex flex-wrap gap-1 max-w-xs">
+                              {studentAllPayments.map((p) => (
+                                <span
+                                  key={p.monthKey}
+                                  className="px-1.5 py-0.5 rounded bg-indigo-900/60 text-[10px] text-indigo-200 border border-indigo-500/30"
+                                >
+                                  {p.monthKey}: {p.record.date}
+                                </span>
+                              ))}
+                            </div>
+                          ) : (
+                            "-"
+                          )
+                        ) : pay ? (
+                          `${pay.date} ${pay.time}`
+                        ) : (
+                          "-"
+                        )}
                       </td>
                       <td className="p-3.5 font-mono font-bold text-amber-300">
-                        {pay ? `${pay.amount} ج.م` : "0 ج.م"}
+                        {isAllMonthsMode
+                          ? `${totalPaidByStudent} ج.م (${studentAllPayments.length} شهر)`
+                          : pay
+                          ? `${pay.amount} ج.م`
+                          : "0 ج.م"}
                       </td>
                       <td className="p-3.5">
-                        <span
-                          className={`px-3 py-1 rounded-full text-xs font-bold border inline-block ${
-                            pay
-                              ? "bg-emerald-500/20 text-emerald-300 border-emerald-500/40"
-                              : "bg-rose-500/20 text-rose-300 border-rose-500/40"
-                          }`}
-                        >
-                          {pay ? "✅ تم السداد" : "❌ مستحق غير مدفوع"}
-                        </span>
+                        {isAllMonthsMode ? (
+                          <span
+                            className={`px-3 py-1 rounded-full text-xs font-bold border inline-block ${
+                              studentAllPayments.length > 0
+                                ? "bg-emerald-500/20 text-emerald-300 border-emerald-500/40"
+                                : "bg-rose-500/20 text-rose-300 border-rose-500/40"
+                            }`}
+                          >
+                            {studentAllPayments.length > 0
+                              ? `✅ مسدد (${studentAllPayments.length} شهر)`
+                              : "❌ لا يوجد سداد مسجل"}
+                          </span>
+                        ) : (
+                          <span
+                            className={`px-3 py-1 rounded-full text-xs font-bold border inline-block ${
+                              pay
+                                ? "bg-emerald-500/20 text-emerald-300 border-emerald-500/40"
+                                : "bg-rose-500/20 text-rose-300 border-rose-500/40"
+                            }`}
+                          >
+                            {pay ? "✅ تم السداد" : "❌ مستحق غير مدفوع"}
+                          </span>
+                        )}
                       </td>
                       <td className="p-3.5">
                         <div className="flex items-center justify-center gap-1.5 flex-wrap">
@@ -333,7 +577,7 @@ export const FinancialsTab: React.FC<FinancialsTabProps> = ({
                             <span>كشف الحساب 📊</span>
                           </button>
 
-                          {pay ? (
+                          {!isAllMonthsMode && pay ? (
                             <>
                               {onUpdatePayment && (
                                 <button

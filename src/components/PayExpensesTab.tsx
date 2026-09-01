@@ -228,10 +228,59 @@ export const PayExpensesTab: React.FC<PayExpensesTabProps> = ({
             </div>
           )}
 
+          {/* Academic Month Quick Switcher Pills */}
+          <div className="space-y-1.5">
+            <label className="text-slate-300 text-xs flex items-center justify-between">
+              <span>اختر شهر الاشتراك:</span>
+              <span className="text-[11px] text-amber-300 font-normal">
+                اضغط على الشهر المطلوب مباشرة
+              </span>
+            </label>
+            <div className="flex items-center gap-1.5 overflow-x-auto pb-1.5 scrollbar-thin">
+              {[
+                { key: "2026-08", label: "شهر 8 (أغسطس)" },
+                { key: "2026-09", label: "شهر 9 (سبتمبر)" },
+                { key: "2026-10", label: "شهر 10 (أكتوبر)" },
+                { key: "2026-11", label: "شهر 11 (نوفمبر)" },
+                { key: "2026-12", label: "شهر 12 (ديسمبر)" },
+                { key: "2027-01", label: "شهر 1 (يناير)" },
+                { key: "2027-02", label: "شهر 2 (فبراير)" },
+                { key: "2027-03", label: "شهر 3 (مارس)" },
+                { key: "2027-04", label: "شهر 4 (أبريل)" },
+                { key: "2027-05", label: "شهر 5 (مايو)" },
+              ].map((p) => {
+                const isSelected = selectedMonth === p.key;
+                const isStudentPaidInMonth = selectedStudent ? !!payments[p.key]?.[selectedStudent.barcode] : false;
+
+                return (
+                  <button
+                    key={p.key}
+                    type="button"
+                    onClick={() => setSelectedMonth(p.key)}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all flex items-center gap-1 cursor-pointer ${
+                      isSelected
+                        ? "bg-gradient-to-r from-amber-500 to-amber-600 text-slate-950 font-black shadow-md scale-105"
+                        : isStudentPaidInMonth
+                        ? "bg-emerald-950/60 text-emerald-300 border border-emerald-500/40 hover:bg-emerald-900/50"
+                        : "bg-slate-900/80 text-slate-300 hover:bg-slate-800 border border-slate-700/50"
+                    }`}
+                  >
+                    <span>{p.label}</span>
+                    {selectedStudent && (
+                      <span className="text-[10px]">
+                        {isStudentPaidInMonth ? "✅" : "⏳"}
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
           {/* Month selection & Amount */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-1.5">
-              <label className="text-slate-300">شهر الاشتراك:</label>
+              <label className="text-slate-300">أو اختر الشهر من التقويم:</label>
               <input
                 type="month"
                 value={selectedMonth}

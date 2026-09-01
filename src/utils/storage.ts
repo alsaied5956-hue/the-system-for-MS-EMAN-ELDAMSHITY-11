@@ -199,6 +199,84 @@ export function subscribeToSyncStatus(callback: (status: SyncStatus) => void): (
 }
 
 /**
+ * Normalize and migrate payments from any potential legacy format into the standard { [monthKey]: { [barcode]: PaymentRecord } }
+ */
+export function normalizeAndMigratePayments(rawPayments: any): Record<string, Record<string, PaymentRecord>> {
+  const result: Record<string, Record<string, PaymentRecord>> = {};
+  if (!rawPayments) return result;
+
+  // Case 1: Array of payment records
+  if (Array.isArray(rawPayments)) {
+    rawPayments.forEach((p) => {
+      if (!p || !p.barcode) return;
+      let mKey = p.monthKey || p.month || "2026-08";
+      if (/^\d{1,2}$/.test(mKey)) {
+        mKey = `2026-${String(mKey).padStart(2, "0")}`;
+      } else if (/^\d{4}-\d{1}$/.test(mKey)) {
+        const [y, m] = mKey.split("-");
+        mKey = `${y}-${m.padStart(2, "0")}`;
+      }
+      if (!result[mKey]) result[mKey] = {};
+      result[mKey][p.barcode] = {
+        ...p,
+        monthKey: mKey,
+        month: mKey,
+      };
+    });
+    return result;
+  }
+
+  // Case 2: Nested or Flat Object
+  if (typeof rawPayments === "object") {
+    for (const [key, value] of Object.entries(rawPayments)) {
+      if (!value) continue;
+
+      // If value is a PaymentRecord object directly (flat structure where key is barcode)
+      if (typeof value === "object" && ("amount" in (value as any) || "barcode" in (value as any))) {
+        const p = value as any;
+        const barcode = p.barcode || key;
+        let mKey = p.monthKey || p.month || "2026-08";
+        if (/^\d{1,2}$/.test(mKey)) {
+          mKey = `2026-${String(mKey).padStart(2, "0")}`;
+        } else if (/^\d{4}-\d{1}$/.test(mKey)) {
+          const [y, m] = mKey.split("-");
+          mKey = `${y}-${m.padStart(2, "0")}`;
+        }
+        if (!result[mKey]) result[mKey] = {};
+        result[mKey][barcode] = {
+          ...p,
+          barcode,
+          monthKey: mKey,
+          month: mKey,
+        };
+      } else if (typeof value === "object") {
+        // Value is a month map { [barcode]: PaymentRecord }
+        let mKey = key;
+        if (/^\d{1,2}$/.test(mKey)) {
+          mKey = `2026-${String(mKey).padStart(2, "0")}`;
+        } else if (/^\d{4}-\d{1}$/.test(mKey)) {
+          const [y, m] = mKey.split("-");
+          mKey = `${y}-${m.padStart(2, "0")}`;
+        }
+        if (!result[mKey]) result[mKey] = {};
+
+        for (const [bCode, pRecord] of Object.entries(value as Record<string, any>)) {
+          if (!pRecord) continue;
+          result[mKey][bCode] = {
+            ...pRecord,
+            barcode: pRecord.barcode || bCode,
+            monthKey: mKey,
+            month: mKey,
+          };
+        }
+      }
+    }
+  }
+
+  return result;
+}
+
+/**
  * Load local data from LocalStorage immediately for zero-delay startup
  */
 export function loadLocalData(): SystemData {
@@ -206,26 +284,63 @@ export function loadLocalData(): SystemData {
   if (typeof window === "undefined") return INITIAL_SYSTEM_DATA;
 
   try {
-    const raw = localStorage.getItem(STORAGE_KEY) || localStorage.getItem("center_data");
+    const raw =
+      localStorage.getItem(STORAGE_KEY) ||
+      localStorage.getItem("center_data") ||
+      localStorage.getItem("aiman_system_data");
+
+    let parsed: any = {};
     if (raw) {
-      const parsed = JSON.parse(raw);
-      const todayKey = getTodayKey();
-      const loaded: SystemData = {
-        students: Array.isArray(parsed.students) ? parsed.students : [],
-        attendanceHistory: parsed.attendanceHistory || {},
-        attendanceToday: parsed.attendanceHistory?.[todayKey] || parsed.attendanceToday || {},
-        scanLogTimes: parsed.scanLogTimes || {},
-        payments: parsed.payments || {},
-        scanLogOrder: Array.isArray(parsed.scanLogOrder) ? parsed.scanLogOrder : [],
-        usersList: Array.isArray(parsed.usersList) && parsed.usersList.length > 0 ? parsed.usersList : DEFAULT_USERS,
-        groupPrices: { ...DEFAULT_GRADE_PRICES, ...(parsed.groupPrices || {}) },
-        activeSessionSlotId: parsed.activeSessionSlotId || "auto",
-        pendingWhatsAppMessages: Array.isArray(parsed.pendingWhatsAppMessages) ? parsed.pendingWhatsAppMessages : [],
-        updatedAt: typeof parsed.updatedAt === "number" ? parsed.updatedAt : Date.now(),
-      };
-      memoryCachedData = loaded;
-      return loaded;
+      try {
+        parsed = JSON.parse(raw);
+      } catch (e) {
+        console.error("JSON parse error for local data:", e);
+      }
     }
+
+    // Also check separate legacy payment storage keys if any exist
+    let legacyPayments: any = null;
+    try {
+      const pRaw =
+        localStorage.getItem("center_payments") ||
+        localStorage.getItem("payments") ||
+        localStorage.getItem("aiman_payments");
+      if (pRaw) {
+        legacyPayments = JSON.parse(pRaw);
+      }
+    } catch {}
+
+    const normalizedPrimaryPayments = normalizeAndMigratePayments(parsed.payments);
+    const normalizedLegacyPayments = normalizeAndMigratePayments(legacyPayments);
+
+    // Merge both payments sources seamlessly
+    const mergedPayments: Record<string, Record<string, PaymentRecord>> = {
+      ...normalizedLegacyPayments,
+      ...normalizedPrimaryPayments,
+    };
+    for (const [mKey, recMap] of Object.entries(normalizedPrimaryPayments)) {
+      mergedPayments[mKey] = {
+        ...(normalizedLegacyPayments[mKey] || {}),
+        ...recMap,
+      };
+    }
+
+    const todayKey = getTodayKey();
+    const loaded: SystemData = {
+      students: Array.isArray(parsed.students) ? parsed.students : [],
+      attendanceHistory: parsed.attendanceHistory || {},
+      attendanceToday: parsed.attendanceHistory?.[todayKey] || parsed.attendanceToday || {},
+      scanLogTimes: parsed.scanLogTimes || {},
+      payments: mergedPayments,
+      scanLogOrder: Array.isArray(parsed.scanLogOrder) ? parsed.scanLogOrder : [],
+      usersList: Array.isArray(parsed.usersList) && parsed.usersList.length > 0 ? parsed.usersList : DEFAULT_USERS,
+      groupPrices: { ...DEFAULT_GRADE_PRICES, ...(parsed.groupPrices || {}) },
+      activeSessionSlotId: parsed.activeSessionSlotId || "auto",
+      pendingWhatsAppMessages: Array.isArray(parsed.pendingWhatsAppMessages) ? parsed.pendingWhatsAppMessages : [],
+      updatedAt: typeof parsed.updatedAt === "number" ? parsed.updatedAt : Date.now(),
+    };
+    memoryCachedData = loaded;
+    return loaded;
   } catch (e) {
     console.error("Error loading local data:", e);
   }
