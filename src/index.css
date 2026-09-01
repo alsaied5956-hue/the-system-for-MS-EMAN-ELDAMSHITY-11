@@ -38,58 +38,44 @@
 }
 
 /* High-Performance Clean Ambient Styling */
-body {
+html, body {
   background-color: #050711;
   font-family: 'Readex Pro', 'Cairo', sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  text-rendering: optimizeSpeed;
-  overscroll-behavior-y: none;
+  overflow: hidden;
+  height: 100%;
 }
 
-/* High-Speed Hardware-Accelerated Responsive UI */
 * {
-  touch-action: manipulation;
   box-sizing: border-box;
 }
 
-main {
+main, aside, .custom-scrollbar {
   -webkit-overflow-scrolling: touch;
-  overscroll-behavior-y: contain;
-  contain: content;
-}
-
-aside {
-  contain: layout style;
+  scroll-behavior: auto !important;
+  will-change: scroll-position;
 }
 
 button, [role="button"], a {
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
-  user-select: none;
-}
-
-button:active, [role="button"]:active {
-  transform: scale(0.98);
 }
 
 /* Luxury Utilities - Optimized for 0ms Instant Rendering */
 .glass-panel {
   background-color: #070d1e;
   border: 1px solid rgba(99, 102, 241, 0.22);
-  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5);
 }
 
 .glass-card {
   background-color: #0b1329;
   border: 1px solid rgba(99, 102, 241, 0.18);
-  box-shadow: 0 6px 16px -4px rgba(0, 0, 0, 0.4);
 }
 
 .neo-card {
-  background: linear-gradient(145deg, #0d1633, #080e22);
+  background: #0d1633;
   border: 1px solid rgba(245, 158, 11, 0.25);
-  box-shadow: 0 12px 28px -8px rgba(0, 0, 0, 0.5);
 }
 
 .gold-gradient-text {

@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useMemo } from "react";
 import { TabType, UserAccount, PermissionKey } from "../types";
 import {
   ScanLine,
@@ -49,7 +49,7 @@ interface NavCategory {
   items: NavItem[];
 }
 
-export const Sidebar: React.FC<SidebarProps> = ({
+export const Sidebar: React.FC<SidebarProps> = React.memo(({
   activeTab,
   onSelectTab,
   currentUser,
@@ -67,7 +67,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
   const isAdmin = currentUser?.role === "admin";
 
-  const categories: NavCategory[] = [
+  const categories: NavCategory[] = useMemo(() => [
     {
       title: "العمليات والحضور اليومي",
       items: [
@@ -107,7 +107,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
         { id: "settings" as TabType, label: "إعدادات الأسعار وكلمة المرور", icon: KeyRound, show: isAdmin },
       ],
     },
-  ];
+  ], [currentUser, isAdmin]);
 
   return (
     <>
@@ -202,9 +202,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
                         <button
                           key={item.id}
                           onClick={() => onSelectTab(item.id)}
-                          className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-2xl text-xs font-bold text-right transition-all group cursor-pointer font-tajawal ${
+                          className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-2xl text-xs font-bold text-right cursor-pointer font-tajawal ${
                             isActive
-                              ? "bg-gradient-to-r from-amber-400 via-amber-300 to-yellow-200 text-slate-950 shadow-lg shadow-amber-500/25 font-black transform scale-[1.01]"
+                              ? "bg-gradient-to-r from-amber-400 via-amber-300 to-yellow-200 text-slate-950 font-black shadow-sm"
                               : item.alert
                               ? "bg-rose-500/10 hover:bg-rose-500/20 text-rose-300 border border-rose-500/20"
                               : item.gold
@@ -214,14 +214,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
                         >
                           <div className="flex items-center gap-2.5 min-w-0">
                             <Icon
-                              className={`w-4 h-4 shrink-0 transition-transform group-hover:scale-110 ${
+                              className={`w-4 h-4 shrink-0 ${
                                 isActive
                                   ? "text-slate-950"
                                   : item.alert
                                   ? "text-rose-400"
                                   : item.gold
                                   ? "text-amber-400"
-                                  : "text-slate-400 group-hover:text-amber-400"
+                                  : "text-slate-400"
                               }`}
                             />
                             <span className="truncate">{item.label}</span>
@@ -258,4 +258,4 @@ export const Sidebar: React.FC<SidebarProps> = ({
       </aside>
     </>
   );
-};
+});

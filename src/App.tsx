@@ -83,20 +83,16 @@ export default function App() {
   const tabScrollPositions = useRef<Record<string, number>>({});
 
   // Tab switcher that saves scroll position and preserves sidebar state
-  const handleSelectTab = (tab: TabType) => {
+  const handleSelectTab = useCallback((tab: TabType) => {
     if (mainScrollRef.current) {
       tabScrollPositions.current[activeTab] = mainScrollRef.current.scrollTop;
     }
     setActiveTab(tab);
-  };
-
-  // Restore scroll position when tab changes
-  useEffect(() => {
     if (mainScrollRef.current) {
-      const savedPos = tabScrollPositions.current[activeTab] || 0;
-      mainScrollRef.current.scrollTo({ top: savedPos, behavior: "instant" });
+      mainScrollRef.current.scrollTop = tabScrollPositions.current[tab] || 0;
     }
   }, [activeTab]);
+
   const [activeSessionSlotId, setActiveSessionSlotId] = useState<string>("auto");
   const [voiceEnabled, setVoiceEnabled] = useState<boolean>(true);
   const [theme, setTheme] = useState<"dark" | "light">(() => {
@@ -776,7 +772,7 @@ export default function App() {
         theme === "light"
           ? "bg-slate-100 text-slate-900"
           : "bg-[#070b14] text-slate-100"
-      } font-['Alexandria',sans-serif] selection:bg-amber-500 selection:text-black`}
+      } font-['Readex_Pro','Cairo',sans-serif] selection:bg-amber-500 selection:text-black`}
     >
       {/* 1. Auth Overlay (Login) */}
       {!currentUser && (

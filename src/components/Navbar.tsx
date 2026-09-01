@@ -45,7 +45,7 @@ interface NavbarProps {
   onToggleSidebar?: () => void;
 }
 
-export const Navbar: React.FC<NavbarProps> = ({
+export const Navbar: React.FC<NavbarProps> = React.memo(({
   currentUser,
   currentDateText = "",
   isOnline = true,
@@ -303,4 +303,4 @@ export const Navbar: React.FC<NavbarProps> = ({
       </div>
     </header>
   );
-};
+});
