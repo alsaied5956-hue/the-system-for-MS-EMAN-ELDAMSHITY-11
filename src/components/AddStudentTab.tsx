@@ -24,6 +24,7 @@ export const AddStudentTab: React.FC<AddStudentTabProps> = ({
   const [customMonthlyFee, setCustomMonthlyFee] = useState<number>(100);
   const [discountReason, setDiscountReason] = useState("");
   const [cardFeeAmount, setCardFeeAmount] = useState(30);
+  const [feedback, setFeedback] = useState<{ type: "success" | "error"; message: string } | null>(null);
 
   const defaultGradePrice = groupPrices[groupGrade] ?? DEFAULT_GRADE_PRICES[groupGrade] ?? 100;
 
@@ -33,12 +34,12 @@ export const AddStudentTab: React.FC<AddStudentTabProps> = ({
     const cleanName = name.trim();
 
     if (!cleanBarcode || !cleanName) {
-      alert("⚠️ يرجى إدخال كود الباركود واسم الطالب ثلاثي!");
+      setFeedback({ type: "error", message: "⚠️ يرجى إدخال كود الباركود واسم الطالب ثلاثي!" });
       return;
     }
 
     if (students.some((s) => String(s.barcode).trim() === cleanBarcode)) {
-      alert("⚠️ هذا الباركود مسجل لطالب آخر بالفعل! يرجى استخدام كود مختلف.");
+      setFeedback({ type: "error", message: "⚠️ هذا الباركود مسجل لطالب آخر بالفعل! يرجى استخدام كود مختلف." });
       return;
     }
 
@@ -59,6 +60,10 @@ export const AddStudentTab: React.FC<AddStudentTabProps> = ({
     };
 
     onAddStudent(newStudent, cardFeeAmount);
+    setFeedback({
+      type: "success",
+      message: `✅ تم تسجيل الطالب (${cleanName}) بنجاح وإصدار كارت الباركود #${cleanBarcode}!`,
+    });
 
     // Send WhatsApp Welcome & Card Fee receipt
     const welcomeMsg = `تم تسجيل الطالب/ة: (${cleanName})\nمع ميس إيمان الدمشيتي - أستاذة الرياضيات 📐\nالصف: ${groupGrade} (${groupDays})\nقيمة استخراج الكارت: ${cardFeeAmount} ج.م\nالاشتراك الشهري: ${
@@ -74,6 +79,10 @@ export const AddStudentTab: React.FC<AddStudentTabProps> = ({
     setParentPhone("");
     setIsCustomFee(false);
     setDiscountReason("");
+
+    setTimeout(() => {
+      setFeedback(null);
+    }, 4000);
   };
 
   return (
@@ -92,6 +101,18 @@ export const AddStudentTab: React.FC<AddStudentTabProps> = ({
             </p>
           </div>
         </div>
+
+        {feedback && (
+          <div
+            className={`p-3 rounded-2xl text-xs font-bold border transition-all ${
+              feedback.type === "success"
+                ? "bg-emerald-950/80 text-emerald-300 border-emerald-500/40"
+                : "bg-rose-950/80 text-rose-300 border-rose-500/40"
+            }`}
+          >
+            {feedback.message}
+          </div>
+        )}
 
         <form onSubmit={handleSubmit} className="space-y-4 text-xs font-bold font-tajawal">
           <div className="space-y-1.5">

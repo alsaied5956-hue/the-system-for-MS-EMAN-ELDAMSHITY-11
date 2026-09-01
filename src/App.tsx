@@ -207,8 +207,28 @@ export default function App() {
       }
     );
 
+    const handleLocalBroadcast = (e: Event) => {
+      const customEvent = e as CustomEvent<any>;
+      if (customEvent.detail) {
+        const d = customEvent.detail;
+        if (d.students) setStudents(d.students);
+        if (d.attendanceToday) setAttendanceToday(d.attendanceToday);
+        if (d.attendanceHistory) setAttendanceHistory(d.attendanceHistory);
+        if (d.scanLogOrder) setScanLogOrder(d.scanLogOrder);
+        if (d.scanLogTimes) setScanLogTimes(d.scanLogTimes);
+        if (d.payments) setPayments(d.payments);
+        if (d.groupPrices) setGroupPrices(d.groupPrices);
+        if (d.usersList) setUsersList(d.usersList);
+        if (d.pendingWhatsAppMessages) setPendingWhatsAppMessages(d.pendingWhatsAppMessages);
+        if (d.activeSessionSlotId) setActiveSessionSlotId(d.activeSessionSlotId);
+      }
+    };
+
+    window.addEventListener("center-data-updated", handleLocalBroadcast);
+
     return () => {
       unsubscribe();
+      window.removeEventListener("center-data-updated", handleLocalBroadcast);
     };
   }, []);
 
@@ -534,6 +554,60 @@ export default function App() {
     savePaymentsData(updatedPayments);
   }, [payments, currentUser]);
 
+  // Handler: Update / Move Payment (e.g. change month from 8 to 9, or correct amount/notes)
+  const handleUpdatePayment = useCallback((
+    oldMonthKey: string,
+    barcode: string,
+    newMonthKey: string,
+    newAmount: number,
+    newNote: string,
+    newDate?: string
+  ) => {
+    const existing = payments[oldMonthKey]?.[barcode];
+    const today = getTodayKey();
+    const time = formatTimeArabic();
+
+    const updatedPayments = { ...payments };
+
+    // Remove from old month
+    if (updatedPayments[oldMonthKey]) {
+      const oldMonthMap = { ...updatedPayments[oldMonthKey] };
+      delete oldMonthMap[barcode];
+      updatedPayments[oldMonthKey] = oldMonthMap;
+    }
+
+    // Add to new month
+    const newMonthMap = { ...(updatedPayments[newMonthKey] || {}) };
+    newMonthMap[barcode] = {
+      barcode,
+      month: newMonthKey,
+      monthKey: newMonthKey,
+      amount: newAmount,
+      date: newDate || existing?.date || today,
+      time: existing?.time || time,
+      note: newNote || `اشتراك شهر ${newMonthKey}`,
+      recordedBy: existing?.recordedBy || currentUser?.username || "admin",
+      isCardFee: existing?.isCardFee,
+    };
+    updatedPayments[newMonthKey] = newMonthMap;
+
+    setPayments(updatedPayments);
+    savePaymentsData(updatedPayments);
+  }, [payments, currentUser]);
+
+  // Handler: Delete Payment (revert student to unpaid for this month)
+  const handleDeletePayment = useCallback((monthKey: string, barcode: string) => {
+    if (!payments[monthKey]?.[barcode]) return;
+
+    const updatedPayments = { ...payments };
+    const monthMap = { ...updatedPayments[monthKey] };
+    delete monthMap[barcode];
+    updatedPayments[monthKey] = monthMap;
+
+    setPayments(updatedPayments);
+    savePaymentsData(updatedPayments);
+  }, [payments]);
+
   // Handler: Record Exam Grade
   const handleRecordExamGrade = useCallback((
     barcode: string,
@@ -832,6 +906,8 @@ export default function App() {
                   payments={payments}
                   groupPrices={groupPrices}
                   onRecordPayment={handleRecordPayment}
+                  onUpdatePayment={handleUpdatePayment}
+                  onDeletePayment={handleDeletePayment}
                 />
               )}
 
@@ -841,6 +917,8 @@ export default function App() {
                   payments={payments}
                   groupPrices={groupPrices}
                   onRecordPayment={handleRecordPayment}
+                  onUpdatePayment={handleUpdatePayment}
+                  onDeletePayment={handleDeletePayment}
                 />
               )}
 
@@ -889,6 +967,8 @@ export default function App() {
                   onClearAllData={handleClearAllData}
                   onOpenPrintCards={() => setIsCardsModalOpen(true)}
                   onRecordPayment={handleRecordPayment}
+                  onUpdatePayment={handleUpdatePayment}
+                  onDeletePayment={handleDeletePayment}
                 />
               )}
 

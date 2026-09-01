@@ -14,6 +14,15 @@ interface ManageStudentsTabProps {
   onClearAllData: () => void;
   onOpenPrintCards?: () => void;
   onRecordPayment?: (barcode: string, amount: number, monthKey: string, note: string) => void;
+  onUpdatePayment?: (
+    oldMonthKey: string,
+    barcode: string,
+    newMonthKey: string,
+    newAmount: number,
+    newNote: string,
+    newDate?: string
+  ) => void;
+  onDeletePayment?: (monthKey: string, barcode: string) => void;
 }
 
 export const ManageStudentsTab: React.FC<ManageStudentsTabProps> = ({
@@ -25,11 +34,17 @@ export const ManageStudentsTab: React.FC<ManageStudentsTabProps> = ({
   onClearAllData,
   onOpenPrintCards,
   onRecordPayment,
+  onUpdatePayment,
+  onDeletePayment,
 }) => {
   const [searchQuery, setSearchQuery] = useState("");
   const [editingStudent, setEditingStudent] = useState<Student | null>(null);
   const [oldBarcode, setOldBarcode] = useState("");
   const [ledgerModalStudent, setLedgerModalStudent] = useState<Student | null>(null);
+  const [feedback, setFeedback] = useState<{ type: "success" | "error"; message: string } | null>(null);
+  const [deleteConfirmStudent, setDeleteConfirmStudent] = useState<Student | null>(null);
+  const [clearAllConfirmOpen, setClearAllConfirmOpen] = useState(false);
+  const [clearConfirmText, setClearConfirmText] = useState("");
 
   const sortedStudents = useMemo(() => {
     if (searchQuery.trim()) {
@@ -60,31 +75,39 @@ export const ManageStudentsTab: React.FC<ManageStudentsTabProps> = ({
       oldBarcode !== editingStudent.barcode &&
       students.some((s) => s.barcode === editingStudent.barcode)
     ) {
-      alert("⚠️ هذا الباركود الجديد مستخدم بالفعل لطالب آخر!");
+      setFeedback({ type: "error", message: "⚠️ هذا الباركود الجديد مستخدم بالفعل لطالب آخر!" });
       return;
     }
 
     onUpdateStudent(oldBarcode, editingStudent);
-    alert("✅ تم تحديث بيانات الطالب بنجاح!");
+    setFeedback({ type: "success", message: `✅ تم تحديث بيانات الطالب (${editingStudent.name}) بنجاح!` });
     setEditingStudent(null);
+
+    setTimeout(() => {
+      setFeedback(null);
+    }, 4000);
   };
 
-  const handleDeleteClick = (student: Student) => {
-    if (confirm(`هل أنت متأكد من حذف الطالب (${student.name}) نهائياً من المنظومة؟`)) {
-      onDeleteStudent(student.barcode);
-    }
+  const handleConfirmDelete = () => {
+    if (!deleteConfirmStudent) return;
+    onDeleteStudent(deleteConfirmStudent.barcode);
+    setFeedback({
+      type: "success",
+      message: `✅ تم حذف الطالب (${deleteConfirmStudent.name}) نهائياً من المنظومة.`,
+    });
+    setDeleteConfirmStudent(null);
+    setTimeout(() => setFeedback(null), 4000);
   };
 
-  const handleClearAll = () => {
-    if (
-      confirm(
-        "🚨 تحذير خطير جداً: هل أنت متأكد من مسح جميع بيانات الطلاب والسجلات نهائياً؟ لا يمكن التراجع عن هذه الخطوة!"
-      )
-    ) {
-      const typed = prompt("اكتب كلمة (مسح) للتأكيد النهائي:");
-      if (typed === "مسح") {
-        onClearAllData();
-      }
+  const handleConfirmClearAll = () => {
+    if (clearConfirmText.trim() === "مسح") {
+      onClearAllData();
+      setClearAllConfirmOpen(false);
+      setClearConfirmText("");
+      setFeedback({ type: "success", message: "✅ تم مسح كافة بيانات الطلاب بنجاح." });
+      setTimeout(() => setFeedback(null), 4000);
+    } else {
+      setFeedback({ type: "error", message: "⚠️ يجب كتابة كلمة (مسح) للتأكيد النهائي." });
     }
   };
 
@@ -120,7 +143,7 @@ export const ManageStudentsTab: React.FC<ManageStudentsTabProps> = ({
 
           <button
             type="button"
-            onClick={handleClearAll}
+            onClick={() => setClearAllConfirmOpen(true)}
             className="px-4 py-2.5 bg-rose-600/15 hover:bg-rose-600/25 border border-rose-500/40 text-rose-300 font-bold text-xs rounded-2xl shadow-md flex items-center gap-2 transition-all cursor-pointer"
           >
             <Trash2 className="w-4 h-4 text-rose-400" />
@@ -128,6 +151,18 @@ export const ManageStudentsTab: React.FC<ManageStudentsTabProps> = ({
           </button>
         </div>
       </div>
+
+      {feedback && (
+        <div
+          className={`p-3.5 rounded-2xl text-xs font-bold border transition-all ${
+            feedback.type === "success"
+              ? "bg-emerald-950/80 text-emerald-300 border-emerald-500/40"
+              : "bg-rose-950/80 text-rose-300 border-rose-500/40"
+          }`}
+        >
+          {feedback.message}
+        </div>
+      )}
 
       {/* Smart Search Input */}
       <div className="relative max-w-md">
@@ -225,7 +260,7 @@ export const ManageStudentsTab: React.FC<ManageStudentsTabProps> = ({
 
                           <button
                             type="button"
-                            onClick={() => handleDeleteClick(student)}
+                            onClick={() => setDeleteConfirmStudent(student)}
                             className="px-2.5 py-1.5 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-300 border border-rose-500/30 text-[11px] font-bold flex items-center gap-1 cursor-pointer transition-all"
                           >
                             <Trash2 className="w-3 h-3" />
@@ -241,6 +276,93 @@ export const ManageStudentsTab: React.FC<ManageStudentsTabProps> = ({
           </table>
         </div>
       </div>
+
+      {/* Delete Single Student Confirmation Modal */}
+      {deleteConfirmStudent && (
+        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="glass-panel w-full max-w-md p-6 rounded-3xl space-y-4 border-rose-500/40">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-2xl bg-rose-500/20 text-rose-400 flex items-center justify-center">
+                <Trash2 className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="text-base font-bold text-slate-100 font-fancy">تأكيد حذف الطالب</h3>
+                <p className="text-xs text-slate-400">هل أنت متأكد من رغبتك في حذف هذا الطالب نهائياً؟</p>
+              </div>
+            </div>
+
+            <div className="p-3.5 rounded-2xl bg-[#080d1e] border border-rose-500/20 space-y-1 text-xs">
+              <div className="text-amber-300 font-bold font-fancy">{deleteConfirmStudent.name}</div>
+              <div className="text-slate-400 font-mono">الباركود: #{deleteConfirmStudent.barcode} • {deleteConfirmStudent.groupGrade}</div>
+            </div>
+
+            <div className="flex items-center justify-end gap-3 pt-2">
+              <button
+                type="button"
+                onClick={() => setDeleteConfirmStudent(null)}
+                className="px-4 py-2 rounded-xl bg-slate-800 text-slate-300 hover:bg-slate-700 text-xs font-bold"
+              >
+                إلغاء
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmDelete}
+                className="px-5 py-2 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-black shadow-lg shadow-rose-600/30 active:scale-95"
+              >
+                نعم، احذف الطالب
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Clear All Data Modal */}
+      {clearAllConfirmOpen && (
+        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="glass-panel w-full max-w-md p-6 rounded-3xl space-y-4 border-rose-500/50">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-2xl bg-rose-500/20 text-rose-400 flex items-center justify-center">
+                <Trash2 className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="text-base font-bold text-rose-400 font-fancy">🚨 تحذير: مسح جميع بيانات الطلاب</h3>
+                <p className="text-xs text-slate-400">لا يمكن التراجع عن هذه الخطوة بعد تنفيذها!</p>
+              </div>
+            </div>
+
+            <div className="space-y-2 text-xs">
+              <label className="text-slate-300 block">للتأكيد النهائي، اكتب كلمة <span className="text-amber-400 font-bold font-mono">مسح</span> أدناه:</label>
+              <input
+                type="text"
+                value={clearConfirmText}
+                onChange={(e) => setClearConfirmText(e.target.value)}
+                placeholder="اكتب كلمة: مسح"
+                className="w-full bg-[#080d1e] border border-rose-500/40 text-amber-300 px-4 py-2.5 rounded-xl font-bold text-center outline-none focus:border-rose-400"
+              />
+            </div>
+
+            <div className="flex items-center justify-end gap-3 pt-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setClearAllConfirmOpen(false);
+                  setClearConfirmText("");
+                }}
+                className="px-4 py-2 rounded-xl bg-slate-800 text-slate-300 hover:bg-slate-700 text-xs font-bold"
+              >
+                إلغاء
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmClearAll}
+                className="px-5 py-2 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-black shadow-lg shadow-rose-600/30 active:scale-95"
+              >
+                تأكيد المسح الشامل
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Edit Student Full Modal */}
       {editingStudent && (
@@ -409,6 +531,8 @@ export const ManageStudentsTab: React.FC<ManageStudentsTabProps> = ({
           isOpen={!!ledgerModalStudent}
           onClose={() => setLedgerModalStudent(null)}
           onRecordQuickPayment={onRecordPayment}
+          onUpdatePayment={onUpdatePayment}
+          onDeletePayment={onDeletePayment}
         />
       )}
     </div>

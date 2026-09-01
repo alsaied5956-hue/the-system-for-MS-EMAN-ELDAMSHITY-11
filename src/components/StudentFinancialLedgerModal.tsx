@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from "react";
 import { Student, PaymentRecord, GradeName } from "../types";
 import { DEFAULT_GRADE_PRICES, openWhatsApp } from "../utils/helpers";
+import { EditPaymentModal } from "./EditPaymentModal";
 import {
   X,
   Printer,
@@ -14,6 +15,8 @@ import {
   Receipt,
   ArrowRight,
   Sparkles,
+  Edit2,
+  Trash2,
 } from "lucide-react";
 
 interface StudentFinancialLedgerModalProps {
@@ -23,6 +26,15 @@ interface StudentFinancialLedgerModalProps {
   isOpen: boolean;
   onClose: () => void;
   onRecordQuickPayment?: (barcode: string, amount: number, monthKey: string, note: string) => void;
+  onUpdatePayment?: (
+    oldMonthKey: string,
+    barcode: string,
+    newMonthKey: string,
+    newAmount: number,
+    newNote: string,
+    newDate?: string
+  ) => void;
+  onDeletePayment?: (monthKey: string, barcode: string) => void;
 }
 
 export const StudentFinancialLedgerModal: React.FC<StudentFinancialLedgerModalProps> = ({
@@ -32,9 +44,12 @@ export const StudentFinancialLedgerModal: React.FC<StudentFinancialLedgerModalPr
   isOpen,
   onClose,
   onRecordQuickPayment,
+  onUpdatePayment,
+  onDeletePayment,
 }) => {
   const [activeSubTab, setActiveSubTab] = useState<"ledger" | "receipt">("ledger");
   const [selectedReceiptMonth, setSelectedReceiptMonth] = useState<string>("");
+  const [editingPayment, setEditingPayment] = useState<{ record: PaymentRecord; monthKey: string } | null>(null);
   const [quickPayAmount, setQuickPayAmount] = useState<number | "">("");
   const [quickPayMonth, setQuickPayMonth] = useState<string>("");
 
@@ -345,10 +360,43 @@ export const StudentFinancialLedgerModal: React.FC<StudentFinancialLedgerModalPr
                         <div className="flex items-center justify-center gap-1.5">
                           {item.isPaid ? (
                             <>
+                              {onUpdatePayment && item.payRecord && (
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    setEditingPayment({
+                                      record: item.payRecord!,
+                                      monthKey: item.monthKey,
+                                    })
+                                  }
+                                  className="p-1.5 rounded-xl bg-amber-500/15 hover:bg-amber-500/25 text-amber-300 border border-amber-500/30 text-[11px] font-bold flex items-center gap-1 cursor-pointer transition-all"
+                                  title="تعديل السداد أو تحويل الشهر"
+                                >
+                                  <Edit2 className="w-3.5 h-3.5" />
+                                </button>
+                              )}
+                              {onDeletePayment && (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    if (
+                                      confirm(
+                                        `هل تود إلغاء سداد شهر (${item.monthLabel}) للطالب (${student.name}) وإعادته كغير مسدد؟`
+                                      )
+                                    ) {
+                                      onDeletePayment(item.monthKey, student.barcode);
+                                    }
+                                  }}
+                                  className="p-1.5 rounded-xl bg-rose-500/15 hover:bg-rose-500/25 text-rose-300 border border-rose-500/30 text-[11px] font-bold flex items-center gap-1 cursor-pointer transition-all"
+                                  title="إلغاء السداد وحذفه"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              )}
                               <button
                                 type="button"
                                 onClick={() => handleOpenReceipt(item.monthKey)}
-                                className="px-2.5 py-1 rounded-xl bg-indigo-500/20 hover:bg-indigo-500/30 text-indigo-200 border border-indigo-500/40 text-[11px] font-bold flex items-center gap-1 cursor-pointer transition-all"
+                                className="px-2 py-1 rounded-xl bg-indigo-500/20 hover:bg-indigo-500/30 text-indigo-200 border border-indigo-500/40 text-[11px] font-bold flex items-center gap-1 cursor-pointer transition-all"
                               >
                                 <Receipt className="w-3 h-3" />
                                 <span>إيصال</span>
@@ -496,6 +544,27 @@ export const StudentFinancialLedgerModal: React.FC<StudentFinancialLedgerModalPr
               </div>
             )}
           </div>
+        )}
+
+        {/* Edit Payment Modal */}
+        {editingPayment && onUpdatePayment && (
+          <EditPaymentModal
+            isOpen={!!editingPayment}
+            student={student}
+            payment={editingPayment.record}
+            monthKey={editingPayment.monthKey}
+            onClose={() => setEditingPayment(null)}
+            onSave={(oldMonthKey, barcode, newMonthKey, newAmount, newNote, newDate) => {
+              onUpdatePayment(oldMonthKey, barcode, newMonthKey, newAmount, newNote, newDate);
+              setEditingPayment(null);
+            }}
+            onDelete={(monthKey, barcode) => {
+              if (onDeletePayment) {
+                onDeletePayment(monthKey, barcode);
+              }
+              setEditingPayment(null);
+            }}
+          />
         )}
 
       </div>

@@ -83,60 +83,63 @@ export function playBeep(type: "success" | "warning" | "error"): void {
 export function speakArabicGreeting(studentName: string, enabled = true): void {
   if (!enabled || typeof window === "undefined" || !("speechSynthesis" in window)) return;
 
-  try {
-    const synth = window.speechSynthesis;
+  // Run on next tick so button clicks and state updates are 100% instantaneous
+  setTimeout(() => {
+    try {
+      const synth = window.speechSynthesis;
 
-    // Clear watchdog
-    if (speechWatchdogTimer) {
-      clearTimeout(speechWatchdogTimer);
-      speechWatchdogTimer = null;
-    }
-
-    // Cancel any previous hung speech
-    synth.cancel();
-
-    // If synth was paused by browser, resume it
-    if (synth.paused) {
-      synth.resume();
-    }
-
-    const cleanName = (studentName || "").split(" ")[0]?.trim() || studentName;
-    if (!cleanName) return;
-
-    const utterance = new SpeechSynthesisUtterance(`أهلاً ${cleanName}`);
-    utterance.lang = "ar-EG";
-    utterance.rate = 1.0;
-    utterance.pitch = 1.05;
-
-    // Store in outer reference to prevent premature Chromium Garbage Collection freeze
-    activeUtterance = utterance;
-
-    const cleanup = () => {
-      if (activeUtterance === utterance) {
-        activeUtterance = null;
-      }
+      // Clear watchdog
       if (speechWatchdogTimer) {
         clearTimeout(speechWatchdogTimer);
         speechWatchdogTimer = null;
       }
-    };
 
-    utterance.onend = cleanup;
-    utterance.onerror = cleanup;
+      // Cancel any previous hung speech
+      synth.cancel();
 
-    // Safety watchdog: if browser fails to fire onend within 3 seconds, reset
-    speechWatchdogTimer = setTimeout(() => {
-      try {
-        if (synth.speaking) {
-          synth.cancel();
+      // If synth was paused by browser, resume it
+      if (synth.paused) {
+        synth.resume();
+      }
+
+      const cleanName = (studentName || "").split(" ")[0]?.trim() || studentName;
+      if (!cleanName) return;
+
+      const utterance = new SpeechSynthesisUtterance(`أهلاً ${cleanName}`);
+      utterance.lang = "ar-EG";
+      utterance.rate = 1.05;
+      utterance.pitch = 1.05;
+
+      // Store in outer reference to prevent premature Chromium Garbage Collection freeze
+      activeUtterance = utterance;
+
+      const cleanup = () => {
+        if (activeUtterance === utterance) {
+          activeUtterance = null;
         }
-      } catch {}
-      cleanup();
-    }, 3000);
+        if (speechWatchdogTimer) {
+          clearTimeout(speechWatchdogTimer);
+          speechWatchdogTimer = null;
+        }
+      };
 
-    synth.speak(utterance);
-  } catch {
-    activeUtterance = null;
-  }
+      utterance.onend = cleanup;
+      utterance.onerror = cleanup;
+
+      // Safety watchdog: if browser fails to fire onend within 2.5 seconds, reset
+      speechWatchdogTimer = setTimeout(() => {
+        try {
+          if (synth.speaking) {
+            synth.cancel();
+          }
+        } catch {}
+        cleanup();
+      }, 2500);
+
+      synth.speak(utterance);
+    } catch {
+      activeUtterance = null;
+    }
+  }, 0);
 }
 

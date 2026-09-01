@@ -5,13 +5,36 @@ import { enqueuePendingWhatsAppMessage } from "../utils/storage";
 import { playBeep } from "../utils/audio";
 import { StudentSearchBox } from "./StudentSearchBox";
 import { StudentFinancialLedgerModal } from "./StudentFinancialLedgerModal";
-import { CreditCard, CheckCircle, Tag, Sparkles, Send, ScanLine, Clock, FileText } from "lucide-react";
+import { EditPaymentModal } from "./EditPaymentModal";
+import {
+  CreditCard,
+  CheckCircle,
+  Tag,
+  Sparkles,
+  Send,
+  ScanLine,
+  Clock,
+  FileText,
+  AlertTriangle,
+  Edit2,
+  Trash2,
+  CheckCircle2,
+} from "lucide-react";
 
 interface PayExpensesTabProps {
   students: Student[];
   groupPrices: Record<GradeName, number>;
   payments: Record<string, Record<string, PaymentRecord>>;
   onRecordPayment: (barcode: string, amount: number, monthKey: string, note: string) => void;
+  onUpdatePayment?: (
+    oldMonthKey: string,
+    barcode: string,
+    newMonthKey: string,
+    newAmount: number,
+    newNote: string,
+    newDate?: string
+  ) => void;
+  onDeletePayment?: (monthKey: string, barcode: string) => void;
 }
 
 export const PayExpensesTab: React.FC<PayExpensesTabProps> = ({
@@ -19,6 +42,8 @@ export const PayExpensesTab: React.FC<PayExpensesTabProps> = ({
   groupPrices,
   payments,
   onRecordPayment,
+  onUpdatePayment,
+  onDeletePayment,
 }) => {
   const [searchInput, setSearchInput] = useState("");
   const [selectedMonth, setSelectedMonth] = useState(getCurrentMonthKey());
@@ -26,6 +51,10 @@ export const PayExpensesTab: React.FC<PayExpensesTabProps> = ({
   const [paymentNote, setPaymentNote] = useState("سداد الاشتراك الشهري");
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
   const [isLedgerModalOpen, setIsLedgerModalOpen] = useState(false);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [feedback, setFeedback] = useState<{ type: "success" | "error"; message: string } | null>(null);
+
+  const existingPayment = selectedStudent ? payments[selectedMonth]?.[selectedStudent.barcode] : undefined;
 
   const handleSelectStudent = (student: Student) => {
     setSelectedStudent(student);
@@ -42,13 +71,22 @@ export const PayExpensesTab: React.FC<PayExpensesTabProps> = ({
   const handlePaySubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedStudent) {
-      alert("⚠️ يرجى اختيار أو مسح باركود طالب مسجل أولاً!");
+      setFeedback({ type: "error", message: "⚠️ يرجى اختيار أو مسح باركود طالب مسجل أولاً!" });
+      return;
+    }
+
+    if (existingPayment) {
+      setFeedback({
+        type: "error",
+        message: `🚫 هذا الطالب مسدد لاشتراك شهر (${selectedMonth}) بالفعل! لا يمكن سداد نفس الشهر مرتين. استخدم زر التعديل إذا كنت تريد تعديله أو اختر شهراً آخر.`,
+      });
+      playBeep("error");
       return;
     }
 
     const amount = Number(customAmount);
     if (isNaN(amount) || amount <= 0) {
-      alert("⚠️ يرجى إدخال مبلغ صحيح!");
+      setFeedback({ type: "error", message: "⚠️ يرجى إدخال مبلغ صحيح!" });
       return;
     }
 
@@ -78,20 +116,28 @@ export const PayExpensesTab: React.FC<PayExpensesTabProps> = ({
 
     if (isOnline) {
       openWhatsApp(selectedStudent.parentPhone, receiptMsg);
-      alert(`✅ تم إثبات سداد ${amount} ج.م للطالب (${selectedStudent.name}) وإرسال إيصال الواتساب بنجاح!`);
+      setFeedback({
+        type: "success",
+        message: `✅ تم إثبات سداد ${amount} ج.م للطالب (${selectedStudent.name}) وإرسال إيصال الواتساب بنجاح!`,
+      });
     } else {
-      alert(
-        `⚡ أنت في وضع الأوفلاين (بدون إنترنت):\nتم إثبات سداد ${amount} ج.م للطالب (${selectedStudent.name}) وحفظ إيصال الواتساب في "طابور رسائل الواتساب المعلقة".\nيمكنك إرسال كافة الإيصالات بضغطة واحدة فور عودة الإنترنت!`
-      );
+      setFeedback({
+        type: "success",
+        message: `⚡ تم إثبات سداد ${amount} ج.م للطالب (${selectedStudent.name}) وحفظ إيصال الواتساب في طابور الإرسال!`,
+      });
     }
 
     setSearchInput("");
     setSelectedStudent(null);
     setCustomAmount("");
+
+    setTimeout(() => {
+      setFeedback(null);
+    }, 4500);
   };
 
   return (
-    <div className="max-w-2xl mx-auto space-y-6">
+    <div className="max-w-2xl mx-auto space-y-6 font-tajawal">
       <div className="glass-panel p-6 md:p-8 rounded-3xl shadow-2xl space-y-6">
         <div className="flex items-center gap-3.5 pb-4 border-b border-indigo-500/20">
           <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-amber-500/20 to-yellow-400/10 border border-amber-500/30 flex items-center justify-center text-amber-400 shadow-md">
@@ -102,10 +148,22 @@ export const PayExpensesTab: React.FC<PayExpensesTabProps> = ({
               نافذة إثبات وسداد المصروفات والاشتراكات
             </h2>
             <p className="text-xs text-slate-400 font-tajawal mt-0.5">
-              بحث ذكي بالاسم (مثال: أحمد علي) أو ضرب الباركود بالسكانر مع إرسال إيصال فوري لواتساب ولي الأمر
+              بحث ذكي بالاسم أو ضرب الباركود بالسكانر مع نظام لمنع التكرار وتعديل السداد وإرسال إيصال فوري لواتساب ولي الأمر
             </p>
           </div>
         </div>
+
+        {feedback && (
+          <div
+            className={`p-3 rounded-2xl text-xs font-bold border transition-all ${
+              feedback.type === "success"
+                ? "bg-emerald-950/80 text-emerald-300 border-emerald-500/40"
+                : "bg-rose-950/80 text-rose-300 border-rose-500/40"
+            }`}
+          >
+            {feedback.message}
+          </div>
+        )}
 
         <form onSubmit={handlePaySubmit} className="space-y-4 text-xs font-bold font-tajawal">
           {/* Smart Search / Barcode Input */}
@@ -140,7 +198,7 @@ export const PayExpensesTab: React.FC<PayExpensesTabProps> = ({
                   </p>
                 </div>
                 <div className="text-left">
-                  <span className="text-[11px] text-slate-400 block">الاشتراك المستحق:</span>
+                  <span className="text-[11px] text-slate-400 block">الاشتراك المعتمد:</span>
                   <span className="text-lg font-black text-amber-300 font-mono">
                     {selectedStudent.customMonthlyFee ??
                       groupPrices[selectedStudent.groupGrade] ??
@@ -178,7 +236,7 @@ export const PayExpensesTab: React.FC<PayExpensesTabProps> = ({
                 type="month"
                 value={selectedMonth}
                 onChange={(e) => setSelectedMonth(e.target.value)}
-                className="w-full bg-[#080d1e] border border-indigo-500/30 text-slate-100 p-3 rounded-2xl outline-none focus:border-amber-400 transition-all"
+                className="w-full bg-[#080d1e] border border-indigo-500/30 text-slate-100 p-3 rounded-2xl outline-none focus:border-amber-400 transition-all font-bold"
               />
             </div>
 
@@ -189,10 +247,71 @@ export const PayExpensesTab: React.FC<PayExpensesTabProps> = ({
                 value={customAmount}
                 onChange={(e) => setCustomAmount(e.target.value === "" ? "" : Number(e.target.value))}
                 placeholder="المبلغ المسدد..."
-                className="w-full bg-[#080d1e] border border-indigo-500/30 text-amber-300 font-mono text-base p-3 rounded-2xl outline-none focus:border-amber-400 font-bold transition-all"
+                disabled={!!existingPayment}
+                className="w-full bg-[#080d1e] border border-indigo-500/30 text-amber-300 font-mono text-base p-3 rounded-2xl outline-none focus:border-amber-400 font-bold transition-all disabled:opacity-40"
               />
             </div>
           </div>
+
+          {/* Duplicate Payment Warning Banner & Quick Edit Card */}
+          {selectedStudent && existingPayment && (
+            <div className="p-4 rounded-2xl bg-amber-500/15 border-2 border-amber-500/50 space-y-3 animate-in fade-in">
+              <div className="flex items-center gap-2 text-amber-300 font-bold text-sm">
+                <AlertTriangle className="w-5 h-5 text-amber-400 shrink-0" />
+                <span>⚠️ تنبيه: تم سداد اشتراك شهر ({selectedMonth}) لهذا الطالب مسبقاً!</span>
+              </div>
+              <div className="bg-[#060b17] p-3 rounded-xl border border-amber-500/30 text-xs space-y-1 text-slate-300">
+                <p>
+                  💰 المبلغ المسدد: <strong className="text-emerald-400 font-mono">{existingPayment.amount} ج.م</strong>
+                </p>
+                <p>
+                  📅 تاريخ ووقت السداد: <strong className="text-slate-200 font-mono">{existingPayment.date} - {existingPayment.time}</strong>
+                </p>
+                <p>
+                  📝 ملاحظات السداد: <strong className="text-slate-200">{existingPayment.note || "لا توجد ملاحظات"}</strong>
+                </p>
+                {existingPayment.recordedBy && (
+                  <p>
+                    👤 سُجل بواسطة: <strong className="text-slate-200">{existingPayment.recordedBy}</strong>
+                  </p>
+                )}
+              </div>
+              <div className="flex items-center gap-2 pt-1 flex-wrap">
+                {onUpdatePayment && (
+                  <button
+                    type="button"
+                    onClick={() => setIsEditModalOpen(true)}
+                    className="px-3.5 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs flex items-center gap-1.5 shadow-md cursor-pointer transition-all"
+                  >
+                    <Edit2 className="w-4 h-4" />
+                    <span>تعديل هذا السداد / تحويل لشهر آخر</span>
+                  </button>
+                )}
+                {onDeletePayment && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (
+                        confirm(
+                          `هل أنت متأكد من إلغاء سداد شهر (${selectedMonth}) للطالب (${selectedStudent.name}) وإعادته كغير مسدد؟`
+                        )
+                      ) {
+                        onDeletePayment(selectedMonth, selectedStudent.barcode);
+                        setFeedback({
+                          type: "success",
+                          message: `✅ تم إلغاء سداد شهر (${selectedMonth}) للطالب وإعادته كغير مسدد.`,
+                        });
+                      }
+                    }}
+                    className="px-3.5 py-2 rounded-xl bg-rose-500/20 hover:bg-rose-500/30 border border-rose-500/40 text-rose-300 font-bold text-xs flex items-center gap-1.5 cursor-pointer transition-all"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                    <span>إلغاء هذا السداد وحذفه</span>
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
 
           <div className="space-y-1.5">
             <label className="text-slate-300">ملاحظات الإيصال:</label>
@@ -201,17 +320,22 @@ export const PayExpensesTab: React.FC<PayExpensesTabProps> = ({
               value={paymentNote}
               onChange={(e) => setPaymentNote(e.target.value)}
               placeholder="مثال: سداد كامل / دفعة أولى"
-              className="w-full bg-[#080d1e] border border-indigo-500/30 text-slate-100 p-3 rounded-2xl outline-none focus:border-amber-400 transition-all"
+              disabled={!!existingPayment}
+              className="w-full bg-[#080d1e] border border-indigo-500/30 text-slate-100 p-3 rounded-2xl outline-none focus:border-amber-400 transition-all disabled:opacity-40"
             />
           </div>
 
           <button
             type="submit"
-            disabled={!selectedStudent}
+            disabled={!selectedStudent || !!existingPayment}
             className="w-full py-3.5 rounded-2xl bg-gradient-to-r from-amber-400 via-amber-300 to-yellow-200 hover:from-amber-300 hover:to-yellow-100 text-slate-950 font-black text-sm shadow-xl shadow-amber-500/25 disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2 cursor-pointer transition-all active:scale-[0.99]"
           >
             <CheckCircle className="w-5 h-5 text-slate-950" />
-            <span>إثبات السداد وإرسال الإيصال عبر الواتساب</span>
+            <span>
+              {existingPayment
+                ? `❌ مسدد مسبقاً عن شهر (${selectedMonth})`
+                : `إثبات السداد وإرسال الإيصال عبر الواتساب`}
+            </span>
           </button>
         </form>
       </div>
@@ -225,6 +349,37 @@ export const PayExpensesTab: React.FC<PayExpensesTabProps> = ({
           isOpen={isLedgerModalOpen}
           onClose={() => setIsLedgerModalOpen(false)}
           onRecordQuickPayment={onRecordPayment}
+          onUpdatePayment={onUpdatePayment}
+          onDeletePayment={onDeletePayment}
+        />
+      )}
+
+      {/* Edit Payment Modal */}
+      {selectedStudent && existingPayment && isEditModalOpen && onUpdatePayment && (
+        <EditPaymentModal
+          isOpen={isEditModalOpen}
+          student={selectedStudent}
+          payment={existingPayment}
+          monthKey={selectedMonth}
+          onClose={() => setIsEditModalOpen(false)}
+          onSave={(oldMonthKey, barcode, newMonthKey, newAmount, newNote, newDate) => {
+            onUpdatePayment(oldMonthKey, barcode, newMonthKey, newAmount, newNote, newDate);
+            setIsEditModalOpen(false);
+            setFeedback({
+              type: "success",
+              message: `✅ تم تعديل سداد الطالب بنجاح وتحويله لشهر (${newMonthKey}).`,
+            });
+          }}
+          onDelete={(monthKey, barcode) => {
+            if (onDeletePayment) {
+              onDeletePayment(monthKey, barcode);
+            }
+            setIsEditModalOpen(false);
+            setFeedback({
+              type: "success",
+              message: `✅ تم إلغاء سداد شهر (${monthKey}) للطالب بنجاح.`,
+            });
+          }}
         />
       )}
     </div>

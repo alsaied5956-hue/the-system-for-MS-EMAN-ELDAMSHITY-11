@@ -27,6 +27,7 @@ export const ExamGradesTab: React.FC<ExamGradesTabProps> = ({
   const [searchInput, setSearchInput] = useState("");
   const [studentScore, setStudentScore] = useState<number | "">("");
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
+  const [feedback, setFeedback] = useState<{ type: "success" | "error"; message: string } | null>(null);
   const [lastRecordedInfo, setLastRecordedInfo] = useState<{
     studentName: string;
     barcode: string;
@@ -65,7 +66,7 @@ export const ExamGradesTab: React.FC<ExamGradesTabProps> = ({
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedStudent) {
-      alert("⚠️ يرجى اختيار أو مسح باركود طالب مسجل أولاً!");
+      setFeedback({ type: "error", message: "⚠️ يرجى اختيار أو مسح باركود طالب مسجل أولاً!" });
       return;
     }
 
@@ -73,12 +74,12 @@ export const ExamGradesTab: React.FC<ExamGradesTabProps> = ({
     const maxNum = Number(maxScore);
 
     if (isNaN(scoreNum) || isNaN(maxNum) || maxNum <= 0) {
-      alert("⚠️ يرجى إدخال درجات صحيحة ومقبولة!");
+      setFeedback({ type: "error", message: "⚠️ يرجى إدخال درجات صحيحة ومقبولة!" });
       return;
     }
 
     if (scoreNum > maxNum) {
-      alert(`⚠️ لا يمكن أن تكون درجة الطالب (${scoreNum}) أكبر من الدرجة العظمى (${maxNum})!`);
+      setFeedback({ type: "error", message: `⚠️ لا يمكن أن تكون درجة الطالب (${scoreNum}) أكبر من الدرجة العظمى (${maxNum})!` });
       return;
     }
 
@@ -112,10 +113,15 @@ export const ExamGradesTab: React.FC<ExamGradesTabProps> = ({
 
     if (isOnline) {
       openWhatsApp(selectedStudent.parentPhone, msg);
+      setFeedback({
+        type: "success",
+        message: `✅ تم رصد درجة (${selectedStudent.name}): ${scoreNum}/${maxNum} (${percentage}%) وإرسال النتيجة لواتساب ولي الأمر بنجاح!`,
+      });
     } else {
-      alert(
-        `⚡ أنت في وضع الأوفلاين (بدون إنترنت):\nتم رصد درجة (${selectedStudent.name}) وحفظ رسالة النتيجة في "طابور رسائل الواتساب المعلقة".\nفور عودة الإنترنت يمكنك إرسال كافة النتائج دفعة واحدة بضغطة زر من الشريط العلوي!`
-      );
+      setFeedback({
+        type: "success",
+        message: `⚡ تم رصد درجة (${selectedStudent.name}): ${scoreNum}/${maxNum} وحفظ رسالة النتيجة في طابور الإرسال!`,
+      });
     }
 
     // Save info for visual confirmation card
@@ -133,6 +139,10 @@ export const ExamGradesTab: React.FC<ExamGradesTabProps> = ({
     setSearchInput("");
     setSelectedStudent(null);
     setStudentScore("");
+
+    setTimeout(() => {
+      setFeedback(null);
+    }, 4500);
   };
 
   const handleSendAllGradesToTeacher = () => {
@@ -147,7 +157,7 @@ export const ExamGradesTab: React.FC<ExamGradesTabProps> = ({
     });
 
     if (count === 0) {
-      alert("⚠️ لا يوجد درجات مسجلة للطلاب بعد!");
+      setFeedback({ type: "error", message: "⚠️ لا يوجد درجات مسجلة للطلاب بعد!" });
       return;
     }
 
@@ -180,6 +190,18 @@ export const ExamGradesTab: React.FC<ExamGradesTabProps> = ({
             <span>📲 إرسال الكشف لميس إيمان</span>
           </button>
         </div>
+
+        {feedback && (
+          <div
+            className={`p-3 rounded-2xl text-xs font-bold border transition-all ${
+              feedback.type === "success"
+                ? "bg-emerald-950/80 text-emerald-300 border-emerald-500/40"
+                : "bg-rose-950/80 text-rose-300 border-rose-500/40"
+            }`}
+          >
+            {feedback.message}
+          </div>
+        )}
 
         <form onSubmit={handleSubmit} className="space-y-4 text-xs font-bold font-tajawal">
           <div className="space-y-1.5">

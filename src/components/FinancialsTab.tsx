@@ -3,14 +3,40 @@ import { Student, PaymentRecord, GradeName, GRADE_ORDER } from "../types";
 import { getCurrentMonthKey, getTodayKey, sortStudentsByGradeAndName, DEFAULT_GRADE_PRICES, openWhatsApp } from "../utils/helpers";
 import { matchStudentSearch } from "../utils/search";
 import { StudentFinancialLedgerModal } from "./StudentFinancialLedgerModal";
+import { UnpaidDefaultersModal } from "./UnpaidDefaultersModal";
+import { EditPaymentModal } from "./EditPaymentModal";
 import * as XLSX from "xlsx";
-import { Coins, FileSpreadsheet, CheckCircle2, XCircle, Search, Calendar, Tag, X, FileText } from "lucide-react";
+import {
+  Coins,
+  FileSpreadsheet,
+  CheckCircle2,
+  XCircle,
+  Search,
+  Calendar,
+  Tag,
+  X,
+  FileText,
+  AlertTriangle,
+  Printer,
+  Edit2,
+  Trash2,
+  CreditCard,
+} from "lucide-react";
 
 interface FinancialsTabProps {
   students: Student[];
   payments: Record<string, Record<string, PaymentRecord>>;
   groupPrices: Record<GradeName, number>;
   onRecordPayment?: (barcode: string, amount: number, monthKey: string, note: string) => void;
+  onUpdatePayment?: (
+    oldMonthKey: string,
+    barcode: string,
+    newMonthKey: string,
+    newAmount: number,
+    newNote: string,
+    newDate?: string
+  ) => void;
+  onDeletePayment?: (monthKey: string, barcode: string) => void;
 }
 
 export const FinancialsTab: React.FC<FinancialsTabProps> = ({
@@ -18,12 +44,20 @@ export const FinancialsTab: React.FC<FinancialsTabProps> = ({
   payments,
   groupPrices,
   onRecordPayment,
+  onUpdatePayment,
+  onDeletePayment,
 }) => {
   const [selectedMonth, setSelectedMonth] = useState(getCurrentMonthKey());
   const [filterGrade, setFilterGrade] = useState("ALL");
   const [filterStatus, setFilterStatus] = useState<"ALL" | "PAID" | "UNPAID">("ALL");
   const [searchQuery, setSearchQuery] = useState("");
   const [ledgerModalStudent, setLedgerModalStudent] = useState<Student | null>(null);
+  const [isUnpaidModalOpen, setIsUnpaidModalOpen] = useState(false);
+  const [editingPaymentData, setEditingPaymentData] = useState<{
+    student: Student;
+    record: PaymentRecord;
+    monthKey: string;
+  } | null>(null);
 
   const todayKey = getTodayKey();
   const monthPayments = payments[selectedMonth] || {};
@@ -110,7 +144,7 @@ export const FinancialsTab: React.FC<FinancialsTabProps> = ({
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 font-tajawal">
       {/* Financial Metrics Cards */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3.5">
         <div className="glass-card p-4.5 rounded-3xl text-center shadow-lg hover:border-emerald-400/40 transition-all duration-300">
@@ -118,9 +152,17 @@ export const FinancialsTab: React.FC<FinancialsTabProps> = ({
           <p className="text-2xl md:text-3xl font-black text-emerald-400 font-mono">{paidCount}</p>
         </div>
 
-        <div className="glass-card p-4.5 rounded-3xl text-center shadow-lg hover:border-rose-400/40 transition-all duration-300">
-          <p className="text-xs text-rose-400 font-tajawal font-medium mb-1">اشتراكات مستحقة / غير مدفوعة</p>
+        <div
+          onClick={() => setIsUnpaidModalOpen(true)}
+          className="glass-card p-4.5 rounded-3xl text-center shadow-lg hover:border-rose-400/60 transition-all duration-300 cursor-pointer group bg-rose-500/5 hover:bg-rose-500/10"
+          title="اضغط لفتح كشف الطلاب المتأخرين وتصدير PDF رسمي"
+        >
+          <p className="text-xs text-rose-400 font-tajawal font-medium mb-1 flex items-center justify-center gap-1">
+            <span>اشتراكات مستحقة / غير مدفوعة</span>
+            <Printer className="w-3 h-3 group-hover:scale-110 transition-transform text-rose-400" />
+          </p>
           <p className="text-2xl md:text-3xl font-black text-rose-400 font-mono">{unpaidCount}</p>
+          <span className="text-[10px] text-rose-300/80 font-bold block mt-0.5">اضغط لطباعة كشف PDF 🖨️</span>
         </div>
 
         <div className="glass-card p-4.5 rounded-3xl text-center shadow-lg hover:border-sky-400/40 transition-all duration-300">
@@ -134,7 +176,7 @@ export const FinancialsTab: React.FC<FinancialsTabProps> = ({
         </div>
       </div>
 
-      {/* Filter and Date Controls */}
+      {/* Filter and Action Controls */}
       <div className="glass-panel p-4 md:p-5 rounded-3xl flex flex-wrap items-center justify-between gap-3.5 shadow-xl font-tajawal">
         <div className="flex flex-wrap items-center gap-3 flex-1 min-w-[300px]">
           {/* Month Selector */}
@@ -195,13 +237,24 @@ export const FinancialsTab: React.FC<FinancialsTabProps> = ({
           </div>
         </div>
 
-        <button
-          onClick={exportFinancialsExcel}
-          className="px-4 py-2.5 rounded-2xl bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-400/30 text-emerald-300 text-xs font-bold transition-all flex items-center gap-1.5 shadow-sm cursor-pointer"
-        >
-          <FileSpreadsheet className="w-4 h-4 text-emerald-400" />
-          <span>تصدير كشف الحسابات Excel</span>
-        </button>
+        <div className="flex items-center gap-2 flex-wrap">
+          <button
+            type="button"
+            onClick={() => setIsUnpaidModalOpen(true)}
+            className="px-4 py-2.5 rounded-2xl bg-gradient-to-r from-rose-600 to-amber-600 hover:from-rose-500 hover:to-amber-500 text-white text-xs font-black transition-all flex items-center gap-1.5 shadow-lg shadow-rose-900/30 cursor-pointer"
+          >
+            <Printer className="w-4 h-4 text-white" />
+            <span>كشف غير المسددين (PDF رسمي لكل صف)</span>
+          </button>
+
+          <button
+            onClick={exportFinancialsExcel}
+            className="px-4 py-2.5 rounded-2xl bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-400/30 text-emerald-300 text-xs font-bold transition-all flex items-center gap-1.5 shadow-sm cursor-pointer"
+          >
+            <FileSpreadsheet className="w-4 h-4 text-emerald-400" />
+            <span>تصدير Excel</span>
+          </button>
+        </div>
       </div>
 
       {/* Financial Table */}
@@ -269,7 +322,7 @@ export const FinancialsTab: React.FC<FinancialsTabProps> = ({
                         </span>
                       </td>
                       <td className="p-3.5">
-                        <div className="flex items-center justify-center gap-2">
+                        <div className="flex items-center justify-center gap-1.5 flex-wrap">
                           <button
                             type="button"
                             onClick={() => setLedgerModalStudent(student)}
@@ -281,25 +334,71 @@ export const FinancialsTab: React.FC<FinancialsTabProps> = ({
                           </button>
 
                           {pay ? (
-                            <button
-                              onClick={() => {
-                                const receiptMsg = `إيصال استلام اشتراك 🧾\nمنظومة الأستاذة إيمان الدمشيتي - رياضيات 📐\nاسم الطالب: ${student.name}\nالصف: ${student.groupGrade}\nعن شهر: ${selectedMonth}\nالمبلغ المسدد: ${pay.amount} ج.م\nالتاريخ: ${pay.date}\nمع تحيات ميس إيمان الدمشيتي ✨`;
-                                openWhatsApp(student.parentPhone, receiptMsg);
-                              }}
-                              className="px-2.5 py-1.5 rounded-xl bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/30 text-emerald-300 text-[11px] font-bold cursor-pointer transition-all"
-                            >
-                              📲 إيصال
-                            </button>
+                            <>
+                              {onUpdatePayment && (
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    setEditingPaymentData({
+                                      student,
+                                      record: pay,
+                                      monthKey: selectedMonth,
+                                    })
+                                  }
+                                  className="px-2 py-1.5 rounded-xl bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/30 text-amber-300 text-[11px] font-bold cursor-pointer transition-all flex items-center gap-1"
+                                  title="تعديل هذا السداد أو تحويله لشهر آخر"
+                                >
+                                  <Edit2 className="w-3 h-3 text-amber-400" />
+                                  <span>تعديل ✏️</span>
+                                </button>
+                              )}
+
+                              <button
+                                onClick={() => {
+                                  const receiptMsg = `إيصال استلام اشتراك 🧾\nمنظومة الأستاذة إيمان الدمشيتي - رياضيات 📐\nاسم الطالب: ${student.name}\nالصف: ${student.groupGrade}\nعن شهر: ${selectedMonth}\nالمبلغ المسدد: ${pay.amount} ج.م\nالتاريخ: ${pay.date}\nمع تحيات ميس إيمان الدمشيتي ✨`;
+                                  openWhatsApp(student.parentPhone, receiptMsg);
+                                }}
+                                className="px-2 py-1.5 rounded-xl bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/30 text-emerald-300 text-[11px] font-bold cursor-pointer transition-all"
+                              >
+                                📲 إيصال
+                              </button>
+                            </>
                           ) : (
-                            <button
-                              onClick={() => {
-                                const reminderMsg = `تذكير ودي بسداد الاشتراك 🔔\nمنظومة الأستاذة إيمان الدمشيتي - رياضيات 📐\nاسم الطالب: ${student.name}\nالصف: ${student.groupGrade}\nنود تذكيركم بسداد اشتراك شهر (${selectedMonth}) وقيمته: ${fee} ج.م.\nشاكرين لكم حسن تعاونكم واهتمامكم ✨`;
-                                openWhatsApp(student.parentPhone, reminderMsg);
-                              }}
-                              className="px-2.5 py-1.5 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 text-amber-300 text-[11px] font-bold cursor-pointer transition-all"
-                            >
-                              🔔 تذكير
-                            </button>
+                            <>
+                              {onRecordPayment && (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    if (
+                                      confirm(
+                                        `هل تود إثبات سداد مبلغ (${fee} ج.م) عن شهر (${selectedMonth}) للطالب (${student.name})؟`
+                                      )
+                                    ) {
+                                      onRecordPayment(
+                                        student.barcode,
+                                        fee,
+                                        selectedMonth,
+                                        `سداد اشتراك ${selectedMonth}`
+                                      );
+                                    }
+                                  }}
+                                  className="px-2 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-[11px] font-bold cursor-pointer transition-all flex items-center gap-1 shadow-sm"
+                                >
+                                  <CreditCard className="w-3 h-3" />
+                                  <span>سداد 💳</span>
+                                </button>
+                              )}
+
+                              <button
+                                onClick={() => {
+                                  const reminderMsg = `تذكير ودي بسداد الاشتراك 🔔\nمنظومة الأستاذة إيمان الدمشيتي - رياضيات 📐\nاسم الطالب: ${student.name}\nالصف: ${student.groupGrade}\nنود تذكيركم بسداد اشتراك شهر (${selectedMonth}) وقيمته: ${fee} ج.م.\nشاكرين لكم حسن تعاونكم واهتمامكم ✨`;
+                                  openWhatsApp(student.parentPhone, reminderMsg);
+                                }}
+                                className="px-2 py-1.5 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 text-amber-300 text-[11px] font-bold cursor-pointer transition-all"
+                              >
+                                🔔 تذكير
+                              </button>
+                            </>
                           )}
                         </div>
                       </td>
@@ -321,6 +420,39 @@ export const FinancialsTab: React.FC<FinancialsTabProps> = ({
           isOpen={!!ledgerModalStudent}
           onClose={() => setLedgerModalStudent(null)}
           onRecordQuickPayment={onRecordPayment}
+          onUpdatePayment={onUpdatePayment}
+          onDeletePayment={onDeletePayment}
+        />
+      )}
+
+      {/* Unpaid Defaulters Official PDF & Multi-Grade Modal */}
+      <UnpaidDefaultersModal
+        students={students}
+        payments={payments}
+        groupPrices={groupPrices}
+        isOpen={isUnpaidModalOpen}
+        onClose={() => setIsUnpaidModalOpen(false)}
+        onRecordPayment={onRecordPayment}
+      />
+
+      {/* Edit Payment Modal */}
+      {editingPaymentData && onUpdatePayment && (
+        <EditPaymentModal
+          isOpen={!!editingPaymentData}
+          student={editingPaymentData.student}
+          payment={editingPaymentData.record}
+          monthKey={editingPaymentData.monthKey}
+          onClose={() => setEditingPaymentData(null)}
+          onSave={(oldMonthKey, barcode, newMonthKey, newAmount, newNote, newDate) => {
+            onUpdatePayment(oldMonthKey, barcode, newMonthKey, newAmount, newNote, newDate);
+            setEditingPaymentData(null);
+          }}
+          onDelete={(monthKey, barcode) => {
+            if (onDeletePayment) {
+              onDeletePayment(monthKey, barcode);
+            }
+            setEditingPaymentData(null);
+          }}
         />
       )}
     </div>

@@ -51,29 +51,42 @@ body {
   text-rendering: optimizeLegibility;
 }
 
-/* Glassmorphism Luxury Utilities - Optimized for 60fps Smoothness */
+/* High-Speed Hardware-Accelerated Responsive UI */
+* {
+  touch-action: manipulation;
+  box-sizing: border-box;
+}
+
+button, [role="button"], a {
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+}
+
+button:active, [role="button"]:active {
+  transform: scale(0.98);
+}
+
+/* Luxury Utilities - Optimized for 0ms Instant Rendering */
 .glass-panel {
-  background: rgba(9, 14, 31, 0.92);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
-  border: 1px solid rgba(255, 255, 255, 0.09);
-  box-shadow: 0 16px 36px -12px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  background-color: #070d1e;
+  border: 1px solid rgba(99, 102, 241, 0.22);
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5);
   transform: translateZ(0);
 }
 
 .glass-card {
-  background: rgba(12, 19, 41, 0.88);
-  backdrop-filter: blur(6px);
-  -webkit-backdrop-filter: blur(6px);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  box-shadow: 0 10px 24px -8px rgba(0, 0, 0, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  background-color: #0b1329;
+  border: 1px solid rgba(99, 102, 241, 0.18);
+  box-shadow: 0 6px 16px -4px rgba(0, 0, 0, 0.4);
   transform: translateZ(0);
 }
 
 .neo-card {
-  background: linear-gradient(145deg, rgba(14, 22, 46, 0.9), rgba(9, 14, 30, 0.85));
-  border: 1px solid rgba(245, 158, 11, 0.22);
-  box-shadow: 0 16px 36px -10px rgba(0, 0, 0, 0.5), inset 0 1px 1px rgba(255, 255, 255, 0.08);
+  background: linear-gradient(145deg, #0d1633, #080e22);
+  border: 1px solid rgba(245, 158, 11, 0.25);
+  box-shadow: 0 12px 28px -8px rgba(0, 0, 0, 0.5);
+  transform: translateZ(0);
 }
 
 .gold-gradient-text {
