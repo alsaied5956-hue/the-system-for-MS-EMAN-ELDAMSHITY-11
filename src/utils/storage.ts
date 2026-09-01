@@ -74,6 +74,7 @@ let memoryCachedData: SystemData | null = null;
 let lastSyncedDataHash: string = "";
 let debounceSyncTimer: ReturnType<typeof setTimeout> | null = null;
 let isCurrentlySyncing: boolean = false;
+let hasQueuedPendingSync: boolean = false;
 let syncTimeoutTimer: ReturnType<typeof setTimeout> | null = null;
 let prevStatusSnapshot: string = "";
 let isQuotaExceeded: boolean = false;
@@ -408,6 +409,7 @@ export async function flushPendingSyncToCloud(forceManual: boolean = false): Pro
   }
 
   if (isCurrentlySyncing) {
+    hasQueuedPendingSync = true;
     return true;
   }
 
@@ -465,6 +467,14 @@ export async function flushPendingSyncToCloud(forceManual: boolean = false): Pro
       })
     );
 
+    // If another mutation happened while this one was in flight, immediately flush the new data
+    if (hasQueuedPendingSync) {
+      hasQueuedPendingSync = false;
+      setTimeout(() => {
+        flushPendingSyncToCloud(false).catch(() => {});
+      }, 10);
+    }
+
     return true;
   } catch (e) {
     if (isFirestoreQuotaError(e)) {
@@ -508,19 +518,13 @@ export function syncDataToCloud(data: SystemData, immediate: boolean = false): v
     debounceSyncTimer = null;
   }
 
-  // 3. For immediate actions (like barcode scan, payment, grade save), push immediately with 0ms delay
-  const delay = immediate ? 0 : 50;
-
-  if (delay === 0) {
-    if (typeof window !== "undefined" && navigator.onLine && !isCurrentlySyncing) {
+  // 3. Push immediately with 0ms delay for instant multi-device responsiveness
+  if (typeof window !== "undefined" && navigator.onLine) {
+    if (!isCurrentlySyncing) {
       flushPendingSyncToCloud(false).catch(() => {});
+    } else {
+      hasQueuedPendingSync = true;
     }
-  } else {
-    debounceSyncTimer = setTimeout(async () => {
-      if (typeof window !== "undefined" && navigator.onLine && !isCurrentlySyncing) {
-        await flushPendingSyncToCloud(false);
-      }
-    }, delay);
   }
 }
 

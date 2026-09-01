@@ -239,8 +239,8 @@ export const FinancialsTab: React.FC<FinancialsTabProps> = ({
 
   // Find if other months have recorded payments when current selected month is empty
   const otherActiveMonths = useMemo(() => {
-    return Object.entries(monthsWithRecords)
-      .filter(([mKey, count]) => mKey !== selectedMonth && count > 0)
+    return Object.entries(monthsWithRecords as Record<string, number>)
+      .filter(([mKey, count]) => mKey !== selectedMonth && Number(count) > 0)
       .sort((a, b) => b[0].localeCompare(a[0]));
   }, [monthsWithRecords, selectedMonth]);
 
