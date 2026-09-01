@@ -72,7 +72,7 @@ export const EditPaymentModal: React.FC<EditPaymentModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-[100] bg-black/85 backdrop-blur-sm flex items-center justify-center p-4 font-tajawal animate-in fade-in">
+    <div className="fixed inset-0 z-[100] bg-black/85 flex items-center justify-center p-4 font-tajawal animate-in fade-in">
       <div className="bg-[#0b1226] border-2 border-amber-500/40 w-full max-w-lg rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
         {/* Modal Header */}
         <div className="p-5 border-b border-indigo-500/30 flex items-center justify-between bg-gradient-to-r from-amber-500/10 to-transparent">

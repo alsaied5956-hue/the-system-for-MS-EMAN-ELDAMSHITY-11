@@ -191,7 +191,7 @@ export const UnpaidDefaultersModal: React.FC<UnpaidDefaultersModalProps> = ({
       : [selectedGrade as GradeName];
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex flex-col items-center p-3 md:p-6 overflow-y-auto no-print-backdrop font-tajawal">
+    <div className="fixed inset-0 z-50 bg-black/85 flex flex-col items-center p-3 md:p-6 overflow-y-auto no-print-backdrop font-tajawal">
       {/* Top Controls Bar */}
       <div className="no-print bg-[#0a1124] border border-amber-500/30 w-full max-w-6xl p-4 md:p-5 rounded-3xl flex flex-wrap items-center justify-between gap-4 mb-6 shadow-2xl sticky top-2 z-50">
         <div className="flex items-center gap-3">

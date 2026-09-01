@@ -115,17 +115,17 @@ export const Sidebar: React.FC<SidebarProps> = ({
       {isOpen && (
         <div
           onClick={onCloseMobile}
-          className="fixed inset-0 bg-black/80 backdrop-blur-md z-40 md:hidden transition-opacity"
+          className="fixed inset-0 bg-black/75 z-40 md:hidden transition-opacity"
           aria-hidden="true"
         />
       )}
 
       {/* Sidebar Aside element with dedicated independent scrolling */}
       <aside
-        className={`no-print fixed md:static top-0 right-0 h-screen md:h-full bg-[#070c1e] border-l border-indigo-500/15 flex flex-col transition-all duration-300 z-50 md:z-20 shrink-0 shadow-2xl ${
+        className={`no-print fixed md:static top-0 right-0 h-screen md:h-full bg-[#070c1e] border-l border-indigo-500/15 flex flex-col z-50 md:z-20 shrink-0 ${
           isOpen
-            ? "w-80 translate-x-0 opacity-100"
-            : "w-0 md:w-0 translate-x-full md:translate-x-0 opacity-0 overflow-hidden border-none pointer-events-none"
+            ? "w-80 block"
+            : "hidden w-0"
         }`}
       >
         {/* Sidebar Header with Quick Hide Button */}

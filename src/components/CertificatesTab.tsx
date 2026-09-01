@@ -129,7 +129,7 @@ export const CertificatesTab: React.FC<CertificatesTabProps> = ({ students }) =>
   return (
     <div className="space-y-6 font-tajawal">
       {/* Top Banner */}
-      <div className="relative overflow-hidden rounded-3xl border border-amber-500/30 p-6 md:p-8 bg-gradient-to-r from-amber-500/15 via-indigo-900/30 to-amber-500/15 shadow-2xl backdrop-blur-xl flex flex-wrap items-center justify-between gap-5">
+      <div className="relative overflow-hidden rounded-3xl border border-amber-500/30 p-6 md:p-8 bg-gradient-to-r from-amber-500/15 via-indigo-900/30 to-amber-500/15 shadow-2xl flex flex-wrap items-center justify-between gap-5">
         <div className="flex items-center gap-4">
           <div className="w-14 h-14 bg-gradient-to-tr from-amber-400 to-yellow-200 text-slate-950 rounded-2xl shadow-xl shadow-amber-500/20 flex items-center justify-center">
             <Trophy className="w-8 h-8" />
@@ -260,7 +260,7 @@ export const CertificatesTab: React.FC<CertificatesTabProps> = ({ students }) =>
 
       {/* Custom Certificate Modal */}
       {isCustomModalOpen && (
-        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4">
           <div className="glass-panel p-6 md:p-8 rounded-3xl max-w-lg w-full shadow-2xl space-y-5 animate-in fade-in zoom-in-95 border-amber-500/40">
             <div className="flex items-center justify-between pb-3 border-b border-indigo-500/20">
               <h3 className="text-base font-bold font-fancy text-amber-300 flex items-center gap-2">
@@ -349,7 +349,7 @@ export const CertificatesTab: React.FC<CertificatesTabProps> = ({ students }) =>
 
       {/* Certificate Modal & Print Preview */}
       {activeCertificate && (
-        <div className="fixed inset-0 z-50 bg-black/90 backdrop-blur-md flex items-center justify-center p-4 overflow-y-auto">
+        <div className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center p-4 overflow-y-auto">
           <div className="max-w-4xl w-full space-y-4 my-auto">
             {/* Modal Controls */}
             <div className="no-print glass-panel p-4 md:p-5 rounded-3xl border-amber-500/30 space-y-3">

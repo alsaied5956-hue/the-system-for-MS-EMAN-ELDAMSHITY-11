@@ -162,7 +162,7 @@ export const StudentFinancialLedgerModal: React.FC<StudentFinancialLedgerModalPr
     : ledgerEntries.find((e) => e.isPaid);
 
   return (
-    <div className="fixed inset-0 bg-black/80 backdrop-blur-md z-50 flex items-center justify-center p-3 md:p-6 no-print-backdrop">
+    <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-3 md:p-6 no-print-backdrop">
       <div className="bg-[#0b1224] border-2 border-indigo-500/40 w-full max-w-4xl rounded-3xl p-5 md:p-7 shadow-2xl space-y-5 animate-in fade-in zoom-in-95 max-h-[92vh] flex flex-col font-tajawal text-slate-100">
         
         {/* Header Bar */}

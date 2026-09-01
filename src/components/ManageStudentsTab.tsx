@@ -279,7 +279,7 @@ export const ManageStudentsTab: React.FC<ManageStudentsTabProps> = ({
 
       {/* Delete Single Student Confirmation Modal */}
       {deleteConfirmStudent && (
-        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+        <div className="fixed inset-0 bg-slate-950/80 z-50 flex items-center justify-center p-4">
           <div className="glass-panel w-full max-w-md p-6 rounded-3xl space-y-4 border-rose-500/40">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-2xl bg-rose-500/20 text-rose-400 flex items-center justify-center">
@@ -318,7 +318,7 @@ export const ManageStudentsTab: React.FC<ManageStudentsTabProps> = ({
 
       {/* Clear All Data Modal */}
       {clearAllConfirmOpen && (
-        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+        <div className="fixed inset-0 bg-slate-950/80 z-50 flex items-center justify-center p-4">
           <div className="glass-panel w-full max-w-md p-6 rounded-3xl space-y-4 border-rose-500/50">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-2xl bg-rose-500/20 text-rose-400 flex items-center justify-center">
@@ -366,7 +366,7 @@ export const ManageStudentsTab: React.FC<ManageStudentsTabProps> = ({
 
       {/* Edit Student Full Modal */}
       {editingStudent && (
-        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 overflow-y-auto">
+        <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4 overflow-y-auto">
           <div className="glass-panel border-amber-500/40 p-6 md:p-8 rounded-3xl max-w-lg w-full shadow-2xl space-y-4 my-auto animate-in fade-in zoom-in-95">
             <h3 className="text-base font-bold font-fancy text-amber-300 border-b border-indigo-500/20 pb-3 flex items-center gap-2">
               <Edit3 className="w-4 h-4 text-amber-400" />

@@ -3,7 +3,9 @@ import { Student, GradeName, GRADE_ORDER } from "../types";
 import { getAttendanceRate, getAbsenceRate, getExamAverage, sortStudentsByGradeAndName, openWhatsApp } from "../utils/helpers";
 import { matchStudentSearch } from "../utils/search";
 import { exportAllExamsToExcel } from "../utils/excel";
-import { Award, FileSpreadsheet, FileText, Search, Edit3, Star, X } from "lucide-react";
+import { enqueuePendingWhatsAppMessage } from "../utils/storage";
+import { EditGradeModal } from "./EditGradeModal";
+import { Award, FileSpreadsheet, FileText, Search, Edit3, Star, X, CheckCircle2 } from "lucide-react";
 
 interface CumulativeGradesReportProps {
   students: Student[];
@@ -24,15 +26,8 @@ export const CumulativeGradesReport: React.FC<CumulativeGradesReportProps> = ({
 }) => {
   const [filterGrade, setFilterGrade] = useState<string>("ALL");
   const [searchQuery, setSearchQuery] = useState("");
-
-  const [editingStudent, setEditingStudent] = useState<{
-    barcode: string;
-    name: string;
-    lastTitle: string;
-    lastScore: string;
-    points: number;
-    rawScoresStr: string;
-  } | null>(null);
+  const [selectedStudentForEdit, setSelectedStudentForEdit] = useState<Student | null>(null);
+  const [feedback, setFeedback] = useState<{ type: "success" | "error"; message: string } | null>(null);
 
   const filteredStudents = useMemo(() => {
     let result = students.filter((s) => {
@@ -57,25 +52,58 @@ export const CumulativeGradesReport: React.FC<CumulativeGradesReportProps> = ({
     return sortStudentsByGradeAndName(result);
   }, [students, filterGrade, searchQuery]);
 
-  const handleSaveEdit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!editingStudent) return;
+  const handleSaveGradeFromModal = (
+    barcode: string,
+    examTitle: string,
+    score: number,
+    maxScore: number,
+    newPoints: number,
+    openChatWithParent: boolean,
+    customMessage?: string
+  ) => {
+    const student = students.find((s) => s.barcode === barcode);
+    if (!student) return;
 
-    // Parse array of scores
-    const parsedScores = editingStudent.rawScoresStr
-      .split(",")
-      .map((n) => Number(n.trim()))
-      .filter((n) => !isNaN(n) && n >= 0 && n <= 100);
+    const percentage = Math.round((score / maxScore) * 100);
+    const scoreFormatted = `${score}/${maxScore} (${percentage}%)`;
 
-    onUpdateGradeRecord(
-      editingStudent.barcode,
-      editingStudent.lastTitle.trim(),
-      editingStudent.lastScore.trim(),
-      editingStudent.points,
-      parsedScores
-    );
+    // Recalculate scores array: replace the last item if exists or append
+    let updatedScores = student.totalExamScores ? [...student.totalExamScores] : [];
+    if (updatedScores.length > 0) {
+      // replace the last exam score with new percentage
+      updatedScores[updatedScores.length - 1] = percentage;
+    } else {
+      updatedScores = [percentage];
+    }
 
-    setEditingStudent(null);
+    onUpdateGradeRecord(barcode, examTitle, scoreFormatted, newPoints, updatedScores);
+
+    if (openChatWithParent && student.parentPhone) {
+      const msg =
+        customMessage ||
+        `تعديل وتحديث رصد درجة اختبار الرياضيات 📐\n\nالسادة أولياء الأمور الكرام،\nتم تعديل وتحديث رصد درجة الاختبار لدى الأستاذة إيمان الدمشيتي:\n\n🔹 اسم الطالب/ة: ${student.name}\n📚 الصف: ${student.groupGrade}\n📝 موضوع الاختبار: ${examTitle}\n📊 الدرجة بعد التعديل: ${scoreFormatted}\n⭐ إجمالي نقاط الطالب: ${newPoints}\n\nمع تحيات ميس إيمان الدمشيتي 📐`;
+
+      // Enqueue into pending queue as safety
+      enqueuePendingWhatsAppMessage({
+        studentBarcode: student.barcode,
+        studentName: student.name,
+        grade: student.groupGrade,
+        phone: student.parentPhone,
+        messageType: "درجات",
+        message: msg,
+      });
+
+      openWhatsApp(student.parentPhone, msg);
+    }
+
+    setFeedback({
+      type: "success",
+      message: `✅ تم تعديل درجة الطالب (${student.name}): ${scoreFormatted} وتحديث السجل بنجاح!`,
+    });
+
+    setTimeout(() => {
+      setFeedback(null);
+    }, 4500);
   };
 
   return (
@@ -118,6 +146,19 @@ export const CumulativeGradesReport: React.FC<CumulativeGradesReportProps> = ({
             ))}
           </select>
         </div>
+
+        {feedback && (
+          <div
+            className={`p-3.5 rounded-2xl text-xs font-bold border transition-all animate-in fade-in flex items-center gap-2 ${
+              feedback.type === "success"
+                ? "bg-emerald-950/80 text-emerald-300 border-emerald-500/40"
+                : "bg-rose-950/80 text-rose-300 border-rose-500/40"
+            }`}
+          >
+            <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+            <span>{feedback.message}</span>
+          </div>
+        )}
 
         <div className="flex items-center gap-2.5">
           <button
@@ -217,20 +258,12 @@ export const CumulativeGradesReport: React.FC<CumulativeGradesReportProps> = ({
                       <td className="p-3.5">
                         <div className="flex items-center justify-center gap-1.5">
                           <button
-                            onClick={() =>
-                              setEditingStudent({
-                                barcode: student.barcode,
-                                name: student.name,
-                                lastTitle: student.lastExamTitle || "",
-                                lastScore: student.lastExamScore || "",
-                                points: student.points || 0,
-                                rawScoresStr: (student.totalExamScores || []).join(", "),
-                              })
-                            }
-                            className="px-2.5 py-1.5 rounded-xl bg-sky-500/10 hover:bg-sky-500/20 border border-sky-500/30 text-sky-300 text-[11px] font-bold flex items-center gap-1 cursor-pointer transition-all"
+                            onClick={() => setSelectedStudentForEdit(student)}
+                            className="px-2.5 py-1.5 rounded-xl bg-sky-500/10 hover:bg-sky-500/20 border border-sky-500/30 text-sky-300 text-[11px] font-bold flex items-center gap-1 cursor-pointer transition-all hover:scale-105 active:scale-95"
+                            title="تعديل رصد درجة الامتحان وحساب النسبة"
                           >
                             <Edit3 className="w-3 h-3" />
-                            <span>تعديل</span>
+                            <span>تعديل الدرجة</span>
                           </button>
 
                           <button
@@ -255,98 +288,14 @@ export const CumulativeGradesReport: React.FC<CumulativeGradesReportProps> = ({
         </div>
       </div>
 
-      {/* Edit Student Grades Modal */}
-      {editingStudent && (
-        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4">
-          <div className="glass-panel p-6 md:p-8 rounded-3xl max-w-lg w-full shadow-2xl space-y-4 animate-in fade-in zoom-in-95 font-tajawal">
-            <h3 className="text-lg font-bold font-fancy text-amber-300 border-b border-indigo-500/20 pb-3 flex items-center gap-2">
-              <Award className="w-5 h-5 text-amber-400" />
-              <span>تعديل درجات ونقاط الطالب</span>
-            </h3>
-
-            <p className="text-xs text-slate-300">
-              اسم الطالب: <span className="font-bold text-amber-300 text-sm font-fancy">{editingStudent.name}</span>
-            </p>
-
-            <form onSubmit={handleSaveEdit} className="space-y-3 text-xs font-bold">
-              <div className="space-y-1.5">
-                <label className="text-slate-300">عنوان آخر امتحان مسجل:</label>
-                <input
-                  type="text"
-                  required
-                  value={editingStudent.lastTitle}
-                  onChange={(e) =>
-                    setEditingStudent({ ...editingStudent, lastTitle: e.target.value })
-                  }
-                  placeholder="مثال: امتحان شهر أكتوبر"
-                  className="w-full bg-[#080d1e] border border-indigo-500/30 text-slate-100 px-4 py-2.5 rounded-2xl outline-none focus:border-amber-400 transition-all"
-                />
-              </div>
-
-              <div className="space-y-1.5">
-                <label className="text-slate-300">النتيجة المسجلة:</label>
-                <input
-                  type="text"
-                  required
-                  value={editingStudent.lastScore}
-                  onChange={(e) =>
-                    setEditingStudent({ ...editingStudent, lastScore: e.target.value })
-                  }
-                  placeholder="مثال: 45 من 50 (90%)"
-                  className="w-full bg-[#080d1e] border border-indigo-500/30 text-slate-100 px-4 py-2.5 rounded-2xl outline-none focus:border-amber-400 transition-all"
-                />
-              </div>
-
-              <div className="space-y-1.5">
-                <label className="text-slate-300">إجمالي النقاط ⭐:</label>
-                <input
-                  type="number"
-                  min={0}
-                  required
-                  value={editingStudent.points}
-                  onChange={(e) =>
-                    setEditingStudent({ ...editingStudent, points: Number(e.target.value) })
-                  }
-                  className="w-full bg-[#080d1e] border border-amber-500/30 text-amber-300 font-mono font-black px-4 py-2.5 rounded-2xl outline-none focus:border-amber-400 transition-all"
-                />
-              </div>
-
-              <div className="space-y-1.5">
-                <label className="text-slate-300">
-                  سجل النسب المئوية لكافة الامتحانات (مفصولة بفاصلة):
-                </label>
-                <input
-                  type="text"
-                  value={editingStudent.rawScoresStr}
-                  onChange={(e) =>
-                    setEditingStudent({ ...editingStudent, rawScoresStr: e.target.value })
-                  }
-                  placeholder="مثال: 90, 85, 95"
-                  className="w-full bg-[#080d1e] border border-indigo-500/30 text-slate-200 px-4 py-2.5 rounded-2xl font-mono text-xs outline-none focus:border-amber-400 transition-all"
-                />
-                <span className="text-[10px] text-slate-400 block font-normal">
-                  هذه القيم تستخدم لحساب متوسط درجات الطالب التراكمي بدقة.
-                </span>
-              </div>
-
-              <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-indigo-500/20">
-                <button
-                  type="button"
-                  onClick={() => setEditingStudent(null)}
-                  className="px-4 py-2.5 rounded-2xl bg-slate-800 text-slate-300 hover:bg-slate-700 cursor-pointer transition-all"
-                >
-                  إلغاء
-                </button>
-                <button
-                  type="submit"
-                  className="px-5 py-2.5 rounded-2xl bg-gradient-to-r from-amber-400 via-amber-300 to-yellow-200 text-slate-950 font-black cursor-pointer shadow-lg shadow-amber-500/20"
-                >
-                  حفظ التعديلات
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
+      {/* Interactive Edit Grade Modal */}
+      {selectedStudentForEdit && (
+        <EditGradeModal
+          student={selectedStudentForEdit}
+          isOpen={!!selectedStudentForEdit}
+          onClose={() => setSelectedStudentForEdit(null)}
+          onSaveGrade={handleSaveGradeFromModal}
+        />
       )}
     </div>
   );

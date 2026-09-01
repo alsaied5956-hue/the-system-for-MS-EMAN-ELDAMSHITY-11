@@ -652,7 +652,7 @@ export const AttendanceScanner: React.FC<AttendanceScannerProps> = ({
 
       {/* Manual Search & Cross-Day Attendance Modal */}
       {isManualModalOpen && (
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-md z-50 flex items-center justify-center p-4">
+        <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4">
           <div className="bg-[#0f1728] border-2 border-amber-500/40 w-full max-w-2xl rounded-3xl p-6 shadow-2xl space-y-4 animate-in fade-in zoom-in-95 max-h-[90vh] flex flex-col">
             
             {/* Modal Header */}

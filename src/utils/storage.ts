@@ -645,14 +645,16 @@ function mergeCloudDataWithLocal(local: SystemData, cloud: Partial<SystemData>):
   // 6. Merge WhatsApp Outbox Messages
   const localMsgs = local.pendingWhatsAppMessages || [];
   const cloudMsgs = Array.isArray(cloud.pendingWhatsAppMessages) ? cloud.pendingWhatsAppMessages : [];
-  const msgMap = new Map<string, PendingWhatsAppMessage>();
-  localMsgs.forEach((m) => msgMap.set(m.id, m));
-  cloudMsgs.forEach((m) => {
-    const existing = msgMap.get(m.id);
-    if (!existing || (existing.status === "pending" && m.status === "sent")) {
-      msgMap.set(m.id, m);
-    }
-  });
+  
+  // If local or cloud has updated messages, prefer the newer state based on updatedAt
+  let mergedWhatsApp: PendingWhatsAppMessage[];
+  if (typeof cloud.updatedAt === "number" && cloud.updatedAt > (local.updatedAt || 0)) {
+    mergedWhatsApp = cloudMsgs;
+  } else if (local.pendingWhatsAppMessages !== undefined) {
+    mergedWhatsApp = localMsgs;
+  } else {
+    mergedWhatsApp = cloudMsgs;
+  }
 
   return {
     students: mergedStudents,
@@ -664,7 +666,7 @@ function mergeCloudDataWithLocal(local: SystemData, cloud: Partial<SystemData>):
     usersList: mergedUsers,
     groupPrices: mergedGroupPrices,
     activeSessionSlotId: cloud.activeSessionSlotId || local.activeSessionSlotId || "auto",
-    pendingWhatsAppMessages: Array.from(msgMap.values()),
+    pendingWhatsAppMessages: mergedWhatsApp,
     updatedAt: Math.max(local.updatedAt || 0, typeof cloud.updatedAt === "number" ? cloud.updatedAt : Date.now()),
   };
 }
@@ -890,8 +892,12 @@ export function saveUsersData(usersList: UserAccount[]): void {
 
 export function savePendingWhatsAppMessages(messages: PendingWhatsAppMessage[]): void {
   const current = loadLocalData();
-  const updated: SystemData = { ...current, pendingWhatsAppMessages: messages };
-  syncDataToCloud(updated, false);
+  const updated: SystemData = {
+    ...current,
+    pendingWhatsAppMessages: messages,
+    updatedAt: Date.now(),
+  };
+  syncDataToCloud(updated, true);
   if (typeof window !== "undefined") {
     window.dispatchEvent(
       new CustomEvent("whatsapp-queue-updated", {

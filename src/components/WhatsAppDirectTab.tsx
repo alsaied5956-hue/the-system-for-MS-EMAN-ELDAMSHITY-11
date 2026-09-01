@@ -247,7 +247,7 @@ export const WhatsAppDirectTab: React.FC<WhatsAppDirectTabProps> = ({
     <div className="space-y-6 font-tajawal">
       {/* Top Banner for Offline Outbox Access */}
       {onOpenWhatsAppOutbox && (
-        <div className="relative overflow-hidden rounded-3xl border border-indigo-500/30 p-5 bg-gradient-to-r from-[#0d1627]/90 via-[#101b30]/90 to-[#0d1627]/90 flex flex-wrap items-center justify-between gap-4 shadow-xl backdrop-blur-xl">
+        <div className="relative overflow-hidden rounded-3xl border border-indigo-500/30 p-5 bg-gradient-to-r from-[#0d1627] via-[#101b30] to-[#0d1627] flex flex-wrap items-center justify-between gap-4 shadow-xl">
           <div className="flex items-center gap-3.5">
             <div className="w-12 h-12 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-400 flex items-center justify-center shadow-md">
               <MessageSquare className="w-6 h-6" />

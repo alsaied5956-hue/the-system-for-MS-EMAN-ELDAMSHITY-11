@@ -46,7 +46,7 @@ export const PrintPDFModal: React.FC<PrintPDFModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/90 backdrop-blur-md flex flex-col items-center p-4 overflow-y-auto">
+    <div className="fixed inset-0 z-50 bg-black/90 flex flex-col items-center p-4 overflow-y-auto">
       {/* Top Controls Bar (Hidden during actual print) */}
       <div className="no-print bg-[#121926] border border-amber-500/30 w-full max-w-5xl p-4 rounded-2xl flex flex-wrap items-center justify-between gap-4 mb-6 shadow-2xl sticky top-4 z-50">
         <div className="flex items-center gap-3">

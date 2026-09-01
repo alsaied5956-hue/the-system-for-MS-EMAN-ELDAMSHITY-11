@@ -260,7 +260,7 @@ export const DailyAttendanceReport: React.FC<DailyAttendanceReportProps> = ({
 
       {/* Edit Status Modal */}
       {editingStudent && (
-        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4">
           <div className="bg-[#121926] border border-amber-500/40 p-6 rounded-2xl max-w-md w-full shadow-2xl space-y-4 animate-in fade-in zoom-in-95">
             <h3 className="text-base font-extrabold text-amber-400 border-b border-amber-500/20 pb-2">
               🔄 تعديل حالة حضور الطالب

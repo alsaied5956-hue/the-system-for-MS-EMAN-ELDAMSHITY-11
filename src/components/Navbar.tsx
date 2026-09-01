@@ -67,13 +67,13 @@ export const Navbar: React.FC<NavbarProps> = ({
   onToggleSidebar,
 }) => {
   return (
-    <header className="no-print bg-[#080d1f]/85 backdrop-blur-2xl border-b border-indigo-500/15 px-4 md:px-8 py-3 flex flex-wrap items-center justify-between gap-4 sticky top-0 z-30 shadow-2xl transition-all">
+    <header className="no-print bg-[#070c1e] border-b border-indigo-500/15 px-4 md:px-8 py-3 flex flex-wrap items-center justify-between gap-4 sticky top-0 z-30 shadow-2xl">
       {/* Brand & Teacher Logo */}
       <div className="flex items-center gap-3.5">
         {onToggleSidebar && (
           <button
             onClick={onToggleSidebar}
-            className={`p-2.5 rounded-2xl border transition-all shadow-md cursor-pointer flex items-center gap-2 text-xs font-bold active:scale-95 ${
+            className={`p-2.5 rounded-2xl border shadow-md cursor-pointer flex items-center gap-2 text-xs font-bold ${
               isSidebarOpen
                 ? "bg-slate-800/90 border-slate-700/70 text-slate-300 hover:text-amber-400 hover:bg-slate-700/80"
                 : "bg-amber-500/20 border-amber-400/40 text-amber-300 hover:bg-amber-500/30 shadow-amber-500/10"
@@ -127,7 +127,7 @@ export const Navbar: React.FC<NavbarProps> = ({
 
       {/* Middle: Session Time Slot Selector */}
       {onChangeSessionSlot && (
-        <div className="flex items-center gap-2.5 bg-gradient-to-r from-[#0d152f] to-[#0a1024] border border-indigo-500/20 hover:border-indigo-400/40 px-4 py-2 rounded-2xl shadow-inner backdrop-blur-md transition-all">
+        <div className="flex items-center gap-2.5 bg-gradient-to-r from-[#0d152f] to-[#0a1024] border border-indigo-500/20 hover:border-indigo-400/40 px-4 py-2 rounded-2xl shadow-inner transition-colors">
           <Clock className="w-4 h-4 text-amber-400 shrink-0 animate-pulse" />
           <label className="text-xs font-bold text-amber-300/90 whitespace-nowrap hidden lg:inline font-tajawal">
             موعد الحصة المعتمد:

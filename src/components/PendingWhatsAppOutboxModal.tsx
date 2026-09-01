@@ -243,7 +243,7 @@ export const PendingWhatsAppOutboxModal: React.FC<PendingWhatsAppOutboxModalProp
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 md:p-6 bg-black/85 backdrop-blur-md animate-fadeIn">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 md:p-6 bg-black/80 animate-fadeIn">
       <div className="bg-[#0b1220] border border-amber-500/30 rounded-3xl w-full max-w-5xl max-h-[92vh] flex flex-col shadow-2xl overflow-hidden">
         {/* Modal Top Header */}
         <div className="p-5 md:p-6 border-b border-amber-500/20 bg-gradient-to-r from-[#0d1627] to-[#121c32] flex flex-wrap items-center justify-between gap-4">
@@ -363,15 +363,15 @@ export const PendingWhatsAppOutboxModal: React.FC<PendingWhatsAppOutboxModalProp
               <button
                 type="button"
                 onClick={() => {
-                  if (confirm("هل أنت متأكد من رغبتك في إفراغ وحذف كافة الرسائل من الطابور؟")) {
-                    onClearAll();
-                  }
+                  handleStopAutoDispatch();
+                  playBeep("success");
+                  onClearAll();
                 }}
-                className="px-3 py-2 rounded-2xl bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 text-rose-400 text-xs font-bold transition-all cursor-pointer"
-                title="مسح الطابور كاملاً"
+                className="px-3 py-2 rounded-2xl bg-rose-500/20 hover:bg-rose-500/30 border border-rose-500/40 text-rose-300 hover:text-rose-200 text-xs font-black transition-all cursor-pointer flex items-center gap-1.5 active:scale-95 shadow-sm"
+                title="مسح كافة الرسائل من الطابور فوراً"
               >
-                <Trash2 className="w-3.5 h-3.5 inline mr-1" />
-                <span>مسح الكل</span>
+                <Trash2 className="w-3.5 h-3.5 text-rose-400" />
+                <span>مسح الكل ({pendingMessages.length})</span>
               </button>
             )}
           </div>
@@ -560,7 +560,10 @@ export const PendingWhatsAppOutboxModal: React.FC<PendingWhatsAppOutboxModalProp
 
                       <button
                         type="button"
-                        onClick={() => onDeleteMessage(msg.id)}
+                        onClick={() => {
+                          playBeep("warning");
+                          onDeleteMessage(msg.id);
+                        }}
                         className="p-1.5 rounded-xl hover:bg-rose-500/20 text-slate-500 hover:text-rose-400 transition-all cursor-pointer"
                         title="حذف هذه الرسالة من الطابور"
                       >

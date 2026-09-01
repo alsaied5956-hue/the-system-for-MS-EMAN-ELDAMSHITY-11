@@ -82,17 +82,21 @@ export default function App() {
   const mainScrollRef = useRef<HTMLElement>(null);
   const tabScrollPositions = useRef<Record<string, number>>({});
 
-  // Restore/Reset independent scroll position on tab switch
+  // Tab switcher that saves scroll position and preserves sidebar state
+  const handleSelectTab = (tab: TabType) => {
+    if (mainScrollRef.current) {
+      tabScrollPositions.current[activeTab] = mainScrollRef.current.scrollTop;
+    }
+    setActiveTab(tab);
+  };
+
+  // Restore scroll position when tab changes
   useEffect(() => {
     if (mainScrollRef.current) {
       const savedPos = tabScrollPositions.current[activeTab] || 0;
       mainScrollRef.current.scrollTo({ top: savedPos, behavior: "instant" });
     }
   }, [activeTab]);
-
-  const handleMainScroll = (e: React.UIEvent<HTMLElement>) => {
-    tabScrollPositions.current[activeTab] = e.currentTarget.scrollTop;
-  };
   const [activeSessionSlotId, setActiveSessionSlotId] = useState<string>("auto");
   const [voiceEnabled, setVoiceEnabled] = useState<boolean>(true);
   const [theme, setTheme] = useState<"dark" | "light">(() => {
@@ -772,7 +776,7 @@ export default function App() {
         theme === "light"
           ? "bg-slate-100 text-slate-900"
           : "bg-[#070b14] text-slate-100"
-      } font-['Alexandria',sans-serif] selection:bg-amber-500 selection:text-black transition-colors duration-200`}
+      } font-['Alexandria',sans-serif] selection:bg-amber-500 selection:text-black`}
     >
       {/* 1. Auth Overlay (Login) */}
       {!currentUser && (
@@ -870,12 +874,7 @@ export default function App() {
               currentUser={currentUser}
               isOpen={isSidebarOpen}
               onToggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)}
-              onSelectTab={(tab) => {
-                setActiveTab(tab);
-                if (typeof window !== "undefined" && window.innerWidth < 1024) {
-                  setIsSidebarOpen(false);
-                }
-              }}
+              onSelectTab={handleSelectTab}
               onCloseMobile={() => setIsSidebarOpen(false)}
               onOpenPdfModal={(type) => setPrintModal({ open: true, type })}
               onOpenPrintCards={() => setIsCardsModalOpen(true)}
@@ -884,7 +883,6 @@ export default function App() {
             {/* Tab Body View Container with dedicated independent scrolling */}
             <main
               ref={mainScrollRef}
-              onScroll={handleMainScroll}
               className="flex-1 overflow-y-auto h-full p-3 md:p-6 lg:p-8 max-w-full min-w-0 custom-scrollbar relative"
             >
               <div className="max-w-7xl mx-auto w-full min-w-0 pb-16">

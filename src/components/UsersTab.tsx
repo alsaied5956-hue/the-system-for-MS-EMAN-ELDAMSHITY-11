@@ -279,7 +279,7 @@ export const UsersTab: React.FC<UsersTabProps> = ({
 
       {/* Edit User Modal */}
       {editingUser && (
-        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4">
           <div className="glass-panel border-amber-500/40 p-6 md:p-8 rounded-3xl max-w-md w-full shadow-2xl space-y-4 animate-in fade-in zoom-in-95">
             <h3 className="text-base font-bold font-fancy text-amber-300 border-b border-indigo-500/20 pb-3 flex items-center gap-2">
               <Edit3 className="w-4 h-4 text-amber-400" />
