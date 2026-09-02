@@ -25,6 +25,7 @@ import {
   subscribeToCloudData,
   subscribeToSyncStatus,
   flushPendingSyncToCloud,
+  forceCloudFullRefresh,
   getSyncStatus,
   SyncStatus,
 } from "./utils/storage";
@@ -139,7 +140,7 @@ export default function App() {
   // Print PDF Modal State
   const [printModal, setPrintModal] = useState<{
     open: boolean;
-    type: "attendance" | "exams" | "all";
+    type: "attendance" | "exams" | "all" | "unpaid";
   }>({
     open: false,
     type: "all",
@@ -255,24 +256,21 @@ export default function App() {
 
   // Manual Trigger for Cloud Sync
   const handleManualSync = async () => {
-    const success = await flushPendingSyncToCloud(true);
-    if (success) {
+    const result = await forceCloudFullRefresh();
+    if (result.success) {
       setSyncBanner({
         show: true,
         type: "online-synced",
-        message: "تمت المزامنة السحابية الفورية بنجاح!",
+        message: result.message,
       });
       setTimeout(() => setSyncBanner(null), 4000);
     } else {
-      const status = getSyncStatus();
-      if (status.isQuotaExceeded) {
-        setSyncBanner({
-          show: true,
-          type: "offline-mode",
-          message: "البيانات محفوظة بالكامل محلياً على جهازك 100% ومؤمنة (كوتة السحابة اليومية ممتلئة وستتزامن تلقائياً عند التجديد).",
-        });
-        setTimeout(() => setSyncBanner(null), 6000);
-      }
+      setSyncBanner({
+        show: true,
+        type: "offline-mode",
+        message: result.message,
+      });
+      setTimeout(() => setSyncBanner(null), 6000);
     }
   };
 
@@ -1028,6 +1026,8 @@ export default function App() {
           type={printModal.type}
           students={students}
           attendanceToday={attendanceToday}
+          payments={payments}
+          groupPrices={groupPrices}
           onClose={() => setPrintModal({ ...printModal, open: false })}
         />
       )}

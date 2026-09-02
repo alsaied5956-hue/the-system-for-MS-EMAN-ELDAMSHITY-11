@@ -1,7 +1,7 @@
 import { Student, UserAccount, GradeName, PaymentRecord, PermissionKey, PendingWhatsAppMessage, WhatsAppMessageType } from "../types";
 import { DEFAULT_GRADE_PRICES, getTodayKey, formatTimeArabic } from "./helpers";
 import { db } from "./firebase";
-import { doc, setDoc, onSnapshot, disableNetwork, enableNetwork } from "firebase/firestore";
+import { doc, setDoc, getDoc, onSnapshot, disableNetwork, enableNetwork } from "firebase/firestore";
 
 const STORAGE_KEY = "center_data_v2";
 const PENDING_SYNC_KEY = "center_pending_sync_v2";
@@ -392,6 +392,7 @@ function cleanForFirestore(obj: unknown): unknown {
 
 /**
  * Perform a direct, guaranteed push of local data to Firestore Cloud Database
+ * with intelligent remote pre-merge to prevent any device from overwriting another device's data
  */
 export async function flushPendingSyncToCloud(forceManual: boolean = false): Promise<boolean> {
   if (typeof window === "undefined") return false;
@@ -413,27 +414,24 @@ export async function flushPendingSyncToCloud(forceManual: boolean = false): Pro
     return true;
   }
 
-  const data = loadLocalData();
+  const localData = loadLocalData();
   const todayKey = getTodayKey();
-  if (!data.attendanceHistory) data.attendanceHistory = {};
-  data.attendanceHistory[todayKey] = data.attendanceToday || {};
+  if (!localData.attendanceHistory) localData.attendanceHistory = {};
+  localData.attendanceHistory[todayKey] = localData.attendanceToday || {};
 
   isCurrentlySyncing = true;
   notifySyncStatusChange();
 
-  // Safety fallback: if network hangs, release the 'isSyncing' flag after 4 seconds
+  // Safety fallback: if network hangs, release the 'isSyncing' flag after 6 seconds
   if (syncTimeoutTimer) clearTimeout(syncTimeoutTimer);
   syncTimeoutTimer = setTimeout(() => {
     if (isCurrentlySyncing) {
       isCurrentlySyncing = false;
       notifySyncStatusChange();
     }
-  }, 4000);
+  }, 6000);
 
   try {
-    const dataHash = JSON.stringify(data);
-    lastSyncedDataHash = dataHash;
-
     if (isQuotaExceeded && forceManual) {
       try {
         await enableNetwork(db);
@@ -441,13 +439,30 @@ export async function flushPendingSyncToCloud(forceManual: boolean = false): Pro
     }
 
     const systemDocRef = doc(db, "system_state", "main_center_data");
+
+    // Pre-fetch remote document to guarantee multi-device non-destructive union
+    let dataToUpload = localData;
+    try {
+      const remoteSnap = await getDoc(systemDocRef);
+      if (remoteSnap.exists()) {
+        const remoteData = remoteSnap.data() as Partial<SystemData>;
+        dataToUpload = mergeCloudDataWithLocal(localData, remoteData);
+      }
+    } catch (fetchErr) {
+      // If pre-fetch fails (e.g. offline cache hit), proceed with localData
+    }
+
     const cleaned = cleanForFirestore({
-      ...data,
-      updatedAt: data.updatedAt || Date.now(),
+      ...dataToUpload,
+      updatedAt: Date.now(),
       syncedAtIso: new Date().toISOString(),
     });
 
     await setDoc(systemDocRef, cleaned as Record<string, unknown>, { merge: true });
+
+    // Save unified merged state locally so local storage is 100% up to date
+    saveToLocalStorage(dataToUpload);
+    lastSyncedDataHash = JSON.stringify(dataToUpload);
 
     // Mark as completely synced in localStorage
     localStorage.setItem(PENDING_SYNC_KEY, "false");
@@ -472,7 +487,7 @@ export async function flushPendingSyncToCloud(forceManual: boolean = false): Pro
       hasQueuedPendingSync = false;
       setTimeout(() => {
         flushPendingSyncToCloud(false).catch(() => {});
-      }, 10);
+      }, 50);
     }
 
     return true;
@@ -534,9 +549,10 @@ export function loadInitialData(): SystemData {
 
 /**
  * Smart Multi-Device 3-Way State Merger:
- * Merges cloud data received from other devices into local state without losing local or remote updates
+ * Merges cloud data received from other devices into local state without losing local or remote updates.
+ * Unifies all students by barcode, all months and payment records, attendance history, scan orders, etc.
  */
-function mergeCloudDataWithLocal(local: SystemData, cloud: Partial<SystemData>): SystemData {
+export function mergeCloudDataWithLocal(local: SystemData, cloud: Partial<SystemData>): SystemData {
   const todayKey = getTodayKey();
 
   // 1. Merge Students (keyed by barcode, combining exam records & total counts)
@@ -563,6 +579,13 @@ function mergeCloudDataWithLocal(local: SystemData, cloud: Partial<SystemData>):
         studentMap.set(bKey, {
           ...existing,
           ...remoteStudent,
+          name: remoteStudent.name || existing.name,
+          phone: remoteStudent.phone || existing.phone,
+          parentPhone: remoteStudent.parentPhone || existing.parentPhone,
+          groupGrade: remoteStudent.groupGrade || existing.groupGrade,
+          groupDays: remoteStudent.groupDays || existing.groupDays,
+          customMonthlyFee: remoteStudent.customMonthlyFee !== undefined ? remoteStudent.customMonthlyFee : existing.customMonthlyFee,
+          discountReason: remoteStudent.discountReason || existing.discountReason,
           totalExamScores: mergedScores,
           points: Math.max(existing.points || 0, remoteStudent.points || 0),
           totalAttendanceDays: Math.max(existing.totalAttendanceDays || 0, remoteStudent.totalAttendanceDays || 0),
@@ -617,17 +640,32 @@ function mergeCloudDataWithLocal(local: SystemData, cloud: Partial<SystemData>):
     ...(cloud.scanLogTimes || {}),
   };
 
-  // 4. Merge Payments (deep merge month records)
-  const mergedPayments: Record<string, Record<string, PaymentRecord>> = {
-    ...(local.payments || {}),
-  };
+  // 4. Merge Payments (deep merge all months and all student records within each month)
+  const mergedPayments: Record<string, Record<string, PaymentRecord>> = {};
 
+  // First copy all local payments
+  if (local.payments) {
+    for (const [mKey, records] of Object.entries(local.payments)) {
+      mergedPayments[mKey] = { ...(records || {}) };
+    }
+  }
+
+  // Then union and deep merge all cloud payments from other devices
   if (cloud.payments) {
-    for (const [monthKey, recMap] of Object.entries(cloud.payments)) {
-      mergedPayments[monthKey] = {
-        ...(mergedPayments[monthKey] || {}),
-        ...(recMap || {}),
-      };
+    for (const [mKey, remoteRecords] of Object.entries(cloud.payments)) {
+      if (!mergedPayments[mKey]) {
+        mergedPayments[mKey] = {};
+      }
+      if (remoteRecords && typeof remoteRecords === "object") {
+        for (const [recKey, rec] of Object.entries(remoteRecords)) {
+          if (rec) {
+            mergedPayments[mKey][recKey] = {
+              ...(mergedPayments[mKey][recKey] || {}),
+              ...rec,
+            };
+          }
+        }
+      }
     }
   }
 
@@ -646,7 +684,6 @@ function mergeCloudDataWithLocal(local: SystemData, cloud: Partial<SystemData>):
   const localMsgs = local.pendingWhatsAppMessages || [];
   const cloudMsgs = Array.isArray(cloud.pendingWhatsAppMessages) ? cloud.pendingWhatsAppMessages : [];
   
-  // If local or cloud has updated messages, prefer the newer state based on updatedAt
   let mergedWhatsApp: PendingWhatsAppMessage[];
   if (typeof cloud.updatedAt === "number" && cloud.updatedAt > (local.updatedAt || 0)) {
     mergedWhatsApp = cloudMsgs;
@@ -669,6 +706,249 @@ function mergeCloudDataWithLocal(local: SystemData, cloud: Partial<SystemData>):
     pendingWhatsAppMessages: mergedWhatsApp,
     updatedAt: Math.max(local.updatedAt || 0, typeof cloud.updatedAt === "number" ? cloud.updatedAt : Date.now()),
   };
+}
+
+/**
+ * Force Full Multi-Device Cloud Sync & Refresh:
+ * Fetches the absolute latest state from Firestore, merges with local state,
+ * updates memory and localStorage, and notifies all UI components across all tabs and devices instantly.
+ */
+export async function forceCloudFullRefresh(): Promise<{
+  success: boolean;
+  studentsCount: number;
+  paymentsCount: number;
+  monthsCount: number;
+  message: string;
+}> {
+  if (typeof window === "undefined") {
+    return { success: false, studentsCount: 0, paymentsCount: 0, monthsCount: 0, message: "بيئة غير مدعومة" };
+  }
+
+  if (!navigator.onLine) {
+    const local = loadLocalData();
+    const studentsCount = local.students?.length || 0;
+    let paymentsCount = 0;
+    const monthsCount = Object.keys(local.payments || {}).length;
+    Object.values(local.payments || {}).forEach((m) => {
+      paymentsCount += Object.keys(m || {}).length;
+    });
+    return {
+      success: false,
+      studentsCount,
+      paymentsCount,
+      monthsCount,
+      message: "الجهاز غير متصل بالإنترنت حالياً (البيانات معروضة من الذاكرة المحلية)",
+    };
+  }
+
+  isCurrentlySyncing = true;
+  notifySyncStatusChange();
+
+  try {
+    try {
+      await enableNetwork(db);
+    } catch {}
+
+    const systemDocRef = doc(db, "system_state", "main_center_data");
+    const snapshot = await getDoc(systemDocRef);
+
+    const currentLocal = loadLocalData();
+    let unifiedData = currentLocal;
+
+    if (snapshot.exists()) {
+      const cloudVal = snapshot.data() as Partial<SystemData>;
+      unifiedData = mergeCloudDataWithLocal(currentLocal, cloudVal);
+    }
+
+    // Save unified merged state
+    saveToLocalStorage(unifiedData);
+    lastSyncedDataHash = JSON.stringify(unifiedData);
+    localStorage.setItem(PENDING_SYNC_KEY, "false");
+    const nowIso = new Date().toLocaleTimeString("ar-EG", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+    localStorage.setItem(LAST_SYNC_TIME_KEY, nowIso);
+
+    // Also push back the complete merged state to Firestore so all other devices get the full union
+    const cleaned = cleanForFirestore({
+      ...unifiedData,
+      updatedAt: Date.now(),
+      syncedAtIso: new Date().toISOString(),
+    });
+    await setDoc(systemDocRef, cleaned as Record<string, unknown>, { merge: true });
+
+    // Notify all UI listeners and tabs
+    notifyCloudDataListeners(unifiedData);
+    window.dispatchEvent(
+      new CustomEvent("center-data-updated", { detail: unifiedData })
+    );
+
+    isQuotaExceeded = false;
+    quotaExceededUntil = 0;
+    isCurrentlySyncing = false;
+    notifySyncStatusChange();
+
+    const studentsCount = unifiedData.students?.length || 0;
+    const monthsList = Object.keys(unifiedData.payments || {});
+    const monthsCount = monthsList.length;
+    let paymentsCount = 0;
+    Object.values(unifiedData.payments || {}).forEach((m) => {
+      paymentsCount += Object.keys(m || {}).length;
+    });
+
+    return {
+      success: true,
+      studentsCount,
+      paymentsCount,
+      monthsCount,
+      message: `تمت المزامنة السحابية بنجاح وتوحيد البيانات! (${studentsCount} طالب، ${paymentsCount} عملية دفع موزعة على ${monthsCount} شهر)`,
+    };
+  } catch (err) {
+    isCurrentlySyncing = false;
+    notifySyncStatusChange();
+    console.error("forceCloudFullRefresh error:", err);
+    return {
+      success: false,
+      studentsCount: 0,
+      paymentsCount: 0,
+      monthsCount: 0,
+      message: "حدث خطأ أثناء الاتصال بالسحابة، جارٍ الاعتماد على البيانات المحلية.",
+    };
+  }
+}
+
+/**
+ * Dedicated function to specifically scan, export, and push all local disk paid student subscriptions
+ * to the Firestore Cloud Database, ensuring all other devices receive all paid records across all months.
+ */
+export async function exportPaidStudentsToCloud(): Promise<{
+  success: boolean;
+  monthsCount: number;
+  paidRecordsCount: number;
+  totalAmountCollected: number;
+  studentsCount: number;
+  message: string;
+}> {
+  if (typeof window === "undefined") {
+    return {
+      success: false,
+      monthsCount: 0,
+      paidRecordsCount: 0,
+      totalAmountCollected: 0,
+      studentsCount: 0,
+      message: "بيئة غير مدعومة",
+    };
+  }
+
+  // 1. Gather all local disk data
+  const local = loadLocalData();
+  const localPayments = local.payments || {};
+  
+  let localPaidRecordsCount = 0;
+  let localTotalAmount = 0;
+  const localMonthsSet = new Set<string>();
+
+  Object.entries(localPayments).forEach(([monthKey, records]) => {
+    if (records && typeof records === "object") {
+      Object.values(records).forEach((rec) => {
+        if (rec) {
+          localPaidRecordsCount++;
+          localTotalAmount += (Number(rec.amount) || 0);
+          localMonthsSet.add(monthKey);
+        }
+      });
+    }
+  });
+
+  if (!navigator.onLine) {
+    return {
+      success: false,
+      monthsCount: localMonthsSet.size,
+      paidRecordsCount: localPaidRecordsCount,
+      totalAmountCollected: localTotalAmount,
+      studentsCount: local.students?.length || 0,
+      message: `الجهاز غير متصل بالإنترنت حالياً. يوجد على هذا الجهاز ${localPaidRecordsCount} اشتراك مدفوع بقيمة ${localTotalAmount} ج.م بانتظار الاتصال لرفعهم للسحابة.`,
+    };
+  }
+
+  isCurrentlySyncing = true;
+  notifySyncStatusChange();
+
+  try {
+    try {
+      await enableNetwork(db);
+    } catch {}
+
+    const systemDocRef = doc(db, "system_state", "main_center_data");
+    const snapshot = await getDoc(systemDocRef);
+
+    let unifiedData = local;
+    if (snapshot.exists()) {
+      const cloudVal = snapshot.data() as Partial<SystemData>;
+      unifiedData = mergeCloudDataWithLocal(local, cloudVal);
+    }
+
+    // Update local storage with complete unified state
+    saveToLocalStorage(unifiedData);
+    lastSyncedDataHash = JSON.stringify(unifiedData);
+    localStorage.setItem(PENDING_SYNC_KEY, "false");
+    const nowIso = new Date().toLocaleTimeString("ar-EG", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+    localStorage.setItem(LAST_SYNC_TIME_KEY, nowIso);
+
+    // Push clean unified data to Firestore with merge: true
+    const cleaned = cleanForFirestore({
+      ...unifiedData,
+      updatedAt: Date.now(),
+      syncedAtIso: new Date().toISOString(),
+    });
+    await setDoc(systemDocRef, cleaned as Record<string, unknown>, { merge: true });
+
+    // Notify UI components
+    notifyCloudDataListeners(unifiedData);
+    window.dispatchEvent(
+      new CustomEvent("center-data-updated", { detail: unifiedData })
+    );
+
+    isQuotaExceeded = false;
+    quotaExceededUntil = 0;
+    isCurrentlySyncing = false;
+    notifySyncStatusChange();
+
+    // Calculate final unified stats
+    let finalPaidRecordsCount = 0;
+    let finalTotalAmount = 0;
+    const finalMonths = Object.keys(unifiedData.payments || {});
+
+    Object.values(unifiedData.payments || {}).forEach((records) => {
+      if (records && typeof records === "object") {
+        Object.values(records).forEach((rec) => {
+          if (rec) {
+            finalPaidRecordsCount++;
+            finalTotalAmount += (Number(rec.amount) || 0);
+          }
+        });
+      }
+    });
+
+    return {
+      success: true,
+      monthsCount: finalMonths.length,
+      paidRecordsCount: finalPaidRecordsCount,
+      totalAmountCollected: finalTotalAmount,
+      studentsCount: unifiedData.students?.length || 0,
+      message: `تم بنجاح تصدير ومزامنة كافة اشتراكات الطلاب الذين دفعوا إلى السحابة! (${finalPaidRecordsCount} عملية دفع بإجمالي ${finalTotalAmount.toLocaleString("ar-EG")} ج.م موزعة على ${finalMonths.length} شهور)`,
+    };
+  } catch (err) {
+    isCurrentlySyncing = false;
+    notifySyncStatusChange();
+    console.error("exportPaidStudentsToCloud error:", err);
+    return {
+      success: false,
+      monthsCount: localMonthsSet.size,
+      paidRecordsCount: localPaidRecordsCount,
+      totalAmountCollected: localTotalAmount,
+      studentsCount: local.students?.length || 0,
+      message: "حدث خطأ أثناء تصدير المدفوعات إلى السحابة. يرجى التحقق من اتصال الإنترنت والمحاولة مرة أخرى.",
+    };
+  }
 }
 
 /**

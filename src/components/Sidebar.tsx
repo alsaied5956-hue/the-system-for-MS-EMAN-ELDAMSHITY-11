@@ -30,7 +30,7 @@ interface SidebarProps {
   isOpen: boolean;
   onToggleSidebar?: () => void;
   onCloseMobile: () => void;
-  onOpenPdfModal: (type: "attendance" | "exams" | "all") => void;
+  onOpenPdfModal: (type: "attendance" | "exams" | "all" | "unpaid") => void;
   onOpenPrintCards?: () => void;
 }
 
@@ -171,6 +171,12 @@ export const Sidebar: React.FC<SidebarProps> = React.memo(({
                 <span>📊 سجل الدرجات</span>
               </button>
             </div>
+            <button
+              onClick={() => onOpenPdfModal("unpaid")}
+              className="w-full px-3 py-2 rounded-xl bg-rose-500/15 hover:bg-rose-500/25 border border-rose-400/30 hover:border-rose-400/50 text-rose-300 text-[11px] font-bold transition-all flex items-center justify-center gap-1.5 shadow-sm cursor-pointer transform active:scale-95 font-tajawal mb-2"
+            >
+              <span>🔴 كشف غير المسددين (الذين لم يدفعوا فقط)</span>
+            </button>
             {onOpenPrintCards && (
               <button
                 onClick={onOpenPrintCards}

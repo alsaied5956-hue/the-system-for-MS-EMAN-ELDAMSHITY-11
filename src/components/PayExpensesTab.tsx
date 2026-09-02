@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { Student, GradeName, PaymentRecord } from "../types";
 import { getCurrentMonthKey, getTodayKey, openWhatsApp, DEFAULT_GRADE_PRICES } from "../utils/helpers";
-import { enqueuePendingWhatsAppMessage, markWhatsAppMessageSent } from "../utils/storage";
+import { enqueuePendingWhatsAppMessage, markWhatsAppMessageSent, exportPaidStudentsToCloud } from "../utils/storage";
 import { playBeep } from "../utils/audio";
 import { StudentSearchBox } from "./StudentSearchBox";
 import { StudentFinancialLedgerModal } from "./StudentFinancialLedgerModal";
@@ -19,6 +19,7 @@ import {
   Edit2,
   Trash2,
   CheckCircle2,
+  CloudUpload,
 } from "lucide-react";
 
 interface PayExpensesTabProps {
@@ -53,6 +54,25 @@ export const PayExpensesTab: React.FC<PayExpensesTabProps> = ({
   const [isLedgerModalOpen, setIsLedgerModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [feedback, setFeedback] = useState<{ type: "success" | "error"; message: string } | null>(null);
+  const [isExportingToCloud, setIsExportingToCloud] = useState(false);
+
+  const handleExportToCloud = async () => {
+    setIsExportingToCloud(true);
+    try {
+      const res = await exportPaidStudentsToCloud();
+      setIsExportingToCloud(false);
+      if (res.success) {
+        playBeep("success");
+        setFeedback({ type: "success", message: `✅ ${res.message}` });
+      } else {
+        playBeep("warning");
+        setFeedback({ type: "error", message: `⚠️ ${res.message}` });
+      }
+    } catch {
+      setIsExportingToCloud(false);
+      setFeedback({ type: "error", message: "حدث خطأ أثناء محاولة التصدير والمزامنة السحابية." });
+    }
+  };
 
   const existingPayment = selectedStudent ? payments[selectedMonth]?.[selectedStudent.barcode] : undefined;
 
@@ -143,18 +163,35 @@ export const PayExpensesTab: React.FC<PayExpensesTabProps> = ({
   return (
     <div className="max-w-2xl mx-auto space-y-6 font-tajawal">
       <div className="glass-panel p-6 md:p-8 rounded-3xl shadow-2xl space-y-6">
-        <div className="flex items-center gap-3.5 pb-4 border-b border-indigo-500/20">
-          <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-amber-500/20 to-yellow-400/10 border border-amber-500/30 flex items-center justify-center text-amber-400 shadow-md">
-            <CreditCard className="w-6 h-6" />
+        <div className="flex items-center justify-between gap-3.5 pb-4 border-b border-indigo-500/20 flex-wrap">
+          <div className="flex items-center gap-3.5">
+            <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-amber-500/20 to-yellow-400/10 border border-amber-500/30 flex items-center justify-center text-amber-400 shadow-md">
+              <CreditCard className="w-6 h-6" />
+            </div>
+            <div>
+              <h2 className="text-xl font-bold font-fancy text-amber-300">
+                نافذة إثبات وسداد المصروفات والاشتراكات
+              </h2>
+              <p className="text-xs text-slate-400 font-tajawal mt-0.5">
+                بحث ذكي بالاسم أو ضرب الباركود بالسكانر مع نظام لمنع التكرار وتعديل السداد وإرسال إيصال فوري لواتساب ولي الأمر
+              </p>
+            </div>
           </div>
-          <div>
-            <h2 className="text-xl font-bold font-fancy text-amber-300">
-              نافذة إثبات وسداد المصروفات والاشتراكات
-            </h2>
-            <p className="text-xs text-slate-400 font-tajawal mt-0.5">
-              بحث ذكي بالاسم أو ضرب الباركود بالسكانر مع نظام لمنع التكرار وتعديل السداد وإرسال إيصال فوري لواتساب ولي الأمر
-            </p>
-          </div>
+
+          <button
+            type="button"
+            onClick={handleExportToCloud}
+            disabled={isExportingToCloud}
+            className={`px-3.5 py-2 rounded-2xl text-xs font-bold transition-all flex items-center gap-1.5 shadow-md cursor-pointer ${
+              isExportingToCloud
+                ? "bg-amber-400 text-slate-950 animate-pulse"
+                : "bg-emerald-600/30 hover:bg-emerald-600/50 text-emerald-200 border border-emerald-500/40"
+            }`}
+            title="تصدير ومزامنة كافة اشتراكات الطلاب مع السحابة فوراً"
+          >
+            <CloudUpload className={`w-3.5 h-3.5 ${isExportingToCloud ? "animate-bounce" : "text-emerald-400"}`} />
+            <span>{isExportingToCloud ? "جارٍ التصدير..." : "☁️ تصدير المسددين للسحابة"}</span>
+          </button>
         </div>
 
         {feedback && (
