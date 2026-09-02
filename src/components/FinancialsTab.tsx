@@ -494,7 +494,7 @@ export const FinancialsTab: React.FC<FinancialsTabProps> = ({
           <button
             type="button"
             onClick={handleExportPaidStudentsToCloud}
-            disabled={isExportingToCloud || isSyncingCloud}
+            disabled={isExportingToCloud}
             className={`px-4 py-2.5 rounded-2xl text-xs font-black transition-all flex items-center gap-2 shadow-lg cursor-pointer transform hover:scale-105 active:scale-95 ${
               isExportingToCloud
                 ? "bg-gradient-to-r from-amber-400 to-yellow-300 text-slate-950 animate-pulse ring-2 ring-amber-300 shadow-amber-500/30"
@@ -505,7 +505,7 @@ export const FinancialsTab: React.FC<FinancialsTabProps> = ({
             <CloudUpload className={`w-4 h-4 text-slate-950 ${isExportingToCloud ? "animate-bounce" : ""}`} />
             <span>
               {isExportingToCloud
-                ? "جارٍ تصدير المدفوعات للسحابة..."
+                ? "جارٍ التصدير والمزامنة..."
                 : "☁️ تصدير الطلاب الذين دفعوا إلى السحابة"}
             </span>
           </button>
@@ -568,7 +568,7 @@ export const FinancialsTab: React.FC<FinancialsTabProps> = ({
         <button
           type="button"
           onClick={handleExportPaidStudentsToCloud}
-          disabled={isExportingToCloud || isSyncingCloud}
+          disabled={isExportingToCloud}
           className={`px-5 py-3 rounded-2xl text-xs font-black transition-all flex items-center gap-2 shadow-xl cursor-pointer transform hover:scale-105 active:scale-95 ${
             isExportingToCloud
               ? "bg-amber-400 text-slate-950 animate-pulse ring-2 ring-yellow-300"

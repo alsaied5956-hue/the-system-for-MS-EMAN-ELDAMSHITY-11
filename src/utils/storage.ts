@@ -391,6 +391,23 @@ function cleanForFirestore(obj: unknown): unknown {
 }
 
 /**
+ * Fast Timeout Helper to prevent Firestore calls from hanging indefinitely
+ */
+function withTimeout<T>(promise: Promise<T>, ms: number, fallback: T): Promise<T> {
+  let timer: any;
+  const timeoutPromise = new Promise<T>((resolve) => {
+    timer = setTimeout(() => resolve(fallback), ms);
+  });
+  return Promise.race([
+    promise.then((res) => {
+      clearTimeout(timer);
+      return res;
+    }),
+    timeoutPromise,
+  ]);
+}
+
+/**
  * Perform a direct, guaranteed push of local data to Firestore Cloud Database
  * with intelligent remote pre-merge to prevent any device from overwriting another device's data
  */
@@ -409,7 +426,7 @@ export async function flushPendingSyncToCloud(forceManual: boolean = false): Pro
     return false;
   }
 
-  if (isCurrentlySyncing) {
+  if (isCurrentlySyncing && !forceManual) {
     hasQueuedPendingSync = true;
     return true;
   }
@@ -422,34 +439,28 @@ export async function flushPendingSyncToCloud(forceManual: boolean = false): Pro
   isCurrentlySyncing = true;
   notifySyncStatusChange();
 
-  // Safety fallback: if network hangs, release the 'isSyncing' flag after 6 seconds
+  // Safety fallback: release the 'isSyncing' flag after 3.5 seconds max
   if (syncTimeoutTimer) clearTimeout(syncTimeoutTimer);
   syncTimeoutTimer = setTimeout(() => {
     if (isCurrentlySyncing) {
       isCurrentlySyncing = false;
       notifySyncStatusChange();
     }
-  }, 6000);
+  }, 3500);
 
   try {
-    if (isQuotaExceeded && forceManual) {
-      try {
-        await enableNetwork(db);
-      } catch {}
-    }
-
     const systemDocRef = doc(db, "system_state", "main_center_data");
 
-    // Pre-fetch remote document to guarantee multi-device non-destructive union
+    // Fast pre-fetch remote document (max 2.5s) to guarantee multi-device non-destructive union
     let dataToUpload = localData;
     try {
-      const remoteSnap = await getDoc(systemDocRef);
-      if (remoteSnap.exists()) {
+      const remoteSnap = await withTimeout(getDoc(systemDocRef), 2500, null);
+      if (remoteSnap && remoteSnap.exists()) {
         const remoteData = remoteSnap.data() as Partial<SystemData>;
         dataToUpload = mergeCloudDataWithLocal(localData, remoteData);
       }
-    } catch (fetchErr) {
-      // If pre-fetch fails (e.g. offline cache hit), proceed with localData
+    } catch {
+      // If pre-fetch fails, proceed with localData
     }
 
     const cleaned = cleanForFirestore({
@@ -458,7 +469,8 @@ export async function flushPendingSyncToCloud(forceManual: boolean = false): Pro
       syncedAtIso: new Date().toISOString(),
     });
 
-    await setDoc(systemDocRef, cleaned as Record<string, unknown>, { merge: true });
+    // Write to Firestore with a 3.5s timeout (persists locally immediately in IndexedDB cache)
+    await withTimeout(setDoc(systemDocRef, cleaned as Record<string, unknown>, { merge: true }), 3500, null);
 
     // Save unified merged state locally so local storage is 100% up to date
     saveToLocalStorage(dataToUpload);
@@ -495,9 +507,6 @@ export async function flushPendingSyncToCloud(forceManual: boolean = false): Pro
     if (isFirestoreQuotaError(e)) {
       isQuotaExceeded = true;
       quotaExceededUntil = Date.now() + 15 * 60 * 1000;
-      try {
-        await disableNetwork(db);
-      } catch {}
     } else {
       console.warn("Cloud sync to Firestore notice (offline queue active):", e);
     }
@@ -745,17 +754,13 @@ export async function forceCloudFullRefresh(): Promise<{
   notifySyncStatusChange();
 
   try {
-    try {
-      await enableNetwork(db);
-    } catch {}
-
     const systemDocRef = doc(db, "system_state", "main_center_data");
-    const snapshot = await getDoc(systemDocRef);
+    const snapshot = await withTimeout(getDoc(systemDocRef), 2500, null);
 
     const currentLocal = loadLocalData();
     let unifiedData = currentLocal;
 
-    if (snapshot.exists()) {
+    if (snapshot && snapshot.exists()) {
       const cloudVal = snapshot.data() as Partial<SystemData>;
       unifiedData = mergeCloudDataWithLocal(currentLocal, cloudVal);
     }
@@ -773,7 +778,7 @@ export async function forceCloudFullRefresh(): Promise<{
       updatedAt: Date.now(),
       syncedAtIso: new Date().toISOString(),
     });
-    await setDoc(systemDocRef, cleaned as Record<string, unknown>, { merge: true });
+    await withTimeout(setDoc(systemDocRef, cleaned as Record<string, unknown>, { merge: true }), 3000, null);
 
     // Notify all UI listeners and tabs
     notifyCloudDataListeners(unifiedData);
@@ -873,15 +878,11 @@ export async function exportPaidStudentsToCloud(): Promise<{
   notifySyncStatusChange();
 
   try {
-    try {
-      await enableNetwork(db);
-    } catch {}
-
     const systemDocRef = doc(db, "system_state", "main_center_data");
-    const snapshot = await getDoc(systemDocRef);
+    const snapshot = await withTimeout(getDoc(systemDocRef), 2500, null);
 
     let unifiedData = local;
-    if (snapshot.exists()) {
+    if (snapshot && snapshot.exists()) {
       const cloudVal = snapshot.data() as Partial<SystemData>;
       unifiedData = mergeCloudDataWithLocal(local, cloudVal);
     }
@@ -893,13 +894,13 @@ export async function exportPaidStudentsToCloud(): Promise<{
     const nowIso = new Date().toLocaleTimeString("ar-EG", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
     localStorage.setItem(LAST_SYNC_TIME_KEY, nowIso);
 
-    // Push clean unified data to Firestore with merge: true
+    // Push clean unified data to Firestore with merge: true (fast timeout)
     const cleaned = cleanForFirestore({
       ...unifiedData,
       updatedAt: Date.now(),
       syncedAtIso: new Date().toISOString(),
     });
-    await setDoc(systemDocRef, cleaned as Record<string, unknown>, { merge: true });
+    await withTimeout(setDoc(systemDocRef, cleaned as Record<string, unknown>, { merge: true }), 3000, null);
 
     // Notify UI components
     notifyCloudDataListeners(unifiedData);
