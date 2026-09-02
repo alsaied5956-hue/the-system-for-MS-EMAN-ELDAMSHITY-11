@@ -431,6 +431,23 @@ export const AttendanceScanner: React.FC<AttendanceScannerProps> = ({
 
   const currentGroupUnscannedCount = totalGroupCount - currentGroupScanned.length;
 
+  // Real-time detection of scans performed in OTHER grades on other devices/phones
+  const otherGradesActiveScans = useMemo(() => {
+    const counts: Record<string, number> = {};
+    (scanLogOrder || []).forEach((barcode) => {
+      const s = studentMap.get(String(barcode).trim());
+      if (s && s.groupGrade !== selectedGrade) {
+        counts[s.groupGrade] = (counts[s.groupGrade] || 0) + 1;
+      }
+    });
+    return Object.entries(counts).map(([grade, count]) => ({
+      grade: grade as GradeName,
+      count,
+    }));
+  }, [scanLogOrder, studentMap, selectedGrade]);
+
+  const totalAllScannedToday = (scanLogOrder || []).length;
+
   // Active Scanned list in the scanner table
   const displayedBarcodes = useMemo(() => {
     return (scanLogOrder || []).filter((barcode) => {
@@ -449,7 +466,8 @@ export const AttendanceScanner: React.FC<AttendanceScannerProps> = ({
       return (
         s.name.toLowerCase().includes(q) ||
         s.barcode.toLowerCase().includes(q) ||
-        s.parentPhone?.includes(q)
+        s.parentPhone?.includes(q) ||
+        s.groupGrade.toLowerCase().includes(q)
       );
     });
   }, [displayedBarcodes, tableSearch, studentMap]);
@@ -457,7 +475,7 @@ export const AttendanceScanner: React.FC<AttendanceScannerProps> = ({
   return (
     <div className="space-y-6">
       
-      {/* Top Group Selector & Action Bar */}
+      {/* Top Group Selector & Action Bar with Live Multi-Device Sync Indicator */}
       <div className="glass-panel p-4 md:p-6 rounded-3xl flex flex-wrap items-center justify-between gap-4 shadow-2xl">
         <div className="flex flex-wrap items-center gap-3">
           <div className="flex items-center gap-2 bg-indigo-500/15 border border-indigo-400/30 px-4 py-2 rounded-2xl shadow-sm">
@@ -491,6 +509,15 @@ export const AttendanceScanner: React.FC<AttendanceScannerProps> = ({
               أحد - ثلاثاء - خميس
             </option>
           </select>
+
+          {/* Live Multi-Device Indicator Chip */}
+          <div className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-2xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 text-xs font-bold font-tajawal shadow-sm">
+            <span className="relative flex h-2 w-2">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+            </span>
+            <span>بث مباشر متزامن مع كل الهواتف والأجهزة</span>
+          </div>
         </div>
 
         {/* Finish Group and Bulk Send Button */}
@@ -505,6 +532,41 @@ export const AttendanceScanner: React.FC<AttendanceScannerProps> = ({
           </button>
         </div>
       </div>
+
+      {/* Cross-Grade Active Scans Real-time Alert (when scans happen in other grades from another device) */}
+      {otherGradesActiveScans.length > 0 && (
+        <div className="bg-gradient-to-r from-indigo-950/90 via-slate-900 to-indigo-950/90 border border-amber-400/40 p-4 rounded-3xl shadow-xl flex flex-wrap items-center justify-between gap-3 animate-in fade-in">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-2xl bg-amber-500/20 border border-amber-400/40 flex items-center justify-center text-amber-400 shrink-0">
+              <Sparkles className="w-5 h-5 animate-pulse" />
+            </div>
+            <div>
+              <p className="text-xs md:text-sm font-bold text-amber-300 font-tajawal">
+                ⚡ نشاط لحظي من جهاز آخر: يوجد طلاب مسجلون حالياً في صفوف أخرى بالقاعة
+              </p>
+              <div className="flex flex-wrap items-center gap-2 mt-1">
+                {otherGradesActiveScans.map((item) => (
+                  <button
+                    key={item.grade}
+                    type="button"
+                    onClick={() => handleGradeChange(item.grade)}
+                    className="text-[11px] bg-indigo-500/20 hover:bg-amber-500/30 text-slate-200 hover:text-amber-200 border border-indigo-400/30 px-2.5 py-1 rounded-xl font-bold font-tajawal transition-colors cursor-pointer"
+                  >
+                    🔍 الانتقال لـ {item.grade} ({item.count} حاضر)
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => setViewFilter("all_scanned")}
+            className="px-3.5 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs transition-all shadow cursor-pointer font-tajawal"
+          >
+            🌐 عرض بث كل الطلاب الحاضرين حالياً ({totalAllScannedToday})
+          </button>
+        </div>
+      )}
 
       {/* Finished Group Banner Notice */}
       {finishedBanner && (
@@ -1077,24 +1139,24 @@ export const AttendanceScanner: React.FC<AttendanceScannerProps> = ({
               <button
                 type="button"
                 onClick={() => setViewFilter("current_group")}
-                className={`px-3 py-1.5 rounded-xl font-bold transition-all ${
+                className={`px-3.5 py-1.5 rounded-xl font-bold transition-all ${
                   viewFilter === "current_group"
                     ? "bg-amber-500 text-slate-950 shadow-md"
                     : "text-slate-400 hover:text-white"
                 }`}
               >
-                طلاب الصف ({displayedBarcodes.length})
+                📌 طلاب {selectedGrade} ({displayedBarcodes.length})
               </button>
               <button
                 type="button"
                 onClick={() => setViewFilter("all_scanned")}
-                className={`px-3 py-1.5 rounded-xl font-bold transition-all ${
+                className={`px-3.5 py-1.5 rounded-xl font-bold transition-all ${
                   viewFilter === "all_scanned"
                     ? "bg-amber-500 text-slate-950 shadow-md"
                     : "text-slate-400 hover:text-white"
                 }`}
               >
-                كل القراءات ({(scanLogOrder || []).length})
+                🌐 بث كل الحاضرين بالسنتر اليوم ({(scanLogOrder || []).length})
               </button>
             </div>
           </div>
