@@ -941,6 +941,7 @@ export default function App() {
                   students={students}
                   payments={payments}
                   groupPrices={groupPrices}
+                  onOpenMultiDeviceSync={() => setIsMultiDeviceSyncModalOpen(true)}
                   onRecordPayment={handleRecordPayment}
                   onUpdatePayment={handleUpdatePayment}
                   onDeletePayment={handleDeletePayment}
@@ -1066,7 +1067,9 @@ export default function App() {
           onClose={() => setIsMultiDeviceSyncModalOpen(false)}
           students={students}
           payments={payments}
+          groupPrices={groupPrices}
           isOnline={syncStatus.isOnline}
+          onRecordPayment={handleRecordPayment}
         />
       )}
     </div>

@@ -35,6 +35,7 @@ interface FinancialsTabProps {
   students: Student[];
   payments: Record<string, Record<string, PaymentRecord>>;
   groupPrices: Record<GradeName, number>;
+  onOpenMultiDeviceSync?: () => void;
   onRecordPayment?: (barcode: string, amount: number, monthKey: string, note: string) => void;
   onUpdatePayment?: (
     oldMonthKey: string,
@@ -51,6 +52,7 @@ export const FinancialsTab: React.FC<FinancialsTabProps> = ({
   students,
   payments,
   groupPrices,
+  onOpenMultiDeviceSync,
   onRecordPayment,
   onUpdatePayment,
   onDeletePayment,
@@ -490,6 +492,18 @@ export const FinancialsTab: React.FC<FinancialsTabProps> = ({
         </div>
 
         <div className="flex items-center gap-2 flex-wrap">
+          {onOpenMultiDeviceSync && (
+            <button
+              type="button"
+              onClick={onOpenMultiDeviceSync}
+              className="px-4 py-2.5 rounded-2xl text-xs font-black transition-all flex items-center gap-2 shadow-lg cursor-pointer transform hover:scale-105 active:scale-95 bg-gradient-to-r from-indigo-600 via-indigo-700 to-purple-700 hover:from-indigo-500 hover:to-purple-600 text-amber-300 border border-indigo-400/40 shadow-indigo-600/20"
+              title="مركز توحيد ومزامنة جميع الأجهزة مع كشف شامل لـ (كام دفع وكام مدفعش)"
+            >
+              <Sparkles className="w-4 h-4 text-amber-300" />
+              <span>📱💻 توحيد الأجهزة (كام دفع وكام مدفعش)</span>
+            </button>
+          )}
+
           {/* Dedicated Button: Export Paid Students Subscriptions to Cloud */}
           <button
             type="button"
