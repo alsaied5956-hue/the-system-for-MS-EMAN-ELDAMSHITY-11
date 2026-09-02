@@ -94,8 +94,6 @@ export const UnpaidDefaultersModal: React.FC<UnpaidDefaultersModalProps> = ({
     }, 0);
   }, [unpaidStudentsList, groupPrices]);
 
-  if (!isOpen) return null;
-
   const handlePrintPDF = () => {
     const title = `كشف_الطلاب_المتأخرين_${selectedMonth}_${selectedGrade !== "ALL" ? selectedGrade : "كافة_الصفوف"}`;
     printElement("printable-unpaid-defaulters-doc", {
@@ -189,6 +187,8 @@ export const UnpaidDefaultersModal: React.FC<UnpaidDefaultersModalProps> = ({
     selectedGrade === "ALL"
       ? GRADE_ORDER.filter((g) => unpaidStudentsList.some((s) => s.groupGrade === g))
       : [selectedGrade as GradeName];
+
+  if (!isOpen) return null;
 
   return (
     <div className="fixed inset-0 z-50 bg-black/85 flex flex-col items-center p-3 md:p-6 overflow-y-auto no-print-backdrop font-tajawal">

@@ -229,8 +229,6 @@ export const WhatsAppDispatchModal: React.FC<WhatsAppDispatchModalProps> = ({
     setIsAutoSending(false);
   };
 
-  if (!isOpen) return null;
-
   const totalCount = items.length;
   const sentCount = items.filter((it) => it.status === "sent").length;
   const skippedCount = items.filter((it) => it.status === "skipped").length;
@@ -243,6 +241,8 @@ export const WhatsAppDispatchModal: React.FC<WhatsAppDispatchModalProps> = ({
     if (activeFilter === "cross_days") return it.type === "عكس_أيام";
     return true;
   });
+
+  if (!isOpen) return null;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 md:p-6 bg-black/85 overflow-y-auto">

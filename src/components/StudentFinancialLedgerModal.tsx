@@ -94,17 +94,15 @@ export const StudentFinancialLedgerModal: React.FC<StudentFinancialLedgerModalPr
     return list;
   }, [payments, student]);
 
-  if (!isOpen || !student) return null;
-
   const standardFee =
-    student.customMonthlyFee ??
-    groupPrices[student.groupGrade] ??
-    DEFAULT_GRADE_PRICES[student.groupGrade] ??
+    student?.customMonthlyFee ??
+    (student ? groupPrices[student.groupGrade] : 0) ??
+    (student ? DEFAULT_GRADE_PRICES[student.groupGrade] : 100) ??
     100;
 
   // Compute ledger entries
   const ledgerEntries = academicMonths.map((m) => {
-    const pay = payments[m.key]?.[student.barcode];
+    const pay = student ? payments[m.key]?.[student.barcode] : undefined;
     const isPaid = !!pay;
     const paidAmount = pay ? pay.amount : 0;
     const requiredAmount = standardFee;
@@ -160,6 +158,8 @@ export const StudentFinancialLedgerModal: React.FC<StudentFinancialLedgerModalPr
   const activeReceiptRecord = selectedReceiptMonth
     ? ledgerEntries.find((e) => e.monthKey === selectedReceiptMonth)
     : ledgerEntries.find((e) => e.isPaid);
+
+  if (!isOpen || !student) return null;
 
   return (
     <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-3 md:p-6 no-print-backdrop">

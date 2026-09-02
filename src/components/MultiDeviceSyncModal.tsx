@@ -74,13 +74,7 @@ export const MultiDeviceSyncModal: React.FC<MultiDeviceSyncModalProps> = ({
     return Array.from(set).sort().reverse();
   }, [payments]);
 
-  const [selectedMonth, setSelectedMonth] = useState<string>(() => {
-    const cur = getCurrentMonthKey();
-    if (payments && payments[cur] && Object.keys(payments[cur]).length > 0) return cur;
-    if (allRecordedMonths.length > 0) return allRecordedMonths[0];
-    return cur;
-  });
-
+  const [selectedMonth, setSelectedMonth] = useState<string>(() => getCurrentMonthKey());
   const [selectedGrade, setSelectedGrade] = useState<string>("ALL");
   const [statusFilter, setStatusFilter] = useState<"ALL" | "PAID" | "UNPAID">("ALL");
   const [searchQuery, setSearchQuery] = useState("");
@@ -171,8 +165,6 @@ export const MultiDeviceSyncModal: React.FC<MultiDeviceSyncModalProps> = ({
       return true;
     });
   }, [studentsFilteredByGrade, monthPayments, statusFilter, searchQuery]);
-
-  if (!isOpen) return null;
 
   // Global counts across all months for status headers
   const totalLocalStudents = students.length;
@@ -342,6 +334,8 @@ export const MultiDeviceSyncModal: React.FC<MultiDeviceSyncModalProps> = ({
     const message = `السلام عليكم ورحمة الله وبركاته،\nنود تذكير سيادتكم بضرورة سداد اشتراك شهر (${selectedMonth}) للطالب/ة: *${student.name}* (${student.groupGrade}) والمستحق بقيمة *${expectedFee} ج.م*.\nشاكرين ومقدرين حسن تعاونكم وحرصكم الدائم.`;
     openWhatsApp(phone, message);
   };
+
+  if (!isOpen) return null;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-2 md:p-6 bg-black/85 backdrop-blur-md animate-fadeIn overflow-y-auto">

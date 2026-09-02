@@ -1,6 +1,6 @@
 import { Student, UserAccount, GradeName, PaymentRecord, PermissionKey, PendingWhatsAppMessage, WhatsAppMessageType } from "../types";
 import { DEFAULT_GRADE_PRICES, getTodayKey, formatTimeArabic } from "./helpers";
-import { db } from "./firebase";
+import { db, ensureFirebaseAuth } from "./firebase";
 import { doc, setDoc, getDoc, onSnapshot, disableNetwork, enableNetwork } from "firebase/firestore";
 
 const STORAGE_KEY = "center_data_v2";
@@ -440,7 +440,9 @@ export async function flushPendingSyncToCloud(forceManual: boolean = false): Pro
   notifySyncStatusChange();
 
   try {
+    // Ensure Auth session and Firestore network are ready
     try {
+      await ensureFirebaseAuth();
       await enableNetwork(db);
     } catch {}
 
@@ -449,7 +451,7 @@ export async function flushPendingSyncToCloud(forceManual: boolean = false): Pro
     // Fetch remote document to guarantee multi-device non-destructive union
     let dataToUpload = localData;
     try {
-      const remoteSnap = await withTimeout(getDoc(systemDocRef), 6000, "Fetch timeout");
+      const remoteSnap = await withTimeout(getDoc(systemDocRef), 12000, "Fetch timeout");
       if (remoteSnap && remoteSnap.exists()) {
         const remoteData = remoteSnap.data() as Partial<SystemData>;
         dataToUpload = mergeCloudDataWithLocal(localData, remoteData);
@@ -464,8 +466,8 @@ export async function flushPendingSyncToCloud(forceManual: boolean = false): Pro
       syncedAtIso: new Date().toISOString(),
     });
 
-    // Write to Firestore
-    await withTimeout(setDoc(systemDocRef, cleaned as Record<string, unknown>, { merge: true }), 8000, "Write timeout");
+    // Write to Firestore with generous timeout for mobile / Egyptian networks
+    await withTimeout(setDoc(systemDocRef, cleaned as Record<string, unknown>, { merge: true }), 15000, "Write timeout");
 
     // Save unified merged state locally so local storage is 100% up to date
     saveToLocalStorage(dataToUpload);
@@ -790,7 +792,9 @@ export async function syncAndMergeAllDevicesData(
   notifySyncStatusChange();
 
   try {
+    // 1. Ensure Auth session and Firestore network are ready
     try {
+      await ensureFirebaseAuth();
       await enableNetwork(db);
     } catch {}
 
@@ -798,8 +802,9 @@ export async function syncAndMergeAllDevicesData(
     let cloudData: Partial<SystemData> = {};
     let cloudStudentsCount = 0;
 
+    // 2. Try to pre-fetch remote document to merge without data loss
     try {
-      const snapshot = await withTimeout(getDoc(systemDocRef), 8000, "انتهت مهلة استدعاء السحابة");
+      const snapshot = await withTimeout(getDoc(systemDocRef), 12000, "انتهت مهلة استدعاء السحابة");
       if (snapshot && snapshot.exists()) {
         cloudData = snapshot.data() as Partial<SystemData>;
         cloudStudentsCount = Array.isArray(cloudData.students) ? cloudData.students.length : 0;
@@ -808,7 +813,7 @@ export async function syncAndMergeAllDevicesData(
       console.warn("Could not pre-fetch remote cloud document:", fetchErr);
     }
 
-    // Merge datasets
+    // 3. Merge datasets
     let unifiedData: SystemData;
     if (mode === "force_upload") {
       unifiedData = local;
@@ -816,26 +821,40 @@ export async function syncAndMergeAllDevicesData(
       unifiedData = mergeCloudDataWithLocal(local, cloudData);
     }
 
-    // Save to local storage and update memory cache
+    // 4. Save to local storage and update memory cache immediately
     saveToLocalStorage(unifiedData);
     lastSyncedDataHash = JSON.stringify(unifiedData);
     localStorage.setItem(PENDING_SYNC_KEY, "false");
     const nowIso = new Date().toLocaleTimeString("ar-EG", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
     localStorage.setItem(LAST_SYNC_TIME_KEY, nowIso);
 
-    // Push unified data to Firestore
+    // 5. Push unified data to Firestore with automatic retry
     const cleaned = cleanForFirestore({
       ...unifiedData,
       updatedAt: Date.now(),
       syncedAtIso: new Date().toISOString(),
     });
-    await withTimeout(
-      setDoc(systemDocRef, cleaned as Record<string, unknown>, { merge: true }),
-      10000,
-      "انتهت مهلة حفظ البيانات في السحابة"
-    );
 
-    // Broadcast update to all components and tabs
+    try {
+      await withTimeout(
+        setDoc(systemDocRef, cleaned as Record<string, unknown>, { merge: true }),
+        15000,
+        "انتهت مهلة حفظ البيانات في السحابة"
+      );
+    } catch (firstWriteErr) {
+      console.warn("First cloud push attempt timed out, retrying once...", firstWriteErr);
+      // Retry once with fresh network enable
+      try {
+        await enableNetwork(db);
+      } catch {}
+      await withTimeout(
+        setDoc(systemDocRef, cleaned as Record<string, unknown>, { merge: true }),
+        15000,
+        "انتهت مهلة حفظ البيانات في السحابة"
+      );
+    }
+
+    // 6. Broadcast update to all components and tabs
     notifyCloudDataListeners(unifiedData);
     window.dispatchEvent(
       new CustomEvent("center-data-updated", { detail: unifiedData })
@@ -866,6 +885,19 @@ export async function syncAndMergeAllDevicesData(
     isCurrentlySyncing = false;
     notifySyncStatusChange();
     console.error("syncAndMergeAllDevicesData error:", err);
+
+    let friendlyError = "تعذر الاتصال بالسحابة مؤقتاً";
+    const msg = String(err?.message || err || "");
+    if (isFirestoreQuotaError(err)) {
+      friendlyError = "تم الوصول للحد اليومي المجاني للكوتة السحابية. جميع بياناتك محفوظة ومؤمنة محلياً 100%.";
+    } else if (msg.includes("مهلة") || msg.includes("timeout") || msg.includes("Timeout")) {
+      friendlyError = "استغرقت الاستجابة وقتاً أطول من المعتاد بسبب بطء الاتصال بالإنترنت. يرجى إعادة المحاولة.";
+    } else if (msg.includes("network") || msg.includes("offline") || msg.includes("unavailable")) {
+      friendlyError = "تعذر الوصول لخادم السحابة. تأكد من اتصال الإنترنت وحاول مجدداً، أو استخدم زر تصدير النسخة الاحتياطية.";
+    } else {
+      friendlyError = `تعذر الاتصال بالسحابة (${msg || "خطأ في الشبكة"}).`;
+    }
+
     return {
       success: false,
       localStudentsBefore: localStudentsCount,
@@ -873,7 +905,7 @@ export async function syncAndMergeAllDevicesData(
       unifiedStudentsCount: localStudentsCount,
       unifiedPaymentsCount: 0,
       unifiedMonthsCount: 0,
-      message: `❌ تعذر الاتصال بالسحابة (${err?.message || "خطأ غير معروف"}). تأكد من جودة الإنترنت وحاول مجدداً.`,
+      message: `❌ ${friendlyError}`,
     };
   }
 }

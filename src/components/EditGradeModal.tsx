@@ -121,12 +121,10 @@ export const EditGradeModal: React.FC<EditGradeModalProps> = ({
     const scoreText = studentScore !== "" ? `${studentScore} من ${maxScore} (${percentage}%)` : "لم ترصد";
     const totalPts = (student.points || 0) + (pointsBonus || 0);
 
-    return `تعديل وتحديث رصد درجة اختبار الرياضيات 📐\n\nالسادة أولياء الأمور الكرام،\nتم تعديل وتحديث رصد درجة الاختبار لدى الأستاذة إيمان الدمشيتي:\n\n🔹 اسم الطالب/ة: ${student.name}\n📚 الصف الدراسي: ${student.groupGrade}\n📝 موضوع الاختبار: ${title}\n📊 الدرجة بعد التعديل: ${scoreText}\n🌟 التقييم: ${evaluationInfo.text}\n⭐ إجمالي نقاط الطالب: ${totalPts}\n\nشاكرين حرصكم ومتابعتكم المستمرة ✨\nمع تحيات ميس إيمان الدمشيتي 📐`;
+    return `تعديل وتحديث رصد درجة اختبار الرياضيات 📐\n\nالسادة أولياء الأمور الكرام،\nتم تعديل وتحديث رصد درجة الاختبار لدى الأستاذة إيمان الدمشيتي:\n\n🔹 اسم الطالب/ة: ${student?.name || ""}\n📚 الصف الدراسي: ${student?.groupGrade || ""}\n📝 موضوع الاختبار: ${title}\n📊 الدرجة بعد التعديل: ${scoreText}\n🌟 التقييم: ${evaluationInfo.text}\n⭐ إجمالي نقاط الطالب: ${totalPts}\n\nشاكرين حرصكم ومتابعتكم المستمرة ✨\nمع تحيات ميس إيمان الدمشيتي 📐`;
   }, [student, examTitle, studentScore, maxScore, percentage, evaluationInfo, pointsBonus]);
 
   const activeMsg = isCustomMsgEdited ? customMsgText : generatedWhatsAppMsg;
-
-  if (!isOpen || !student) return null;
 
   const handleSubmit = (e: React.FormEvent, forceWhatsApp?: boolean) => {
     e.preventDefault();
@@ -171,6 +169,8 @@ export const EditGradeModal: React.FC<EditGradeModalProps> = ({
     setCopied(true);
     setTimeout(() => setCopied(false), 3000);
   };
+
+  if (!isOpen || !student) return null;
 
   return (
     <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-3 md:p-6 overflow-y-auto animate-in fade-in">

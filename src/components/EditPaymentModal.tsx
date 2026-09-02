@@ -44,8 +44,6 @@ export const EditPaymentModal: React.FC<EditPaymentModalProps> = ({
     }
   }, [payment, monthKey, isOpen]);
 
-  if (!isOpen) return null;
-
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     const amt = Number(newAmount);
@@ -70,6 +68,8 @@ export const EditPaymentModal: React.FC<EditPaymentModalProps> = ({
     onDelete(monthKey, student.barcode);
     onClose();
   };
+
+  if (!isOpen) return null;
 
   return (
     <div className="fixed inset-0 z-[100] bg-black/85 flex items-center justify-center p-4 font-tajawal animate-in fade-in">
