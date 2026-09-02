@@ -22,7 +22,8 @@ import {
   FileSpreadsheet,
   Coins,
   Check,
-  Filter
+  Filter,
+  Award
 } from "lucide-react";
 import {
   syncAndMergeAllDevicesData,
@@ -166,7 +167,7 @@ export const MultiDeviceSyncModal: React.FC<MultiDeviceSyncModalProps> = ({
     });
   }, [studentsFilteredByGrade, monthPayments, statusFilter, searchQuery]);
 
-  // Global counts across all months for status headers
+  // Global counts across all months and modules for status headers
   const totalLocalStudents = students.length;
   let totalLocalPayments = 0;
   const totalMonths = Object.keys(payments || {}).length;
@@ -174,10 +175,18 @@ export const MultiDeviceSyncModal: React.FC<MultiDeviceSyncModalProps> = ({
     totalLocalPayments += Object.keys(m || {}).length;
   });
 
+  const totalLocalGrades = useMemo(() => {
+    return students.reduce((acc, s) => acc + (s.totalExamScores?.length || 0), 0);
+  }, [students]);
+
   // Action 1: Push & Merge with Cloud
   const handlePushAndMerge = async () => {
     setLoadingAction("push");
-    setFeedback(null);
+    setFeedback({
+      type: "info",
+      title: "⏳ جاري توحيد ورفع البيانات للسحابة...",
+      message: "يتم الآن الاتصال بالسحابة ودمج بيانات كافة الأجهزة، يرجى الانتظار ثوانٍ حتى مع سرعات الإنترنت الضعيفة...",
+    });
     try {
       const result = await syncAndMergeAllDevicesData("push_and_merge");
       if (result.success) {
@@ -190,7 +199,7 @@ export const MultiDeviceSyncModal: React.FC<MultiDeviceSyncModalProps> = ({
       } else {
         setFeedback({
           type: "error",
-          title: "تعذر إتمام المزامنة",
+          title: "تنبيه المزامنة",
           message: result.message,
         });
       }
@@ -208,7 +217,11 @@ export const MultiDeviceSyncModal: React.FC<MultiDeviceSyncModalProps> = ({
   // Action 2: Pull & Merge latest from Cloud
   const handlePullLatest = async () => {
     setLoadingAction("pull");
-    setFeedback(null);
+    setFeedback({
+      type: "info",
+      title: "⏳ جاري سحب وتحديث البيانات من السحابة...",
+      message: "يتم الآن جلب وتطبيق أحدث قاعدة بيانات من السحابة...",
+    });
     try {
       const result = await syncAndMergeAllDevicesData("pull_and_merge");
       if (result.success) {
@@ -785,7 +798,7 @@ export const MultiDeviceSyncModal: React.FC<MultiDeviceSyncModalProps> = ({
               )}
 
               {/* Status Overview Cards */}
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3">
                 <div className="bg-slate-800/60 border border-slate-700/60 rounded-2xl p-3.5 flex items-center gap-3">
                   <div className="w-10 h-10 rounded-xl bg-blue-500/10 border border-blue-500/30 text-blue-400 flex items-center justify-center shrink-0">
                     <Users className="w-5 h-5" />
@@ -793,6 +806,16 @@ export const MultiDeviceSyncModal: React.FC<MultiDeviceSyncModalProps> = ({
                   <div>
                     <p className="text-[11px] text-slate-400">طلاب هذا الجهاز</p>
                     <p className="text-lg font-black text-blue-300">{totalLocalStudents} <span className="text-xs font-normal">طالب</span></p>
+                  </div>
+                </div>
+
+                <div className="bg-slate-800/60 border border-slate-700/60 rounded-2xl p-3.5 flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-400 flex items-center justify-center shrink-0">
+                    <Award className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <p className="text-[11px] text-slate-400">الدرجات المرصودة</p>
+                    <p className="text-lg font-black text-amber-300">{totalLocalGrades} <span className="text-xs font-normal">درجة</span></p>
                   </div>
                 </div>
 
@@ -816,7 +839,7 @@ export const MultiDeviceSyncModal: React.FC<MultiDeviceSyncModalProps> = ({
                   </div>
                 </div>
 
-                <div className="bg-slate-800/60 border border-slate-700/60 rounded-2xl p-3.5 flex items-center gap-3">
+                <div className="bg-slate-800/60 border border-slate-700/60 rounded-2xl p-3.5 flex items-center gap-3 col-span-2 sm:col-span-1">
                   <div className={`w-10 h-10 rounded-xl ${isOnline ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-400" : "bg-amber-500/10 border-amber-500/30 text-amber-400"} border flex items-center justify-center shrink-0`}>
                     <ShieldCheck className="w-5 h-5" />
                   </div>

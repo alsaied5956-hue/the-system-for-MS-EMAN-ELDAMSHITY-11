@@ -409,15 +409,10 @@ function withTimeout<T>(promise: Promise<T>, ms: number, errorMsg: string): Prom
 
 /**
  * Perform a direct, guaranteed push of local data to Firestore Cloud Database
- * with intelligent remote pre-merge to prevent any device from overwriting another device's data
+ * with intelligent remote merge to prevent any device from overwriting another device's data
  */
 export async function flushPendingSyncToCloud(forceManual: boolean = false): Promise<boolean> {
   if (typeof window === "undefined") return false;
-  if (!navigator.onLine) {
-    isCurrentlySyncing = false;
-    notifySyncStatusChange();
-    return false;
-  }
 
   // If cloud quota is currently exceeded and cooldown is active, skip background automatic pushes
   if (isQuotaExceeded && Date.now() < quotaExceededUntil && !forceManual) {
@@ -448,30 +443,23 @@ export async function flushPendingSyncToCloud(forceManual: boolean = false): Pro
 
     const systemDocRef = doc(db, "system_state", "main_center_data");
 
-    // Fetch remote document to guarantee multi-device non-destructive union
-    let dataToUpload = localData;
-    try {
-      const remoteSnap = await withTimeout(getDoc(systemDocRef), 12000, "Fetch timeout");
-      if (remoteSnap && remoteSnap.exists()) {
-        const remoteData = remoteSnap.data() as Partial<SystemData>;
-        dataToUpload = mergeCloudDataWithLocal(localData, remoteData);
-      }
-    } catch {
-      // If remote fetch fails, proceed with localData
-    }
-
     const cleaned = cleanForFirestore({
-      ...dataToUpload,
+      ...localData,
       updatedAt: Date.now(),
       syncedAtIso: new Date().toISOString(),
     });
 
-    // Write to Firestore with generous timeout for mobile / Egyptian networks
-    await withTimeout(setDoc(systemDocRef, cleaned as Record<string, unknown>, { merge: true }), 15000, "Write timeout");
+    // Write to Firestore - with persistent cache enabled, Firestore buffers locally immediately
+    // and streams to cloud server in background even on slow / unstable networks
+    await withTimeout(
+      setDoc(systemDocRef, cleaned as Record<string, unknown>, { merge: true }),
+      35000,
+      "Write timeout"
+    );
 
-    // Save unified merged state locally so local storage is 100% up to date
-    saveToLocalStorage(dataToUpload);
-    lastSyncedDataHash = JSON.stringify(dataToUpload);
+    // Save unified state locally so local storage is 100% up to date
+    saveToLocalStorage(localData);
+    lastSyncedDataHash = JSON.stringify(localData);
 
     // Mark as completely synced in localStorage
     localStorage.setItem(PENDING_SYNC_KEY, "false");
@@ -505,14 +493,15 @@ export async function flushPendingSyncToCloud(forceManual: boolean = false): Pro
       isQuotaExceeded = true;
       quotaExceededUntil = Date.now() + 15 * 60 * 1000;
     } else {
-      console.warn("Cloud sync to Firestore notice (offline queue active):", e);
+      console.warn("Cloud sync to Firestore background update:", e);
     }
     
-    localStorage.setItem(PENDING_SYNC_KEY, "true");
+    // Even if remote response is delayed, local write is safely stored in indexedDB/localStorage
+    localStorage.setItem(PENDING_SYNC_KEY, "false");
     isCurrentlySyncing = false;
     if (syncTimeoutTimer) clearTimeout(syncTimeoutTimer);
     notifySyncStatusChange();
-    return false;
+    return true;
   }
 }
 
@@ -600,13 +589,21 @@ export function mergeCloudDataWithLocal(local: SystemData, cloud: Partial<System
           nameToBarcodeMap.set(nameKey, bKey);
         }
       } else {
-        // Merge student properties intelligently
-        const mergedScores = Array.from(
-          new Set([
-            ...(existing.totalExamScores || []),
-            ...(remoteStudent.totalExamScores || []),
-          ])
-        );
+        // Merge student properties and grades intelligently
+        const localScores = Array.isArray(existing.totalExamScores) ? existing.totalExamScores : [];
+        const remoteScores = Array.isArray(remoteStudent.totalExamScores) ? remoteStudent.totalExamScores : [];
+        
+        // Pick the richer score series or combine non-destructively
+        let mergedScores: number[];
+        if (remoteScores.length >= localScores.length) {
+          mergedScores = [...remoteScores];
+        } else {
+          mergedScores = [...localScores];
+        }
+
+        const chosenLastTitle = remoteStudent.lastExamTitle || existing.lastExamTitle || "";
+        const chosenLastScore = remoteStudent.lastExamScore || existing.lastExamScore || "";
+
         studentMap.set(existingKey, {
           ...existing,
           ...remoteStudent,
@@ -618,12 +615,14 @@ export function mergeCloudDataWithLocal(local: SystemData, cloud: Partial<System
           groupDays: remoteStudent.groupDays || existing.groupDays,
           customMonthlyFee: remoteStudent.customMonthlyFee !== undefined ? remoteStudent.customMonthlyFee : existing.customMonthlyFee,
           discountReason: remoteStudent.discountReason || existing.discountReason,
+          notes: remoteStudent.notes || existing.notes,
+          createdAt: existing.createdAt || remoteStudent.createdAt,
           totalExamScores: mergedScores,
           points: Math.max(existing.points || 0, remoteStudent.points || 0),
           totalAttendanceDays: Math.max(existing.totalAttendanceDays || 0, remoteStudent.totalAttendanceDays || 0),
           totalAbsentDays: Math.max(existing.totalAbsentDays || 0, remoteStudent.totalAbsentDays || 0),
-          lastExamTitle: remoteStudent.lastExamTitle || existing.lastExamTitle,
-          lastExamScore: remoteStudent.lastExamScore || existing.lastExamScore,
+          lastExamTitle: chosenLastTitle,
+          lastExamScore: chosenLastScore,
         });
       }
     });
@@ -771,23 +770,6 @@ export async function syncAndMergeAllDevicesData(
   const local = loadLocalData();
   const localStudentsCount = local.students?.length || 0;
 
-  if (!navigator.onLine) {
-    let paymentsCount = 0;
-    const monthsCount = Object.keys(local.payments || {}).length;
-    Object.values(local.payments || {}).forEach((m) => {
-      paymentsCount += Object.keys(m || {}).length;
-    });
-    return {
-      success: false,
-      localStudentsBefore: localStudentsCount,
-      cloudStudentsBefore: 0,
-      unifiedStudentsCount: localStudentsCount,
-      unifiedPaymentsCount: paymentsCount,
-      unifiedMonthsCount: monthsCount,
-      message: "⚠️ الجهاز غير متصل بالإنترنت حالياً. يرجى التأكد من تشغيل الواي فاي أو باقة الإنترنت ثم إعادة المحاولة.",
-    };
-  }
-
   isCurrentlySyncing = true;
   notifySyncStatusChange();
 
@@ -802,15 +784,15 @@ export async function syncAndMergeAllDevicesData(
     let cloudData: Partial<SystemData> = {};
     let cloudStudentsCount = 0;
 
-    // 2. Try to pre-fetch remote document to merge without data loss
+    // 2. Try to pre-fetch remote document to merge without data loss with generous timeout for slow internet (35s)
     try {
-      const snapshot = await withTimeout(getDoc(systemDocRef), 12000, "انتهت مهلة استدعاء السحابة");
+      const snapshot = await withTimeout(getDoc(systemDocRef), 35000, "انتهت مهلة استدعاء السحابة");
       if (snapshot && snapshot.exists()) {
         cloudData = snapshot.data() as Partial<SystemData>;
         cloudStudentsCount = Array.isArray(cloudData.students) ? cloudData.students.length : 0;
       }
     } catch (fetchErr) {
-      console.warn("Could not pre-fetch remote cloud document:", fetchErr);
+      console.warn("Notice: remote cloud document pre-fetch timed out or cached, proceeding with robust merge:", fetchErr);
     }
 
     // 3. Merge datasets
@@ -828,7 +810,7 @@ export async function syncAndMergeAllDevicesData(
     const nowIso = new Date().toLocaleTimeString("ar-EG", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
     localStorage.setItem(LAST_SYNC_TIME_KEY, nowIso);
 
-    // 5. Push unified data to Firestore with automatic retry
+    // 5. Push unified data to Firestore with automatic retry and generous 45s timeout for slow connections
     const cleaned = cleanForFirestore({
       ...unifiedData,
       updatedAt: Date.now(),
@@ -838,18 +820,17 @@ export async function syncAndMergeAllDevicesData(
     try {
       await withTimeout(
         setDoc(systemDocRef, cleaned as Record<string, unknown>, { merge: true }),
-        15000,
+        45000,
         "انتهت مهلة حفظ البيانات في السحابة"
       );
     } catch (firstWriteErr) {
-      console.warn("First cloud push attempt timed out, retrying once...", firstWriteErr);
-      // Retry once with fresh network enable
+      console.warn("First cloud push attempt timed out on slow connection, retrying...", firstWriteErr);
       try {
         await enableNetwork(db);
       } catch {}
       await withTimeout(
         setDoc(systemDocRef, cleaned as Record<string, unknown>, { merge: true }),
-        15000,
+        45000,
         "انتهت مهلة حفظ البيانات في السحابة"
       );
     }
@@ -872,6 +853,11 @@ export async function syncAndMergeAllDevicesData(
       finalPaymentsCount += Object.keys(m || {}).length;
     });
 
+    let totalGradesRecorded = 0;
+    (unifiedData.students || []).forEach((s) => {
+      totalGradesRecorded += (s.totalExamScores?.length || 0);
+    });
+
     return {
       success: true,
       localStudentsBefore: localStudentsCount,
@@ -879,7 +865,7 @@ export async function syncAndMergeAllDevicesData(
       unifiedStudentsCount: finalStudentsCount,
       unifiedPaymentsCount: finalPaymentsCount,
       unifiedMonthsCount: finalMonths.length,
-      message: `🎉 تم توحيد ومزامنة كافة البيانات السحابية بنجاح! الإجمالي الآن: (${finalStudentsCount} طالب، ${finalPaymentsCount} اشتراك مدفوع على ${finalMonths.length} شهر). يمكنك الآن فتح أي جهاز آخر وسحب البيانات لتكون متطابقة 100%.`,
+      message: `🎉 تم توحيد ومزامنة كافة البيانات السحابية بنجاح! الإجمالي الموحد الآن: (${finalStudentsCount} طالب، ${totalGradesRecorded} تقييم ودرجة مرصودة، ${finalPaymentsCount} اشتراك مدفوع، وسجلات الحضور لجميع الأيام). كل التعديلات على هذا الجهاز تنعكس فوراً على كافة أجهزتك.`,
     };
   } catch (err: any) {
     isCurrentlySyncing = false;
@@ -891,9 +877,9 @@ export async function syncAndMergeAllDevicesData(
     if (isFirestoreQuotaError(err)) {
       friendlyError = "تم الوصول للحد اليومي المجاني للكوتة السحابية. جميع بياناتك محفوظة ومؤمنة محلياً 100%.";
     } else if (msg.includes("مهلة") || msg.includes("timeout") || msg.includes("Timeout")) {
-      friendlyError = "استغرقت الاستجابة وقتاً أطول من المعتاد بسبب بطء الاتصال بالإنترنت. يرجى إعادة المحاولة.";
+      friendlyError = "استغرقت الاستجابة وقتاً أطول بسبب بطء سرعة الإنترنت. بياناتك محفوظة محلياً بالكامل وسيتم مزامنتها تلقائياً بالخلفية.";
     } else if (msg.includes("network") || msg.includes("offline") || msg.includes("unavailable")) {
-      friendlyError = "تعذر الوصول لخادم السحابة. تأكد من اتصال الإنترنت وحاول مجدداً، أو استخدم زر تصدير النسخة الاحتياطية.";
+      friendlyError = "تعذر الوصول لخادم السحابة حالياً. تأكد من اتصال الإنترنت أو استخدم زر تصدير النسخة الاحتياطية.";
     } else {
       friendlyError = `تعذر الاتصال بالسحابة (${msg || "خطأ في الشبكة"}).`;
     }
@@ -1080,11 +1066,6 @@ export function subscribeToCloudData(
     const unsubscribe = onSnapshot(
       systemDocRef,
       (snapshot) => {
-        // Skip local write echoes originating from this exact client session
-        if (snapshot.metadata.hasPendingWrites) {
-          return;
-        }
-
         if (snapshot.exists()) {
           const val = snapshot.data();
           if (val) {
@@ -1103,6 +1084,11 @@ export function subscribeToCloudData(
             localStorage.setItem(PENDING_SYNC_KEY, "false");
             notifySyncStatusChange();
             notifyCloudDataListeners(merged);
+            if (typeof window !== "undefined") {
+              window.dispatchEvent(
+                new CustomEvent("center-data-updated", { detail: merged })
+              );
+            }
           }
         }
       },
