@@ -8,6 +8,7 @@ import confetti from "canvas-confetti";
 import { StudentFinancialLedgerModal } from "./StudentFinancialLedgerModal";
 import { UnpaidDefaultersModal } from "./UnpaidDefaultersModal";
 import { EditPaymentModal } from "./EditPaymentModal";
+import { exportDefaultersAndPaidExcel } from "../utils/excel";
 import * as XLSX from "xlsx";
 import {
   Coins,
@@ -261,6 +262,18 @@ export const FinancialsTab: React.FC<FinancialsTabProps> = ({
   }, [filteredStudents, monthPayments, todayKey, isAllMonthsMode, payments]);
 
   const exportFinancialsExcel = () => {
+    if (selectedMonth !== "ALL_MONTHS") {
+      exportDefaultersAndPaidExcel({
+        students,
+        payments,
+        groupPrices,
+        selectedMonth,
+        filterGrade,
+        fileName: `كشف_الاشتراكات_وغير_الدافعين_${selectedMonth}_${filterGrade !== "ALL" ? filterGrade : "كافة_الصفوف"}`,
+      });
+      return;
+    }
+
     const rows = filteredStudents.map((s, idx) => {
       const pay = monthPayments[s.barcode];
       const fee =

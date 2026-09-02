@@ -11,7 +11,7 @@ import {
 } from "../utils/helpers";
 import { printElement, downloadPrintableHtml } from "../utils/print";
 import { enqueuePendingWhatsAppMessagesBatch } from "../utils/storage";
-import * as XLSX from "xlsx";
+import { exportDefaultersAndPaidExcel } from "../utils/excel";
 import {
   X,
   Printer,
@@ -25,6 +25,8 @@ import {
   Sparkles,
   Info,
   CheckCircle2,
+  XCircle,
+  Layers,
 } from "lucide-react";
 
 interface UnpaidDefaultersModalProps {
@@ -48,19 +50,16 @@ export const UnpaidDefaultersModal: React.FC<UnpaidDefaultersModalProps> = ({
   const [selectedGrade, setSelectedGrade] = useState<string>("ALL");
   const [selectedDays, setSelectedDays] = useState<string>("ALL");
   const [searchQuery, setSearchQuery] = useState("");
+  const [displayMode, setDisplayMode] = useState<"PAID_THEN_UNPAID" | "UNPAID_ONLY">("PAID_THEN_UNPAID");
   const [batchActionNotice, setBatchActionNotice] = useState<string | null>(null);
 
   const todayKey = getTodayKey();
   const formattedToday = formatArabicDate(todayKey);
   const monthPayments = payments[selectedMonth] || {};
 
-  // Extract all unpaid students for the selected month and filters
-  const unpaidStudentsList = useMemo(() => {
+  // Extract all relevant students based on current filters
+  const filteredStudentsList = useMemo(() => {
     const list = students.filter((s) => {
-      // Must not be paid for the selected month
-      const isPaid = !!monthPayments[s.barcode];
-      if (isPaid) return false;
-
       // Grade filter
       if (selectedGrade !== "ALL" && s.groupGrade !== selectedGrade) return false;
 
@@ -80,7 +79,17 @@ export const UnpaidDefaultersModal: React.FC<UnpaidDefaultersModalProps> = ({
     });
 
     return sortStudentsByGradeAndName(list);
-  }, [students, monthPayments, selectedGrade, selectedDays, searchQuery]);
+  }, [students, selectedGrade, selectedDays, searchQuery]);
+
+  // Extract all unpaid students for the selected month
+  const unpaidStudentsList = useMemo(() => {
+    return filteredStudentsList.filter((s) => !monthPayments[s.barcode]);
+  }, [filteredStudentsList, monthPayments]);
+
+  // Extract all paid students for the selected month
+  const paidStudentsList = useMemo(() => {
+    return filteredStudentsList.filter((s) => !!monthPayments[s.barcode]);
+  }, [filteredStudentsList, monthPayments]);
 
   // Calculate metrics
   const totalUnpaidAmount = useMemo(() => {
@@ -94,8 +103,20 @@ export const UnpaidDefaultersModal: React.FC<UnpaidDefaultersModalProps> = ({
     }, 0);
   }, [unpaidStudentsList, groupPrices]);
 
+  const totalPaidAmount = useMemo(() => {
+    return paidStudentsList.reduce((sum, s) => {
+      const pay = monthPayments[s.barcode];
+      const fee =
+        s.customMonthlyFee ??
+        groupPrices[s.groupGrade] ??
+        DEFAULT_GRADE_PRICES[s.groupGrade] ??
+        100;
+      return sum + (pay ? pay.amount : fee);
+    }, 0);
+  }, [paidStudentsList, monthPayments, groupPrices]);
+
   const handlePrintPDF = () => {
-    const title = `كشف_الطلاب_المتأخرين_${selectedMonth}_${selectedGrade !== "ALL" ? selectedGrade : "كافة_الصفوف"}`;
+    const title = `كشف_الاشتراكات_والمتأخرين_${selectedMonth}_${selectedGrade !== "ALL" ? selectedGrade : "كافة_الصفوف"}`;
     printElement("printable-unpaid-defaulters-doc", {
       title: `${title} - منظومة ${TEACHER_NAME}`,
       orientation: "portrait",
@@ -103,7 +124,7 @@ export const UnpaidDefaultersModal: React.FC<UnpaidDefaultersModalProps> = ({
   };
 
   const handleDownloadHtml = () => {
-    const title = `كشف_الطلاب_المتأخرين_${selectedMonth}_${selectedGrade !== "ALL" ? selectedGrade : "كافة_الصفوف"}`;
+    const title = `كشف_الاشتراكات_والمتأخرين_${selectedMonth}_${selectedGrade !== "ALL" ? selectedGrade : "كافة_الصفوف"}`;
     downloadPrintableHtml("printable-unpaid-defaulters-doc", `${title}.html`, {
       title: `${title} - منظومة ${TEACHER_NAME}`,
       orientation: "portrait",
@@ -111,32 +132,14 @@ export const UnpaidDefaultersModal: React.FC<UnpaidDefaultersModalProps> = ({
   };
 
   const handleExportExcel = () => {
-    const rows = unpaidStudentsList.map((s, idx) => {
-      const fee =
-        s.customMonthlyFee ??
-        groupPrices[s.groupGrade] ??
-        DEFAULT_GRADE_PRICES[s.groupGrade] ??
-        100;
-
-      return {
-        "م": idx + 1,
-        "كود الباركود": s.barcode,
-        "اسم الطالب": s.name,
-        "الصف الدراسي": s.groupGrade,
-        "أيام المجموعة": s.groupDays,
-        "الشهر المستحق": selectedMonth,
-        "قيمة الاشتراك (ج.م)": fee,
-        "حالة السداد": "غير مسدد ❌",
-        "هاتف ولي الأمر": s.parentPhone,
-        "ملاحظات": s.discountReason ? `خصم: ${s.discountReason}` : "-",
-      };
+    exportDefaultersAndPaidExcel({
+      students,
+      payments,
+      groupPrices,
+      selectedMonth,
+      filterGrade: selectedGrade,
+      filterDays: selectedDays,
     });
-
-    const worksheet = XLSX.utils.json_to_sheet(rows);
-    worksheet["!views"] = [{ RTL: true }];
-    const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, "المتأخرين عن السداد");
-    XLSX.writeFile(workbook, `كشف_المتأخرين_${selectedMonth}_${selectedGrade}.xlsx`);
   };
 
   const handleSendAllWhatsAppReminders = () => {
@@ -182,10 +185,10 @@ export const UnpaidDefaultersModal: React.FC<UnpaidDefaultersModalProps> = ({
     }, 6000);
   };
 
-  // Group unpaid students by grade for multi-page PDF rendering
+  // Group students by grade for multi-page rendering
   const gradesToRender =
     selectedGrade === "ALL"
-      ? GRADE_ORDER.filter((g) => unpaidStudentsList.some((s) => s.groupGrade === g))
+      ? GRADE_ORDER.filter((g) => filteredStudentsList.some((s) => s.groupGrade === g))
       : [selectedGrade as GradeName];
 
   if (!isOpen) return null;
@@ -193,62 +196,65 @@ export const UnpaidDefaultersModal: React.FC<UnpaidDefaultersModalProps> = ({
   return (
     <div className="fixed inset-0 z-50 bg-black/85 flex flex-col items-center p-3 md:p-6 overflow-y-auto no-print-backdrop font-tajawal">
       {/* Top Controls Bar */}
-      <div className="no-print bg-[#0a1124] border border-amber-500/30 w-full max-w-6xl p-4 md:p-5 rounded-3xl flex flex-wrap items-center justify-between gap-4 mb-6 shadow-2xl sticky top-2 z-50">
-        <div className="flex items-center gap-3">
-          <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-rose-500/20 to-amber-500/20 border border-rose-500/40 flex items-center justify-center text-rose-400 shadow-md">
-            <AlertTriangle className="w-6 h-6 text-rose-400" />
+      <div className="no-print bg-[#0a1124] border border-amber-500/30 w-full max-w-6xl p-4 md:p-5 rounded-3xl flex flex-col gap-4 mb-6 shadow-2xl sticky top-2 z-50">
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-rose-500/20 to-amber-500/20 border border-rose-500/40 flex items-center justify-center text-rose-400 shadow-md">
+              <Layers className="w-6 h-6 text-amber-400" />
+            </div>
+            <div>
+              <h3 className="text-lg md:text-xl font-black text-amber-300 font-fancy">
+                كشف الاشتراكات وغير الدافعين (مقسم لكل صف: المسددون أولاً ثم غير المسددين)
+              </h3>
+              <p className="text-xs text-slate-300">
+                تصدير Excel وشيتات منفصلة لكل صف دراسي مع ترتيب الطلاب (الذين سددوا أولاً ثم المتأخرين) وطباعة PDF رسمية
+              </p>
+            </div>
           </div>
-          <div>
-            <h3 className="text-lg md:text-xl font-black text-amber-300 font-fancy">
-              كشف الطلاب المتأخرين عن سداد المصاريف (PDF رسمي لكل صف)
-            </h3>
-            <p className="text-xs text-slate-300">
-              استخراج تقرير مفصل بأسماء الطلاب غير المسددين مقسمين حسب الصف والمجموعة مع إمكانية الطباعة والإرسال
-            </p>
+
+          <div className="flex items-center gap-2 flex-wrap">
+            <button
+              type="button"
+              onClick={handleExportExcel}
+              className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-500 hover:from-emerald-500 hover:to-teal-400 text-slate-950 font-black text-xs shadow-lg shadow-emerald-500/30 flex items-center gap-2 cursor-pointer transition-all transform active:scale-95"
+              title="تصدير شيت إكسيل مقسم لكل صف دراسي (المسددون أولاً ثم غير المسددين)"
+            >
+              <FileSpreadsheet className="w-4 h-4 text-slate-950" />
+              <span>📊 تصدير Excel مقسم لكل صف</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={handlePrintPDF}
+              className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-yellow-400 hover:from-amber-400 text-slate-950 font-black text-xs shadow-lg shadow-amber-500/30 flex items-center gap-2 cursor-pointer transition-all transform active:scale-95"
+            >
+              <Printer className="w-4 h-4 text-slate-950" />
+              <span>طباعة وتصدير PDF (A4)</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={handleDownloadHtml}
+              className="px-3 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 font-bold text-xs flex items-center gap-1.5 transition-all cursor-pointer"
+              title="تحميل مستند HTML قابل للطباعة لاحقاً"
+            >
+              <Download className="w-3.5 h-3.5 text-amber-400" />
+              <span>حفظ HTML</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={onClose}
+              className="p-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white transition-colors cursor-pointer"
+              title="إغلاق"
+            >
+              <X className="w-5 h-5" />
+            </button>
           </div>
-        </div>
-
-        <div className="flex items-center gap-2 flex-wrap">
-          <button
-            type="button"
-            onClick={handlePrintPDF}
-            className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-yellow-400 hover:from-amber-400 text-slate-950 font-black text-xs shadow-lg shadow-amber-500/30 flex items-center gap-2 cursor-pointer transition-all transform active:scale-95"
-          >
-            <Printer className="w-4 h-4 text-slate-950" />
-            <span>طباعة وتصدير PDF الآن (A4)</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={handleExportExcel}
-            className="px-3.5 py-2.5 rounded-xl bg-emerald-600/20 hover:bg-emerald-600/30 border border-emerald-500/40 text-emerald-300 font-bold text-xs flex items-center gap-1.5 transition-all cursor-pointer"
-          >
-            <FileSpreadsheet className="w-4 h-4 text-emerald-400" />
-            <span>تصدير Excel</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={handleDownloadHtml}
-            className="px-3 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 font-bold text-xs flex items-center gap-1.5 transition-all cursor-pointer"
-            title="تحميل مستند HTML قابل للطباعة لاحقاً"
-          >
-            <Download className="w-3.5 h-3.5 text-amber-400" />
-            <span>حفظ HTML</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={onClose}
-            className="p-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white transition-colors cursor-pointer"
-            title="إغلاق"
-          >
-            <X className="w-5 h-5" />
-          </button>
         </div>
 
         {/* Filter Controls Bar */}
-        <div className="w-full grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 pt-2 border-t border-indigo-500/20 text-xs font-bold">
+        <div className="w-full grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 pt-3 border-t border-indigo-500/20 text-xs font-bold">
           {/* Month Selector */}
           <div className="flex items-center gap-2 bg-[#060b17] border border-indigo-500/30 px-3 py-2 rounded-xl">
             <Calendar className="w-4 h-4 text-amber-400 shrink-0" />
@@ -292,15 +298,43 @@ export const UnpaidDefaultersModal: React.FC<UnpaidDefaultersModalProps> = ({
             </select>
           </div>
 
-          {/* Batch Reminder WhatsApp Blast */}
+          {/* Display Mode Switcher */}
+          <div className="flex items-center gap-2 bg-[#060b17] border border-indigo-500/30 px-3 py-2 rounded-xl">
+            <span className="text-slate-400 shrink-0">العرض:</span>
+            <select
+              value={displayMode}
+              onChange={(e) => setDisplayMode(e.target.value as "PAID_THEN_UNPAID" | "UNPAID_ONLY")}
+              className="bg-transparent text-emerald-300 font-bold outline-none cursor-pointer w-full text-xs"
+            >
+              <option value="PAID_THEN_UNPAID" className="bg-slate-900 text-white">
+                المسددون أولاً ثم غير المسددين ✅❌
+              </option>
+              <option value="UNPAID_ONLY" className="bg-slate-900 text-white">
+                غير المسددين فقط ❌
+              </option>
+            </select>
+          </div>
+        </div>
+
+        {/* Batch Reminder WhatsApp Blast & Notice */}
+        <div className="flex items-center justify-between gap-3 flex-wrap pt-2 border-t border-indigo-500/20">
+          <div className="flex items-center gap-3 text-xs font-bold text-slate-300">
+            <span className="px-3 py-1 rounded-xl bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+              المسددون: <strong className="font-mono">{paidStudentsList.length}</strong> طالب ({totalPaidAmount} ج.م)
+            </span>
+            <span className="px-3 py-1 rounded-xl bg-rose-500/20 text-rose-300 border border-rose-500/30">
+              غير المسددين: <strong className="font-mono">{unpaidStudentsList.length}</strong> طالب ({totalUnpaidAmount} ج.م)
+            </span>
+          </div>
+
           <button
             type="button"
             onClick={handleSendAllWhatsAppReminders}
             disabled={unpaidStudentsList.length === 0}
-            className="px-3 py-2 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-md shadow-emerald-600/20 disabled:opacity-40 cursor-pointer transition-all"
+            className="px-4 py-2 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-md shadow-emerald-600/20 disabled:opacity-40 cursor-pointer transition-all"
           >
             <Phone className="w-3.5 h-3.5" />
-            <span>تجهيز تذكير واتساب للكل ({unpaidStudentsList.length})</span>
+            <span>تجهيز تذكير واتساب للمتأخرين ({unpaidStudentsList.length} طالب)</span>
           </button>
         </div>
 
@@ -311,20 +345,6 @@ export const UnpaidDefaultersModal: React.FC<UnpaidDefaultersModalProps> = ({
             <span>{batchActionNotice}</span>
           </div>
         )}
-
-        {/* Summary Metric Strip */}
-        <div className="w-full flex items-center justify-between bg-rose-500/10 border border-rose-500/30 rounded-2xl p-3 text-xs font-bold text-slate-200">
-          <div className="flex items-center gap-2 text-rose-300">
-            <AlertTriangle className="w-4 h-4" />
-            <span>
-              إجمالي الطلاب غير المسددين: <strong className="text-white text-sm font-mono">{unpaidStudentsList.length}</strong> طالب
-            </span>
-          </div>
-          <div className="text-amber-300">
-            إجمالي المبالغ المتأخرة غير المحصلة:{" "}
-            <span className="font-mono text-base font-black text-amber-300">{totalUnpaidAmount}</span> ج.م
-          </div>
-        </div>
       </div>
 
       {/* Printable Report Document (A4 Printable Component) */}
@@ -332,22 +352,38 @@ export const UnpaidDefaultersModal: React.FC<UnpaidDefaultersModalProps> = ({
         id="printable-unpaid-defaulters-doc"
         className="w-full max-w-5xl space-y-8 bg-white text-slate-900 p-8 md:p-12 rounded-3xl shadow-2xl print:p-0 print:m-0 print:shadow-none print:w-full font-['Tajawal',sans-serif]"
       >
-        {gradesToRender.length === 0 || unpaidStudentsList.length === 0 ? (
+        {gradesToRender.length === 0 || filteredStudentsList.length === 0 ? (
           <div className="text-center py-16 text-slate-500 space-y-3">
             <div className="w-16 h-16 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center mx-auto">
               <CheckCircle2 className="w-8 h-8" />
             </div>
-            <h4 className="text-lg font-bold text-slate-800">ممتاز! لا يوجد أي طلاب متأخرين عن السداد</h4>
+            <h4 className="text-lg font-bold text-slate-800">لا توجد بيانات مطابقة للبحث</h4>
             <p className="text-xs text-slate-500">
-              جميع طلاب {selectedGrade !== "ALL" ? selectedGrade : "الصفوف المحددة"} سددوا اشتراك شهر ({selectedMonth}) بالكامل.
+              تأكد من اختيار الصف والشهر المطلوب.
             </p>
           </div>
         ) : (
           gradesToRender.map((grade) => {
-            const gradeUnpaid = unpaidStudentsList.filter((s) => s.groupGrade === grade);
-            if (gradeUnpaid.length === 0) return null;
+            const gradeStudents = filteredStudentsList.filter((s) => s.groupGrade === grade);
+            if (gradeStudents.length === 0) return null;
 
-            const gradeTotalUnpaidMoney = gradeUnpaid.reduce((sum, s) => {
+            const gradePaid = gradeStudents.filter((s) => !!monthPayments[s.barcode]);
+            const gradeUnpaid = gradeStudents.filter((s) => !monthPayments[s.barcode]);
+
+            // If in UNPAID_ONLY mode and no unpaid in this grade, skip
+            if (displayMode === "UNPAID_ONLY" && gradeUnpaid.length === 0) return null;
+
+            const gradePaidMoney = gradePaid.reduce((sum, s) => {
+              const pay = monthPayments[s.barcode];
+              const fee =
+                s.customMonthlyFee ??
+                groupPrices[s.groupGrade] ??
+                DEFAULT_GRADE_PRICES[s.groupGrade] ??
+                100;
+              return sum + (pay ? pay.amount : fee);
+            }, 0);
+
+            const gradeUnpaidMoney = gradeUnpaid.reduce((sum, s) => {
               const fee =
                 s.customMonthlyFee ??
                 groupPrices[s.groupGrade] ??
@@ -355,6 +391,10 @@ export const UnpaidDefaultersModal: React.FC<UnpaidDefaultersModalProps> = ({
                 100;
               return sum + fee;
             }, 0);
+
+            const collectionRate = gradeStudents.length > 0
+              ? Math.round((gradePaid.length / gradeStudents.length) * 100)
+              : 0;
 
             return (
               <section
@@ -374,11 +414,11 @@ export const UnpaidDefaultersModal: React.FC<UnpaidDefaultersModalProps> = ({
                   </div>
 
                   <div className="text-center">
-                    <span className="text-base md:text-lg font-black bg-rose-100 text-rose-800 px-4 py-1.5 rounded-full border border-rose-300 inline-block shadow-sm">
+                    <span className="text-base md:text-lg font-black bg-indigo-100 text-indigo-950 px-4 py-1.5 rounded-full border border-indigo-300 inline-block shadow-sm">
                       {grade}
                     </span>
                     <p className="text-xs text-slate-800 font-black mt-1">
-                      كشف الطلاب المتأخرين عن سداد اشتراك شهر ({selectedMonth})
+                      كشف اشتراكات ومصروفات شهر ({selectedMonth})
                     </p>
                   </div>
 
@@ -389,108 +429,216 @@ export const UnpaidDefaultersModal: React.FC<UnpaidDefaultersModalProps> = ({
                 </div>
 
                 {/* Grade Level Summary Stats */}
-                <div className="flex items-center justify-between bg-slate-100 p-2.5 rounded-xl border border-slate-200 text-xs font-bold mb-4">
-                  <span>عدد غير المسددين في هذا الصف: <strong className="text-rose-700">{gradeUnpaid.length} طالب</strong></span>
-                  <span>المجموعة: {selectedDays === "ALL" ? "كافة المجموعات" : selectedDays}</span>
-                  <span>إجمالي المبالغ المتأخرة: <strong className="text-amber-700 font-mono">{gradeTotalUnpaidMoney} ج.م</strong></span>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-2 bg-slate-100 p-3 rounded-2xl border border-slate-300 text-xs font-bold mb-5">
+                  <div className="text-slate-800">
+                    إجمالي طلاب الصف: <strong className="text-black font-mono text-sm">{gradeStudents.length}</strong> طالب
+                  </div>
+                  <div className="text-emerald-800">
+                    المسددون: <strong className="font-mono text-sm">{gradePaid.length}</strong> طالب ({gradePaidMoney} ج.م)
+                  </div>
+                  <div className="text-rose-800">
+                    غير المسددين: <strong className="font-mono text-sm">{gradeUnpaid.length}</strong> طالب ({gradeUnpaidMoney} ج.م)
+                  </div>
+                  <div className="text-indigo-800">
+                    نسبة التحصيل: <strong className="font-mono text-sm">{collectionRate}%</strong>
+                  </div>
                 </div>
 
-                {/* Unpaid Students Table */}
-                <div className="overflow-x-auto">
-                  <table className="w-full text-right border-collapse text-xs">
-                    <thead>
-                      <tr className="bg-slate-800 text-amber-300 font-bold border-b border-slate-700 print:bg-slate-200 print:text-black">
-                        <th className="p-2 border border-slate-300 text-center w-10">م</th>
-                        <th className="p-2 border border-slate-300 text-center w-24">الباركود</th>
-                        <th className="p-2 border border-slate-300">اسم الطالب</th>
-                        <th className="p-2 border border-slate-300">المجموعة</th>
-                        <th className="p-2 border border-slate-300 text-center">الاشتراك المستحق</th>
-                        <th className="p-2 border border-slate-300 text-center">حالة السداد</th>
-                        <th className="p-2 border border-slate-300 text-center">هاتف ولي الأمر</th>
-                        <th className="p-2 border border-slate-300 text-center no-print">إجراء سريع</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {gradeUnpaid.map((student, idx) => {
-                        const fee =
-                          student.customMonthlyFee ??
-                          groupPrices[student.groupGrade] ??
-                          DEFAULT_GRADE_PRICES[student.groupGrade] ??
-                          100;
+                {/* Section 1: All Paid Students FIRST (if not unpaid only) */}
+                {displayMode === "PAID_THEN_UNPAID" && (
+                  <div className="mb-6 space-y-2">
+                    <div className="flex items-center justify-between bg-emerald-100/80 border border-emerald-300 px-3 py-1.5 rounded-xl text-xs font-black text-emerald-900">
+                      <div className="flex items-center gap-1.5">
+                        <CheckCircle2 className="w-4 h-4 text-emerald-700" />
+                        <span>أولاً: الطلاب الذين سددوا الاشتراك ({gradePaid.length} طالب)</span>
+                      </div>
+                      <span className="font-mono">{gradePaidMoney} ج.م محصلة</span>
+                    </div>
 
-                        return (
-                          <tr key={student.barcode} className="hover:bg-slate-50 transition-colors">
-                            <td className="p-2 border border-slate-300 text-center font-mono font-bold text-slate-600">
-                              {idx + 1}
-                            </td>
-                            <td className="p-2 border border-slate-300 text-center font-mono font-bold text-amber-800 print:text-black">
-                              #{student.barcode}
-                            </td>
-                            <td className="p-2 border border-slate-300 font-bold text-slate-900 text-[13px]">
-                              {student.name}
-                              {student.discountReason && (
-                                <span className="block text-[10px] text-amber-700 font-normal">
-                                  ({student.discountReason})
-                                </span>
-                              )}
-                            </td>
-                            <td className="p-2 border border-slate-300 text-slate-700 text-xs">
-                              {student.groupDays}
-                            </td>
-                            <td className="p-2 border border-slate-300 text-center font-mono font-bold text-slate-900">
-                              {fee} ج.م
-                            </td>
-                            <td className="p-2 border border-slate-300 text-center">
-                              <span className="px-2 py-0.5 rounded-full text-[11px] font-bold bg-rose-100 text-rose-700 border border-rose-300 inline-block">
-                                ❌ غير مسدد
-                              </span>
-                            </td>
-                            <td className="p-2 border border-slate-300 text-center font-mono text-slate-700">
-                              {student.parentPhone}
-                            </td>
-                            <td className="p-2 border border-slate-300 text-center no-print">
-                              <div className="flex items-center justify-center gap-1">
-                                {onRecordPayment && (
-                                  <button
-                                    type="button"
-                                    onClick={() => {
-                                      onRecordPayment(
-                                        student.barcode,
-                                        fee,
-                                        selectedMonth,
-                                        `سداد اشتراك ${selectedMonth}`
-                                      );
-                                    }}
-                                    className="px-2 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-[10px] font-bold shadow-sm cursor-pointer"
-                                    title="إثبات السداد الآن"
-                                  >
-                                    سداد 💳
-                                  </button>
-                                )}
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    const msg =
-                                      `تذكير بسداد الاشتراك 🔔\n` +
-                                      `منظومة الأستاذة إيمان الدمشيتي - رياضيات 📐\n` +
-                                      `اسم الطالب: ${student.name}\n` +
-                                      `الصف: ${student.groupGrade}\n` +
-                                      `نود تذكيركم بسداد اشتراك شهر (${selectedMonth}) وقيمته: ${fee} ج.م.\n` +
-                                      `شاكرين حسن تعاونكم واهتمامكم ✨`;
-                                    openWhatsApp(student.parentPhone, msg);
-                                  }}
-                                  className="p-1 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 text-amber-800 border border-amber-400 cursor-pointer"
-                                  title="إرسال تذكير واتساب فوري"
-                                >
-                                  <Phone className="w-3 h-3" />
-                                </button>
-                              </div>
-                            </td>
+                    {gradePaid.length === 0 ? (
+                      <p className="text-xs text-slate-400 italic p-3 text-center bg-slate-50 rounded-xl border border-slate-200">
+                        لم يتم تسجيل أي عمليات سداد لهذا الصف في هذا الشهر حتى الآن.
+                      </p>
+                    ) : (
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-right border-collapse text-xs">
+                          <thead>
+                            <tr className="bg-emerald-800 text-white font-bold border-b border-emerald-700 print:bg-emerald-100 print:text-black">
+                              <th className="p-2 border border-slate-300 text-center w-10">م</th>
+                              <th className="p-2 border border-slate-300 text-center w-24">الباركود</th>
+                              <th className="p-2 border border-slate-300">اسم الطالب</th>
+                              <th className="p-2 border border-slate-300">المجموعة</th>
+                              <th className="p-2 border border-slate-300 text-center">المبلغ المسدد</th>
+                              <th className="p-2 border border-slate-300 text-center">حالة السداد</th>
+                              <th className="p-2 border border-slate-300 text-center">تاريخ السداد</th>
+                              <th className="p-2 border border-slate-300 text-center">هاتف ولي الأمر</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {gradePaid.map((student, idx) => {
+                              const pay = monthPayments[student.barcode];
+                              const fee =
+                                student.customMonthlyFee ??
+                                groupPrices[student.groupGrade] ??
+                                DEFAULT_GRADE_PRICES[student.groupGrade] ??
+                                100;
+                              const paidAmount = pay ? pay.amount : fee;
+
+                              return (
+                                <tr key={student.barcode} className="hover:bg-emerald-50/50 transition-colors">
+                                  <td className="p-2 border border-slate-300 text-center font-mono font-bold text-slate-600">
+                                    {idx + 1}
+                                  </td>
+                                  <td className="p-2 border border-slate-300 text-center font-mono font-bold text-emerald-800 print:text-black">
+                                    #{student.barcode}
+                                  </td>
+                                  <td className="p-2 border border-slate-300 font-bold text-slate-900 text-[13px]">
+                                    {student.name}
+                                    {student.discountReason && (
+                                      <span className="block text-[10px] text-slate-500 font-normal">
+                                        ({student.discountReason})
+                                      </span>
+                                    )}
+                                  </td>
+                                  <td className="p-2 border border-slate-300 text-slate-700 text-xs">
+                                    {student.groupDays}
+                                  </td>
+                                  <td className="p-2 border border-slate-300 text-center font-mono font-bold text-emerald-700">
+                                    {paidAmount} ج.م
+                                  </td>
+                                  <td className="p-2 border border-slate-300 text-center">
+                                    <span className="px-2 py-0.5 rounded-full text-[11px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300 inline-block">
+                                      ✅ تم السداد
+                                    </span>
+                                  </td>
+                                  <td className="p-2 border border-slate-300 text-center font-mono text-slate-600">
+                                    {pay ? `${pay.date}` : "-"}
+                                  </td>
+                                  <td className="p-2 border border-slate-300 text-center font-mono text-slate-700">
+                                    {student.parentPhone}
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Section 2: All Unpaid Students SECOND */}
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between bg-rose-100/80 border border-rose-300 px-3 py-1.5 rounded-xl text-xs font-black text-rose-900">
+                    <div className="flex items-center gap-1.5">
+                      <XCircle className="w-4 h-4 text-rose-700" />
+                      <span>ثانياً: الطلاب المتأخرين عن السداد ({gradeUnpaid.length} طالب)</span>
+                    </div>
+                    <span className="font-mono">{gradeUnpaidMoney} ج.م متبقية</span>
+                  </div>
+
+                  {gradeUnpaid.length === 0 ? (
+                    <p className="text-xs text-emerald-600 font-bold p-3 text-center bg-emerald-50 rounded-xl border border-emerald-200">
+                      🎉 جميع طلاب هذا الصف سددوا الاشتراك بالكامل ولا يوجد أي متأخرات!
+                    </p>
+                  ) : (
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-right border-collapse text-xs">
+                        <thead>
+                          <tr className="bg-rose-900 text-white font-bold border-b border-rose-800 print:bg-rose-100 print:text-black">
+                            <th className="p-2 border border-slate-300 text-center w-10">م</th>
+                            <th className="p-2 border border-slate-300 text-center w-24">الباركود</th>
+                            <th className="p-2 border border-slate-300">اسم الطالب</th>
+                            <th className="p-2 border border-slate-300">المجموعة</th>
+                            <th className="p-2 border border-slate-300 text-center">الاشتراك المستحق</th>
+                            <th className="p-2 border border-slate-300 text-center">حالة السداد</th>
+                            <th className="p-2 border border-slate-300 text-center">هاتف ولي الأمر</th>
+                            <th className="p-2 border border-slate-300 text-center no-print">إجراء سريع</th>
                           </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
+                        </thead>
+                        <tbody>
+                          {gradeUnpaid.map((student, idx) => {
+                            const fee =
+                              student.customMonthlyFee ??
+                              groupPrices[student.groupGrade] ??
+                              DEFAULT_GRADE_PRICES[student.groupGrade] ??
+                              100;
+
+                            return (
+                              <tr key={student.barcode} className="hover:bg-rose-50/50 transition-colors">
+                                <td className="p-2 border border-slate-300 text-center font-mono font-bold text-slate-600">
+                                  {idx + 1}
+                                </td>
+                                <td className="p-2 border border-slate-300 text-center font-mono font-bold text-rose-800 print:text-black">
+                                  #{student.barcode}
+                                </td>
+                                <td className="p-2 border border-slate-300 font-bold text-slate-900 text-[13px]">
+                                  {student.name}
+                                  {student.discountReason && (
+                                    <span className="block text-[10px] text-amber-700 font-normal">
+                                      ({student.discountReason})
+                                    </span>
+                                  )}
+                                </td>
+                                <td className="p-2 border border-slate-300 text-slate-700 text-xs">
+                                  {student.groupDays}
+                                </td>
+                                <td className="p-2 border border-slate-300 text-center font-mono font-bold text-slate-900">
+                                  {fee} ج.م
+                                </td>
+                                <td className="p-2 border border-slate-300 text-center">
+                                  <span className="px-2 py-0.5 rounded-full text-[11px] font-bold bg-rose-100 text-rose-700 border border-rose-300 inline-block">
+                                    ❌ غير مسدد
+                                  </span>
+                                </td>
+                                <td className="p-2 border border-slate-300 text-center font-mono text-slate-700">
+                                  {student.parentPhone}
+                                </td>
+                                <td className="p-2 border border-slate-300 text-center no-print">
+                                  <div className="flex items-center justify-center gap-1">
+                                    {onRecordPayment && (
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          onRecordPayment(
+                                            student.barcode,
+                                            fee,
+                                            selectedMonth,
+                                            `سداد اشتراك ${selectedMonth}`
+                                          );
+                                        }}
+                                        className="px-2 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-[10px] font-bold shadow-sm cursor-pointer"
+                                        title="إثبات السداد الآن"
+                                      >
+                                        سداد 💳
+                                      </button>
+                                    )}
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        const msg =
+                                          `تذكير بسداد الاشتراك 🔔\n` +
+                                          `منظومة الأستاذة إيمان الدمشيتي - رياضيات 📐\n` +
+                                          `اسم الطالب: ${student.name}\n` +
+                                          `الصف: ${student.groupGrade}\n` +
+                                          `نود تذكيركم بسداد اشتراك شهر (${selectedMonth}) وقيمته: ${fee} ج.م.\n` +
+                                          `شاكرين حسن تعاونكم واهتمامكم ✨`;
+                                        openWhatsApp(student.parentPhone, msg);
+                                      }}
+                                      className="p-1 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 text-amber-800 border border-amber-400 cursor-pointer"
+                                      title="إرسال تذكير واتساب فوري"
+                                    >
+                                      <Phone className="w-3 h-3" />
+                                    </button>
+                                  </div>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
                 </div>
 
                 {/* Sign-off Footer */}

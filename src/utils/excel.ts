@@ -1,6 +1,173 @@
 import * as XLSX from "xlsx";
-import { Student, GradeName, GroupDays } from "../types";
-import { getAttendanceRate, getAbsenceRate, getExamAverage, getTodayKey } from "./helpers";
+import { Student, GradeName, GroupDays, PaymentRecord, GRADE_ORDER } from "../types";
+import {
+  getAttendanceRate,
+  getAbsenceRate,
+  getExamAverage,
+  getTodayKey,
+  DEFAULT_GRADE_PRICES,
+  sortStudentsByGradeAndName,
+} from "./helpers";
+
+export interface ExportFinancialOptions {
+  students: Student[];
+  payments: Record<string, Record<string, PaymentRecord>>;
+  groupPrices?: Record<GradeName, number>;
+  selectedMonth: string;
+  filterGrade?: string;
+  filterDays?: string;
+  fileName?: string;
+}
+
+/**
+ * Exports financial report organized strictly by Grade:
+ * For each grade (e.g. 4th primary):
+ * 1. FIRST: All students who PAID (الذين دفعوا)
+ * 2. SECOND: All students who have NOT PAID (الذين لم يدفعوا)
+ * Creates a comprehensive master sheet + individual sheets for each grade.
+ */
+export function exportDefaultersAndPaidExcel({
+  students,
+  payments,
+  groupPrices = DEFAULT_GRADE_PRICES,
+  selectedMonth,
+  filterGrade = "ALL",
+  filterDays = "ALL",
+  fileName,
+}: ExportFinancialOptions): void {
+  const workbook = XLSX.utils.book_new();
+  const monthPayments = payments[selectedMonth] || {};
+
+  // Filter relevant students based on global filters
+  const baseStudents = students.filter((s) => {
+    if (filterGrade !== "ALL" && s.groupGrade !== filterGrade) return false;
+    if (filterDays !== "ALL" && s.groupDays !== filterDays) return false;
+    return true;
+  });
+
+  const gradesToProcess =
+    filterGrade !== "ALL"
+      ? [filterGrade as GradeName]
+      : GRADE_ORDER.filter((g) => baseStudents.some((s) => s.groupGrade === g));
+
+  // Helper to build rows for a given student list
+  const formatStudentRows = (studentList: Student[], startingIndex = 1) => {
+    const paidList: Student[] = [];
+    const unpaidList: Student[] = [];
+
+    studentList.forEach((s) => {
+      if (monthPayments[s.barcode]) {
+        paidList.push(s);
+      } else {
+        unpaidList.push(s);
+      }
+    });
+
+    // Sort alphabetically by Arabic name within each group
+    paidList.sort((a, b) => a.name.localeCompare(b.name, "ar"));
+    unpaidList.sort((a, b) => a.name.localeCompare(b.name, "ar"));
+
+    const rows: Record<string, unknown>[] = [];
+    let currentIndex = startingIndex;
+
+    // 1. All Paid Students FIRST
+    paidList.forEach((s) => {
+      const pay = monthPayments[s.barcode];
+      const fee =
+        s.customMonthlyFee ??
+        groupPrices[s.groupGrade] ??
+        DEFAULT_GRADE_PRICES[s.groupGrade] ??
+        100;
+
+      rows.push({
+        "م": currentIndex++,
+        "الصف الدراسي": s.groupGrade,
+        "حالة السداد": "✅ تم السداد (مدفوع)",
+        "اسم الطالب": s.name,
+        "كود الباركود": s.barcode,
+        "أيام المجموعة": s.groupDays,
+        "الاشتراك المقرر (ج.م)": fee,
+        "المبلغ المسدد (ج.م)": pay ? pay.amount : fee,
+        "تاريخ وساعة السداد": pay ? `${pay.date} ${pay.time}` : "-",
+        "رقم تليفون ولي الأمر": s.parentPhone || "-",
+        "رقم تليفون الطالب": s.phone || "-",
+        "ملاحظات": pay?.note || (s.discountReason ? `خصم: ${s.discountReason}` : "-"),
+      });
+    });
+
+    // 2. All Unpaid Students SECOND
+    unpaidList.forEach((s) => {
+      const fee =
+        s.customMonthlyFee ??
+        groupPrices[s.groupGrade] ??
+        DEFAULT_GRADE_PRICES[s.groupGrade] ??
+        100;
+
+      rows.push({
+        "م": currentIndex++,
+        "الصف الدراسي": s.groupGrade,
+        "حالة السداد": "❌ غير مسدد (مستحق)",
+        "اسم الطالب": s.name,
+        "كود الباركود": s.barcode,
+        "أيام المجموعة": s.groupDays,
+        "الاشتراك المقرر (ج.م)": fee,
+        "المبلغ المسدد (ج.م)": 0,
+        "تاريخ وساعة السداد": "لم يسدد بعد",
+        "رقم تليفون ولي الأمر": s.parentPhone || "-",
+        "رقم تليفون الطالب": s.phone || "-",
+        "ملاحظات": s.discountReason ? `خصم: ${s.discountReason}` : "-",
+      });
+    });
+
+    return {
+      rows,
+      paidCount: paidList.length,
+      unpaidCount: unpaidList.length,
+      totalCount: studentList.length,
+    };
+  };
+
+  // 1. Build Master Sheet (All Grades: Grade 1 [Paid -> Unpaid], Grade 2 [Paid -> Unpaid]...)
+  const masterRows: Record<string, unknown>[] = [];
+  let masterIndex = 1;
+
+  gradesToProcess.forEach((grade) => {
+    const gradeStudents = baseStudents.filter((s) => s.groupGrade === grade);
+    if (gradeStudents.length === 0) return;
+
+    const formatted = formatStudentRows(gradeStudents, masterIndex);
+    masterRows.push(...formatted.rows);
+    masterIndex += formatted.rows.length;
+  });
+
+  if (masterRows.length > 0) {
+    const masterSheet = XLSX.utils.json_to_sheet(masterRows);
+    masterSheet["!views"] = [{ RTL: true }];
+    XLSX.utils.book_append_sheet(workbook, masterSheet, "كشف شامل لكافة الصفوف");
+  }
+
+  // 2. Build Individual Sheet for each Grade
+  gradesToProcess.forEach((grade) => {
+    const gradeStudents = baseStudents.filter((s) => s.groupGrade === grade);
+    if (gradeStudents.length === 0) return;
+
+    const formatted = formatStudentRows(gradeStudents, 1);
+    const gradeSheet = XLSX.utils.json_to_sheet(formatted.rows);
+    gradeSheet["!views"] = [{ RTL: true }];
+
+    // Excel worksheet names have a max 31 character limit
+    const safeSheetName = grade.length > 30 ? grade.slice(0, 30) : grade;
+    XLSX.utils.book_append_sheet(workbook, gradeSheet, safeSheetName);
+  });
+
+  const finalFileName =
+    fileName ||
+    `كشف_الاشتراكات_وغير_الدافعين_${selectedMonth}_${
+      filterGrade !== "ALL" ? filterGrade : "كافة_الصفوف"
+    }`;
+
+  XLSX.writeFile(workbook, `${finalFileName}.xlsx`);
+}
 
 export function exportStudentsToExcel(students: Student[], fileName = `قائمة_الطلاب_${getTodayKey()}`): void {
   const rows = students.map((s, index) => ({
