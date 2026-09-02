@@ -30,6 +30,7 @@ interface NavbarProps {
   hasPendingSync?: boolean;
   isQuotaExceeded?: boolean;
   onManualSync?: () => void;
+  onOpenMultiDeviceSync?: () => void;
   pendingWhatsAppCount?: number;
   onOpenWhatsAppOutbox?: () => void;
   theme?: "dark" | "light";
@@ -53,6 +54,7 @@ export const Navbar: React.FC<NavbarProps> = React.memo(({
   hasPendingSync = false,
   isQuotaExceeded = false,
   onManualSync,
+  onOpenMultiDeviceSync,
   pendingWhatsAppCount = 0,
   onOpenWhatsAppOutbox,
   theme = "dark",
@@ -197,6 +199,17 @@ export const Navbar: React.FC<NavbarProps> = React.memo(({
 
         {/* Live Cloud Status Indicator with Sync Button */}
         <div className="flex items-center gap-1.5">
+          {onOpenMultiDeviceSync && (
+            <button
+              onClick={onOpenMultiDeviceSync}
+              className="flex items-center gap-1.5 px-3 py-2 rounded-2xl text-xs font-bold bg-indigo-600/30 hover:bg-indigo-600/50 text-amber-300 border border-indigo-500/40 shadow-sm transition-all cursor-pointer transform active:scale-95"
+              title="مركز توحيد ومزامنة جميع الأجهزة لدمج الأسماء والاشتراكات"
+            >
+              <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+              <span className="font-tajawal">توحيد الأجهزة</span>
+            </button>
+          )}
+
           <button
             onClick={onManualSync}
             disabled={isSyncing}

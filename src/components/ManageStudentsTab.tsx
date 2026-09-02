@@ -13,6 +13,7 @@ interface ManageStudentsTabProps {
   onDeleteStudent: (barcode: string) => void;
   onClearAllData: () => void;
   onOpenPrintCards?: () => void;
+  onOpenMultiDeviceSync?: () => void;
   onRecordPayment?: (barcode: string, amount: number, monthKey: string, note: string) => void;
   onUpdatePayment?: (
     oldMonthKey: string,
@@ -33,6 +34,7 @@ export const ManageStudentsTab: React.FC<ManageStudentsTabProps> = ({
   onDeleteStudent,
   onClearAllData,
   onOpenPrintCards,
+  onOpenMultiDeviceSync,
   onRecordPayment,
   onUpdatePayment,
   onDeletePayment,
@@ -129,7 +131,19 @@ export const ManageStudentsTab: React.FC<ManageStudentsTabProps> = ({
           </div>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 flex-wrap">
+          {onOpenMultiDeviceSync && (
+            <button
+              type="button"
+              onClick={onOpenMultiDeviceSync}
+              className="px-4 py-2.5 bg-gradient-to-r from-indigo-600 via-indigo-700 to-purple-700 hover:from-indigo-500 hover:to-purple-600 text-white font-bold text-xs rounded-2xl shadow-lg shadow-indigo-600/20 border border-indigo-400/30 flex items-center gap-2 transition-all transform hover:scale-105 cursor-pointer active:scale-95"
+              title="توحيد ودمج أسماء الطلاب بين جميع الأجهزة (لابتوب / كمبيوتر / موبايل)"
+            >
+              <Sparkles className="w-4 h-4 text-amber-300" />
+              <span>📱💻 توحيد بيانات كل الأجهزة</span>
+            </button>
+          )}
+
           {onOpenPrintCards && (
             <button
               type="button"

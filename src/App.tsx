@@ -55,6 +55,7 @@ import { AuthOverlay } from "./components/AuthOverlay";
 import { PrintPDFModal } from "./components/PrintPDFModal";
 import { PrintCardsModal } from "./components/PrintCardsModal";
 import { PendingWhatsAppOutboxModal } from "./components/PendingWhatsAppOutboxModal";
+import { MultiDeviceSyncModal } from "./components/MultiDeviceSyncModal";
 import { CheckCircle2, WifiOff, RefreshCw, X, MessageSquare, Send } from "lucide-react";
 
 export default function App() {
@@ -104,6 +105,7 @@ export default function App() {
     return "dark";
   });
   const [isCardsModalOpen, setIsCardsModalOpen] = useState(false);
+  const [isMultiDeviceSyncModalOpen, setIsMultiDeviceSyncModalOpen] = useState(false);
 
   // Sync theme to root DOM and localStorage
   useEffect(() => {
@@ -791,6 +793,7 @@ export default function App() {
             hasPendingSync={syncStatus.hasPendingSync}
             isQuotaExceeded={syncStatus.isQuotaExceeded}
             onManualSync={handleManualSync}
+            onOpenMultiDeviceSync={() => setIsMultiDeviceSyncModalOpen(true)}
             pendingWhatsAppCount={pendingWhatsAppCount}
             onOpenWhatsAppOutbox={() => setIsWhatsAppOutboxOpen(true)}
             theme={theme}
@@ -988,6 +991,7 @@ export default function App() {
                   onDeleteStudent={handleDeleteStudent}
                   onClearAllData={handleClearAllData}
                   onOpenPrintCards={() => setIsCardsModalOpen(true)}
+                  onOpenMultiDeviceSync={() => setIsMultiDeviceSyncModalOpen(true)}
                   onRecordPayment={handleRecordPayment}
                   onUpdatePayment={handleUpdatePayment}
                   onDeletePayment={handleDeletePayment}
@@ -1052,6 +1056,17 @@ export default function App() {
           onDeleteMessage={handleDeleteWhatsAppMessage}
           onClearAll={handleClearAllWhatsAppMessages}
           onUpdateMessageText={handleUpdateWhatsAppMessageText}
+        />
+      )}
+
+      {/* Multi-Device Cloud Sync & Backup Modal */}
+      {isMultiDeviceSyncModalOpen && (
+        <MultiDeviceSyncModal
+          isOpen={isMultiDeviceSyncModalOpen}
+          onClose={() => setIsMultiDeviceSyncModalOpen(false)}
+          students={students}
+          payments={payments}
+          isOnline={syncStatus.isOnline}
         />
       )}
     </div>
