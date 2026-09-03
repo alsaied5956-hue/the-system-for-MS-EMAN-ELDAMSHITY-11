@@ -29,6 +29,7 @@ export interface SystemData {
   activeScannerGrade?: GradeName;
   activeScannerDays?: GroupDays;
   pendingWhatsAppMessages: PendingWhatsAppMessage[];
+  gradeWhatsAppLinks?: Record<string, string>; // { [gradeName]: "https://chat.whatsapp.com/..." }
   deletedBarcodes?: string[]; // Track deleted student barcodes to prevent zombie resurrects
   scanLogUpdatedAt?: number; // Exact timestamp when scanLog was modified
   updatedAt?: number; // Epoch timestamp in ms for conflict resolution
@@ -87,6 +88,7 @@ export const INITIAL_SYSTEM_DATA: SystemData = {
   groupPrices: DEFAULT_GRADE_PRICES,
   activeSessionSlotId: "auto",
   pendingWhatsAppMessages: [],
+  gradeWhatsAppLinks: {},
   deletedBarcodes: [],
   scanLogUpdatedAt: Date.now(),
   updatedAt: Date.now(),
@@ -924,6 +926,11 @@ export function mergeCloudDataWithLocal(local: SystemData, cloud: Partial<System
     ? cloud.activeScannerDays 
     : (local.activeScannerDays || cloud.activeScannerDays);
 
+  const mergedGradeWhatsAppLinks = {
+    ...(cloud.gradeWhatsAppLinks || {}),
+    ...(local.gradeWhatsAppLinks || {}),
+  };
+
   return {
     students: mergedStudents,
     attendanceHistory: mergedHistory,
@@ -937,6 +944,7 @@ export function mergeCloudDataWithLocal(local: SystemData, cloud: Partial<System
     activeScannerGrade: chosenScannerGrade,
     activeScannerDays: chosenScannerDays,
     pendingWhatsAppMessages: mergedWhatsApp,
+    gradeWhatsAppLinks: mergedGradeWhatsAppLinks,
     deletedBarcodes,
     scanLogUpdatedAt: Math.max(localScanTime, cloudScanTime),
     updatedAt: Math.max(localTime, cloudTime),
@@ -1815,4 +1823,32 @@ export function deletePendingWhatsAppMessage(id: string): void {
 
 export function clearAllPendingWhatsAppMessages(): void {
   savePendingWhatsAppMessages([]);
+}
+
+// -------------------------------------------------------------
+// Grade WhatsApp Groups Links Storage
+// -------------------------------------------------------------
+
+export function loadGradeWhatsAppLinks(): Record<string, string> {
+  const current = loadLocalData();
+  return current.gradeWhatsAppLinks || {};
+}
+
+export function saveGradeWhatsAppLinksData(links: Record<string, string>): void {
+  const current = loadLocalData();
+  const updated: SystemData = {
+    ...current,
+    gradeWhatsAppLinks: links,
+    updatedAt: Date.now(),
+  };
+  syncDataToCloud(updated, true);
+}
+
+export function saveSingleGradeWhatsAppLink(grade: string, link: string): void {
+  const current = loadLocalData();
+  const updatedLinks = {
+    ...(current.gradeWhatsAppLinks || {}),
+    [grade]: link.trim(),
+  };
+  saveGradeWhatsAppLinksData(updatedLinks);
 }

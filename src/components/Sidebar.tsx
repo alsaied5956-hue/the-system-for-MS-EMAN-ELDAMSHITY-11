@@ -95,7 +95,7 @@ export const Sidebar: React.FC<SidebarProps> = React.memo(({
     {
       title: "التواصل والبيانات",
       items: [
-        { id: "whatsapp-engine" as TabType, label: "المراسلة الفردية عبر واتساب", icon: MessageSquare, show: hasPerm("send_messages") },
+        { id: "whatsapp-engine" as TabType, label: "جروبات ومراسلة واتساب 📱", icon: MessageSquare, show: hasPerm("send_messages") },
         { id: "excel-integration" as TabType, label: "استيراد وتصدير شيتات Excel", icon: FileDown, show: hasPerm("excel_integration") },
       ],
     },

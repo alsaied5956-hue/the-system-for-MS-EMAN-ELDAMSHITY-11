@@ -22,19 +22,28 @@ import {
   BookmarkPlus,
   BookOpen,
   DollarSign,
+  Users,
 } from "lucide-react";
+import { GradeWhatsAppGroupsHub } from "./GradeWhatsAppGroupsHub";
 
 interface WhatsAppDirectTabProps {
   students: Student[];
+  gradeWhatsAppLinks?: Record<string, string>;
+  onSaveGradeLink?: (grade: string, link: string) => void;
   onOpenWhatsAppOutbox?: () => void;
   pendingWhatsAppCount?: number;
+  initialSubTab?: "groups" | "direct";
 }
 
 export const WhatsAppDirectTab: React.FC<WhatsAppDirectTabProps> = ({
   students,
+  gradeWhatsAppLinks = {},
+  onSaveGradeLink = () => {},
   onOpenWhatsAppOutbox,
   pendingWhatsAppCount = 0,
+  initialSubTab = "groups",
 }) => {
+  const [subTab, setSubTab] = useState<"groups" | "direct">(initialSubTab);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
   const [customMessage, setCustomMessage] = useState("");
@@ -245,40 +254,96 @@ export const WhatsAppDirectTab: React.FC<WhatsAppDirectTabProps> = ({
 
   return (
     <div className="space-y-6 font-tajawal">
-      {/* Top Banner for Offline Outbox Access */}
-      {onOpenWhatsAppOutbox && (
-        <div className="relative overflow-hidden rounded-3xl border border-indigo-500/30 p-5 bg-gradient-to-r from-[#0d1627] via-[#101b30] to-[#0d1627] flex flex-wrap items-center justify-between gap-4 shadow-xl">
-          <div className="flex items-center gap-3.5">
-            <div className="w-12 h-12 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-400 flex items-center justify-center shadow-md">
-              <MessageSquare className="w-6 h-6" />
-            </div>
-            <div>
-              <h3 className="text-sm font-bold text-white font-fancy flex items-center gap-2">
-                <span>طابور رسائل الواتساب المعلقة (Offline Outbox)</span>
-                {pendingWhatsAppCount > 0 && (
-                  <span className="px-2.5 py-0.5 rounded-full bg-rose-500 text-white text-[11px] font-bold font-mono animate-pulse">
-                    {pendingWhatsAppCount} رسائل بانتظار الإرسال
-                  </span>
-                )}
-              </h3>
-              <p className="text-xs text-slate-400 mt-0.5">
-                تخزين رسائل الغياب والتأخير وعكس الأيام والدرجات والواجب والسلوك أوفلاين وإرسالها تتابعياً
-              </p>
-            </div>
-          </div>
+      {/* Main Switcher: Grade WhatsApp Groups vs. 1-on-1 Messages */}
+      <div className="flex flex-wrap items-center justify-between gap-3 p-2 rounded-2xl bg-slate-900/90 border border-indigo-500/20 shadow-lg">
+        <div className="flex items-center gap-2 flex-wrap">
+          <button
+            type="button"
+            onClick={() => setSubTab("groups")}
+            className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer ${
+              subTab === "groups"
+                ? "bg-gradient-to-r from-emerald-500 to-teal-500 text-slate-950 font-black shadow-md shadow-emerald-500/20"
+                : "text-slate-300 hover:text-white hover:bg-slate-800"
+            }`}
+          >
+            <Users className="w-4 h-4" />
+            <span>👥 جروبات واتساب الصفوف الدراسية (الروابط، VCF، كود QR، دعوات)</span>
+          </button>
 
           <button
             type="button"
-            onClick={onOpenWhatsAppOutbox}
-            className="px-4 py-2.5 rounded-2xl bg-gradient-to-r from-amber-400 via-amber-300 to-yellow-200 hover:from-amber-300 text-slate-950 text-xs font-black transition-all shadow-md shadow-amber-500/20 flex items-center gap-2 cursor-pointer active:scale-95"
+            onClick={() => setSubTab("direct")}
+            className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer ${
+              subTab === "direct"
+                ? "bg-gradient-to-r from-amber-400 to-yellow-300 text-slate-950 font-black shadow-md shadow-amber-500/20"
+                : "text-slate-300 hover:text-white hover:bg-slate-800"
+            }`}
           >
-            <Flame className="w-4 h-4 text-slate-950" />
-            <span>عرض طابور الرسائل المعلقة ({pendingWhatsAppCount})</span>
+            <MessageSquare className="w-4 h-4" />
+            <span>💬 المراسلة الفردية ونماذج الرسائل</span>
           </button>
         </div>
+
+        {onOpenWhatsAppOutbox && (
+          <button
+            type="button"
+            onClick={onOpenWhatsAppOutbox}
+            className="px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold border border-slate-700 flex items-center gap-2 cursor-pointer transition-all shrink-0"
+          >
+            <Flame className="w-3.5 h-3.5 text-amber-400" />
+            <span>طابور الرسائل المعلقة ({pendingWhatsAppCount})</span>
+          </button>
+        )}
+      </div>
+
+      {/* Sub-tab 1: Grade WhatsApp Groups Hub */}
+      {subTab === "groups" && (
+        <GradeWhatsAppGroupsHub
+          students={students}
+          gradeWhatsAppLinks={gradeWhatsAppLinks}
+          onSaveGradeLink={onSaveGradeLink}
+          onOpenWhatsAppOutbox={onOpenWhatsAppOutbox}
+          pendingWhatsAppCount={pendingWhatsAppCount}
+        />
       )}
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      {/* Sub-tab 2: Direct 1-on-1 Messaging */}
+      {subTab === "direct" && (
+        <>
+          {/* Top Banner for Offline Outbox Access */}
+          {onOpenWhatsAppOutbox && (
+            <div className="relative overflow-hidden rounded-3xl border border-indigo-500/30 p-5 bg-gradient-to-r from-[#0d1627] via-[#101b30] to-[#0d1627] flex flex-wrap items-center justify-between gap-4 shadow-xl">
+              <div className="flex items-center gap-3.5">
+                <div className="w-12 h-12 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-400 flex items-center justify-center shadow-md">
+                  <MessageSquare className="w-6 h-6" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-white font-fancy flex items-center gap-2">
+                    <span>طابور رسائل الواتساب المعلقة (Offline Outbox)</span>
+                    {pendingWhatsAppCount > 0 && (
+                      <span className="px-2.5 py-0.5 rounded-full bg-rose-500 text-white text-[11px] font-bold font-mono animate-pulse">
+                        {pendingWhatsAppCount} رسائل بانتظار الإرسال
+                      </span>
+                    )}
+                  </h3>
+                  <p className="text-xs text-slate-400 mt-0.5">
+                    تخزين رسائل الغياب والتأخير وعكس الأيام والدرجات والواجب والسلوك أوفلاين وإرسالها تتابعياً
+                  </p>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={onOpenWhatsAppOutbox}
+                className="px-4 py-2.5 rounded-2xl bg-gradient-to-r from-amber-400 via-amber-300 to-yellow-200 hover:from-amber-300 text-slate-950 text-xs font-black transition-all shadow-md shadow-amber-500/20 flex items-center gap-2 cursor-pointer active:scale-95"
+              >
+                <Flame className="w-4 h-4 text-slate-950" />
+                <span>عرض طابور الرسائل المعلقة ({pendingWhatsAppCount})</span>
+              </button>
+            </div>
+          )}
+
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Direct Message Form (2 Columns) */}
         <div className="lg:col-span-2 space-y-5">
           <div className="glass-panel p-6 md:p-8 rounded-3xl shadow-2xl space-y-5">
@@ -616,6 +681,8 @@ export const WhatsAppDirectTab: React.FC<WhatsAppDirectTabProps> = ({
           </div>
         </div>
       </div>
+        </>
+      )}
     </div>
   );
 };

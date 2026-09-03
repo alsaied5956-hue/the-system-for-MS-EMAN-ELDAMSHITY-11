@@ -19,6 +19,7 @@ import {
   saveGroupPricesData,
   saveUsersData,
   savePendingWhatsAppMessages,
+  saveSingleGradeWhatsAppLink,
   markWhatsAppMessageSent,
   markAllWhatsAppMessagesSent,
   deletePendingWhatsAppMessage,
@@ -140,6 +141,7 @@ export default function App() {
   const [groupPrices, setGroupPrices] = useState<Record<GradeName, number>>({} as Record<GradeName, number>);
   const [usersList, setUsersList] = useState<UserAccount[]>([]);
   const [pendingWhatsAppMessages, setPendingWhatsAppMessages] = useState<PendingWhatsAppMessage[]>([]);
+  const [gradeWhatsAppLinks, setGradeWhatsAppLinks] = useState<Record<string, string>>({});
   const [isWhatsAppOutboxOpen, setIsWhatsAppOutboxOpen] = useState<boolean>(false);
 
   // Print PDF Modal State
@@ -164,6 +166,7 @@ export default function App() {
       setGroupPrices(data.groupPrices || ({} as Record<GradeName, number>));
       setUsersList(data.usersList || []);
       setPendingWhatsAppMessages(data.pendingWhatsAppMessages || []);
+      setGradeWhatsAppLinks(data.gradeWhatsAppLinks || {});
       if (data.activeSessionSlotId) {
         setActiveSessionSlotId(data.activeSessionSlotId);
       }
@@ -229,6 +232,7 @@ export default function App() {
           if (cloudData.groupPrices) setGroupPrices(cloudData.groupPrices);
           if (cloudData.usersList) setUsersList(cloudData.usersList);
           if (cloudData.pendingWhatsAppMessages) setPendingWhatsAppMessages(cloudData.pendingWhatsAppMessages);
+          if (cloudData.gradeWhatsAppLinks) setGradeWhatsAppLinks(cloudData.gradeWhatsAppLinks);
           if (cloudData.activeSessionSlotId) setActiveSessionSlotId(cloudData.activeSessionSlotId);
         }
       },
@@ -254,6 +258,7 @@ export default function App() {
         if (d.groupPrices) setGroupPrices(d.groupPrices);
         if (d.usersList) setUsersList(d.usersList);
         if (d.pendingWhatsAppMessages) setPendingWhatsAppMessages(d.pendingWhatsAppMessages);
+        if (d.gradeWhatsAppLinks) setGradeWhatsAppLinks(d.gradeWhatsAppLinks);
         if (d.activeSessionSlotId) setActiveSessionSlotId(d.activeSessionSlotId);
       }
     };
@@ -477,6 +482,12 @@ export default function App() {
       savePaymentsData(updatedPayments);
     }
   }, [students, payments, currentUser]);
+
+  // Handler: Save WhatsApp Group Link per Grade
+  const handleSaveGradeWhatsAppLink = useCallback((grade: string, link: string) => {
+    setGradeWhatsAppLinks((prev) => ({ ...prev, [grade]: link.trim() }));
+    saveSingleGradeWhatsAppLink(grade, link.trim());
+  }, []);
 
   // Handler: Bulk Import Students from Excel
   const handleBulkImport = useCallback((newStudentsList: Student[]) => {
@@ -1023,6 +1034,8 @@ export default function App() {
               {activeTab === "whatsapp-engine" && (
                 <WhatsAppDirectTab
                   students={students}
+                  gradeWhatsAppLinks={gradeWhatsAppLinks}
+                  onSaveGradeLink={handleSaveGradeWhatsAppLink}
                   onOpenWhatsAppOutbox={() => setIsWhatsAppOutboxOpen(true)}
                   pendingWhatsAppCount={pendingWhatsAppCount}
                 />
