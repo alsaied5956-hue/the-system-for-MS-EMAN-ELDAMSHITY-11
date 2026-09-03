@@ -31,7 +31,7 @@ import {
   importAndMergeCompleteBackupJSON,
 } from "../utils/storage";
 import { Student, PaymentRecord, GradeName, GRADE_ORDER } from "../types";
-import { getCurrentMonthKey, DEFAULT_GRADE_PRICES, openWhatsApp } from "../utils/helpers";
+import { getCurrentMonthKey, DEFAULT_GRADE_PRICES, openWhatsApp, getStudentPayment, isStudentPaid } from "../utils/helpers";
 import { matchStudentSearch } from "../utils/search";
 import * as XLSX from "xlsx";
 
@@ -103,8 +103,7 @@ export const MultiDeviceSyncModal: React.FC<MultiDeviceSyncModalProps> = ({
     const unpaidList: { student: Student; expectedFee: number }[] = [];
 
     studentsFilteredByGrade.forEach((student) => {
-      const bKey = String(student.barcode).trim();
-      const payment = monthPayments[bKey] || monthPayments[student.barcode];
+      const payment = getStudentPayment(monthPayments, student.barcode);
       const fee =
         student.customMonthlyFee !== undefined
           ? student.customMonthlyFee
@@ -150,8 +149,7 @@ export const MultiDeviceSyncModal: React.FC<MultiDeviceSyncModalProps> = ({
   // Filtered student list for table
   const displayedStudents = useMemo(() => {
     return studentsFilteredByGrade.filter((student) => {
-      const bKey = String(student.barcode).trim();
-      const isPaid = !!(monthPayments[bKey] || monthPayments[student.barcode]);
+      const isPaid = isStudentPaid(monthPayments, student.barcode);
 
       if (statusFilter === "PAID" && !isPaid) return false;
       if (statusFilter === "UNPAID" && isPaid) return false;

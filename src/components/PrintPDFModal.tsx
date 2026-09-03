@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from "react";
-import { Student, GradeName, PaymentRecord, GRADE_ORDER } from "../types";
+import { Student, GradeName, PaymentRecord, GRADE_ORDER, GroupDays } from "../types";
 import {
   TEACHER_NAME,
   getTodayKey,
@@ -13,7 +13,7 @@ import {
   getLatestActiveMonthKey,
 } from "../utils/helpers";
 import { printElement, downloadPrintableHtml } from "../utils/print";
-import { Printer, X, FileText, Download, Info, CheckCircle2, AlertTriangle, Calendar } from "lucide-react";
+import { Printer, X, FileText, Download, Info, CheckCircle2, Calendar, Users } from "lucide-react";
 
 interface PrintPDFModalProps {
   type: "attendance" | "exams" | "all" | "unpaid";
@@ -36,6 +36,7 @@ export const PrintPDFModal: React.FC<PrintPDFModalProps> = ({
     initialType === "unpaid" ? "unpaid" : initialType === "exams" ? "exams" : "attendance"
   );
   const [selectedMonth, setSelectedMonth] = useState<string>(() => getLatestActiveMonthKey(payments));
+  const [selectedGroupDays, setSelectedGroupDays] = useState<"ALL" | GroupDays>("ALL");
 
   const todayKey = getTodayKey();
   const formattedDate = formatArabicDate(todayKey);
@@ -73,6 +74,140 @@ export const PrintPDFModal: React.FC<PrintPDFModalProps> = ({
         title: `${reportTitle} - منظومة ${TEACHER_NAME}`,
         orientation: "portrait",
       }
+    );
+  };
+
+  const renderStudentTable = (studentList: Student[], startingIndex = 1) => {
+    return (
+      <table className="w-full text-right border-collapse text-xs border border-slate-300">
+        <thead>
+          <tr className="bg-slate-100 text-[#7c5b16] font-black border-b border-slate-300">
+            <th className="p-2 border border-slate-300 text-center w-10">م</th>
+            <th className="p-2 border border-slate-300 text-center w-24">الباركود</th>
+            <th className="p-2 border border-slate-300">اسم الطالب ثلاثي</th>
+            <th className="p-2 border border-slate-300 text-center">أيام المجموعة</th>
+            {activeReportType === "attendance" ? (
+              <>
+                <th className="p-2 border border-slate-300 text-center">حالة اليوم</th>
+                <th className="p-2 border border-slate-300 text-center">نسبة الحضور</th>
+                <th className="p-2 border border-slate-300 text-center">نسبة الغياب</th>
+              </>
+            ) : activeReportType === "exams" ? (
+              <>
+                <th className="p-2 border border-slate-300">آخر امتحان ودرجته</th>
+                <th className="p-2 border border-slate-300 text-center">متوسط الامتحانات</th>
+                <th className="p-2 border border-slate-300 text-center">النقاط ⭐</th>
+              </>
+            ) : (
+              <>
+                <th className="p-2 border border-slate-300 text-center">قيمة الاشتراك المستحق</th>
+                <th className="p-2 border border-slate-300 text-center">حالة السداد</th>
+              </>
+            )}
+            <th className="p-2 border border-slate-300 text-center">رقم ولي الأمر</th>
+            {activeReportType === "unpaid" && (
+              <th className="p-2 border border-slate-300">ملاحظات وخصومات</th>
+            )}
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-slate-200">
+          {studentList.map((student, idx) => {
+            const status = attendanceToday[student.barcode] || "غائب";
+            const attRate = getAttendanceRate(student);
+            const absRate = getAbsenceRate(student);
+            const examAvg = getExamAverage(student);
+            const fee =
+              student.customMonthlyFee ??
+              groupPrices[student.groupGrade] ??
+              DEFAULT_GRADE_PRICES[student.groupGrade] ??
+              100;
+
+            const isSatMonWed = student.groupDays === "سبت - إثنين - أربعاء";
+
+            return (
+              <tr
+                key={student.barcode}
+                className="hover:bg-amber-50/50 transition-colors page-break-avoid"
+              >
+                <td className="p-2 border border-slate-300 font-mono text-center">
+                  {startingIndex + idx}
+                </td>
+                <td className="p-2 border border-slate-300 font-mono font-bold text-center">
+                  #{student.barcode}
+                </td>
+                <td className="p-2 border border-slate-300 font-bold text-slate-900 text-[13px]">
+                  {student.name}
+                </td>
+                <td className="p-2 border border-slate-300 text-center">
+                  <span
+                    className={`px-2 py-0.5 rounded-md text-[10px] font-black border inline-block whitespace-nowrap ${
+                      isSatMonWed
+                        ? "bg-sky-100 text-sky-950 border-sky-300"
+                        : "bg-emerald-100 text-emerald-950 border-emerald-300"
+                    }`}
+                  >
+                    {student.groupDays}
+                  </span>
+                </td>
+                {activeReportType === "attendance" ? (
+                  <>
+                    <td className="p-2 border border-slate-300 font-bold text-center">
+                      <span
+                        className={
+                          status === "حضور"
+                            ? "text-emerald-700"
+                            : status === "تأخير"
+                            ? "text-amber-700"
+                            : "text-rose-700"
+                        }
+                      >
+                        {status}
+                      </span>
+                    </td>
+                    <td className="p-2 border border-slate-300 text-center font-bold text-emerald-700">
+                      {attRate}%
+                    </td>
+                    <td className="p-2 border border-slate-300 text-center font-bold text-rose-700">
+                      {absRate}%
+                    </td>
+                  </>
+                ) : activeReportType === "exams" ? (
+                  <>
+                    <td className="p-2 border border-slate-300 font-bold text-[#8c671b]">
+                      {student.lastExamScore || "لا يوجد"}
+                    </td>
+                    <td className="p-2 border border-slate-300 text-center font-black">
+                      {examAvg}%
+                    </td>
+                    <td className="p-2 border border-slate-300 text-center font-bold text-amber-700">
+                      {student.points || 0} ⭐
+                    </td>
+                  </>
+                ) : (
+                  <>
+                    <td className="p-2 border border-slate-300 text-center font-mono font-bold text-slate-900">
+                      {fee} ج.م
+                    </td>
+                    <td className="p-2 border border-slate-300 text-center">
+                      <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-rose-100 text-rose-700 border border-rose-300 inline-block">
+                        ❌ غير مسدد
+                      </span>
+                    </td>
+                  </>
+                )}
+                <td className="p-2 border border-slate-300 font-mono text-center text-slate-700">
+                  {student.parentPhone}
+                </td>
+                {activeReportType === "unpaid" && (
+                  <td className="p-2 border border-slate-300 text-xs text-slate-600">
+                    {student.discountReason ? `خصم: ${student.discountReason}` : "-"}
+                  </td>
+                )}
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
     );
   };
 
@@ -162,6 +297,27 @@ export const PrintPDFModal: React.FC<PrintPDFModalProps> = ({
             </button>
           </div>
 
+          {/* Group Days Filter */}
+          <div className="flex items-center gap-2 bg-[#080d1e] border border-indigo-500/40 px-3 py-1.5 rounded-xl">
+            <Users className="w-3.5 h-3.5 text-amber-400" />
+            <label className="text-xs font-bold text-slate-300">المجموعة:</label>
+            <select
+              value={selectedGroupDays}
+              onChange={(e) => setSelectedGroupDays(e.target.value as "ALL" | GroupDays)}
+              className="bg-transparent text-xs font-bold text-amber-300 outline-none cursor-pointer"
+            >
+              <option value="ALL" className="bg-slate-900 text-white">
+                كافة المجموعات (تقسيم سبت/إثنين/أربعاء و أحد/ثلاثاء/خميس)
+              </option>
+              <option value="سبت - إثنين - أربعاء" className="bg-slate-900 text-white">
+                مجموعة (سبت - إثنين - أربعاء) فقط
+              </option>
+              <option value="أحد - ثلاثاء - خميس" className="bg-slate-900 text-white">
+                مجموعة (أحد - ثلاثاء - خميس) فقط
+              </option>
+            </select>
+          </div>
+
           {activeReportType === "unpaid" && (
             <div className="flex items-center gap-2 bg-[#080d1e] border border-rose-500/40 px-3 py-1.5 rounded-xl">
               <Calendar className="w-3.5 h-3.5 text-rose-400" />
@@ -225,14 +381,54 @@ export const PrintPDFModal: React.FC<PrintPDFModalProps> = ({
             gradeStudents = gradeStudents.filter((s) => !isStudentPaid(monthPayments, s.barcode));
           }
 
+          // Filter by selectedGroupDays if not ALL
+          if (selectedGroupDays !== "ALL") {
+            gradeStudents = gradeStudents.filter((s) => s.groupDays === selectedGroupDays);
+          }
+
           if (gradeStudents.length === 0) return null;
 
-          const totalGradeUnpaidMoney = activeReportType === "unpaid"
-            ? gradeStudents.reduce((sum, s) => {
-                const fee = s.customMonthlyFee ?? groupPrices[s.groupGrade] ?? DEFAULT_GRADE_PRICES[s.groupGrade] ?? 100;
-                return sum + fee;
-              }, 0)
-            : 0;
+          const satStudents = gradeStudents.filter((s) => s.groupDays === "سبت - إثنين - أربعاء");
+          const sunStudents = gradeStudents.filter((s) => s.groupDays === "أحد - ثلاثاء - خميس");
+          const otherStudents = gradeStudents.filter(
+            (s) => s.groupDays !== "سبت - إثنين - أربعاء" && s.groupDays !== "أحد - ثلاثاء - خميس"
+          );
+
+          const totalGradeUnpaidMoney =
+            activeReportType === "unpaid"
+              ? gradeStudents.reduce((sum, s) => {
+                  const fee =
+                    s.customMonthlyFee ??
+                    groupPrices[s.groupGrade] ??
+                    DEFAULT_GRADE_PRICES[s.groupGrade] ??
+                    100;
+                  return sum + fee;
+                }, 0)
+              : 0;
+
+          const satUnpaidMoney =
+            activeReportType === "unpaid"
+              ? satStudents.reduce((sum, s) => {
+                  const fee =
+                    s.customMonthlyFee ??
+                    groupPrices[s.groupGrade] ??
+                    DEFAULT_GRADE_PRICES[s.groupGrade] ??
+                    100;
+                  return sum + fee;
+                }, 0)
+              : 0;
+
+          const sunUnpaidMoney =
+            activeReportType === "unpaid"
+              ? sunStudents.reduce((sum, s) => {
+                  const fee =
+                    s.customMonthlyFee ??
+                    groupPrices[s.groupGrade] ??
+                    DEFAULT_GRADE_PRICES[s.groupGrade] ??
+                    100;
+                  return sum + fee;
+                }, 0)
+              : 0;
 
           return (
             <section
@@ -268,6 +464,11 @@ export const PrintPDFModal: React.FC<PrintPDFModalProps> = ({
                       ? "سجل الدرجات والنتائج التراكمية"
                       : `كشف الطلاب غير المسددين لاشتراك شهر (${selectedMonth}) - الذين لم يدفعوا فقط`}
                   </p>
+                  {selectedGroupDays !== "ALL" && (
+                    <span className="text-[11px] font-bold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded-full border border-indigo-200 mt-1 inline-block">
+                      تصفية: {selectedGroupDays}
+                    </span>
+                  )}
                 </div>
 
                 <div className="text-left text-xs font-semibold text-slate-600">
@@ -276,30 +477,43 @@ export const PrintPDFModal: React.FC<PrintPDFModalProps> = ({
                 </div>
               </div>
 
-              {/* Summary Stats for Grade */}
-              <div className="flex items-center justify-between bg-slate-50 p-3 rounded-xl border border-slate-200 text-xs font-bold mb-4">
+              {/* Summary Stats for Grade with Group Breakdown */}
+              <div className="flex flex-wrap items-center justify-between bg-slate-50 p-3 rounded-xl border border-slate-200 text-xs font-bold mb-4 gap-2">
                 {activeReportType === "unpaid" ? (
                   <>
-                    <span>عدد الطلاب غير المسددين في هذا الصف: <strong className="text-rose-700 font-black">{gradeStudents.length} طالب</strong></span>
-                    <span>إجمالي المبالغ المتأخرة المطلوبة: <strong className="text-amber-700 font-black font-mono">{totalGradeUnpaidMoney} ج.م</strong></span>
-                    <span>الشهر: <strong>{selectedMonth}</strong></span>
+                    <span>
+                      إجمالي غير المسددين:{" "}
+                      <strong className="text-rose-700 font-black">{gradeStudents.length} طالب</strong>
+                    </span>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="bg-sky-50 text-sky-950 px-2.5 py-1 rounded border border-sky-300 font-bold">
+                        📅 سبت - إثنين - أربعاء: <strong>{satStudents.length} طالب</strong> ({satUnpaidMoney} ج.م)
+                      </span>
+                      <span className="bg-emerald-50 text-emerald-950 px-2.5 py-1 rounded border border-emerald-300 font-bold">
+                        📅 أحد - ثلاثاء - خميس: <strong>{sunStudents.length} طالب</strong> ({sunUnpaidMoney} ج.م)
+                      </span>
+                    </div>
+                    <span>
+                      المبالغ المتأخرة:{" "}
+                      <strong className="text-amber-700 font-black font-mono">{totalGradeUnpaidMoney} ج.م</strong>
+                    </span>
                   </>
                 ) : (
                   <>
-                    <span>إجمالي طلاب المرحلة: {gradeStudents.length} طالب</span>
+                    <span>إجمالي طلاب المرحلة: <strong>{gradeStudents.length} طالب</strong></span>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="bg-sky-50 text-sky-950 px-2.5 py-1 rounded border border-sky-300 font-bold">
+                        📅 سبت - إثنين - أربعاء: <strong>{satStudents.length} طالب</strong>
+                      </span>
+                      <span className="bg-emerald-50 text-emerald-950 px-2.5 py-1 rounded border border-emerald-300 font-bold">
+                        📅 أحد - ثلاثاء - خميس: <strong>{sunStudents.length} طالب</strong>
+                      </span>
+                    </div>
                     <span>
                       متوسط الحضور:{" "}
                       {Math.round(
                         gradeStudents.reduce((acc, s) => acc + getAttendanceRate(s), 0) /
-                          gradeStudents.length
-                      )}
-                      %
-                    </span>
-                    <span>
-                      متوسط الامتحانات:{" "}
-                      {Math.round(
-                        gradeStudents.reduce((acc, s) => acc + getExamAverage(s), 0) /
-                          gradeStudents.length
+                          (gradeStudents.length || 1)
                       )}
                       %
                     </span>
@@ -307,124 +521,94 @@ export const PrintPDFModal: React.FC<PrintPDFModalProps> = ({
                 )}
               </div>
 
-              {/* Table for Grade */}
-              <div className="overflow-x-auto">
-                <table className="w-full text-right border-collapse text-xs border border-slate-300">
-                  <thead>
-                    <tr className="bg-slate-100 text-[#7c5b16] font-black border-b border-slate-300">
-                      <th className="p-2 border border-slate-300 text-center w-10">م</th>
-                      <th className="p-2 border border-slate-300 text-center w-24">الباركود</th>
-                      <th className="p-2 border border-slate-300">اسم الطالب ثلاثي</th>
-                      <th className="p-2 border border-slate-300">المجموعة</th>
-                      {activeReportType === "attendance" ? (
-                        <>
-                          <th className="p-2 border border-slate-300 text-center">حالة اليوم</th>
-                          <th className="p-2 border border-slate-300 text-center">نسبة الحضور</th>
-                          <th className="p-2 border border-slate-300 text-center">نسبة الغياب</th>
-                        </>
-                      ) : activeReportType === "exams" ? (
-                        <>
-                          <th className="p-2 border border-slate-300">آخر امتحان ودرجته</th>
-                          <th className="p-2 border border-slate-300 text-center">متوسط الامتحانات</th>
-                          <th className="p-2 border border-slate-300 text-center">النقاط ⭐</th>
-                        </>
-                      ) : (
-                        <>
-                          <th className="p-2 border border-slate-300 text-center">قيمة الاشتراك المستحق</th>
-                          <th className="p-2 border border-slate-300 text-center">حالة السداد</th>
-                        </>
-                      )}
-                      <th className="p-2 border border-slate-300 text-center">رقم ولي الأمر</th>
-                      {activeReportType === "unpaid" && (
-                        <th className="p-2 border border-slate-300">ملاحظات وخصومات</th>
-                      )}
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-200">
-                    {gradeStudents.map((student, idx) => {
-                      const status = attendanceToday[student.barcode] || "غائب";
-                      const attRate = getAttendanceRate(student);
-                      const absRate = getAbsenceRate(student);
-                      const examAvg = getExamAverage(student);
-                      const fee = student.customMonthlyFee ?? groupPrices[student.groupGrade] ?? DEFAULT_GRADE_PRICES[student.groupGrade] ?? 100;
+              {/* Table(s) Segmented by Group Days */}
+              {selectedGroupDays === "ALL" ? (
+                <div className="space-y-6">
+                  {/* Group 1: سبت - إثنين - أربعاء */}
+                  {satStudents.length > 0 && (
+                    <div className="page-break-avoid">
+                      <div className="flex items-center justify-between bg-sky-100/90 border-r-4 border-sky-700 px-3 py-2 rounded-lg mb-2 print:bg-slate-100 print:border-black">
+                        <div className="flex items-center gap-2">
+                          <span className="text-base">📅</span>
+                          <h4 className="font-black text-sky-950 text-xs md:text-sm">
+                            مجموعة: سبت - إثنين - أربعاء
+                          </h4>
+                          <span className="px-2 py-0.5 rounded-full text-[11px] font-bold bg-sky-200 text-sky-900 border border-sky-300">
+                            {satStudents.length} طالب
+                          </span>
+                        </div>
+                        {activeReportType === "unpaid" && (
+                          <span className="text-xs font-bold text-rose-800 font-mono">
+                            المتأخرات: {satUnpaidMoney} ج.م
+                          </span>
+                        )}
+                      </div>
+                      <div className="overflow-x-auto">
+                        {renderStudentTable(satStudents, 1)}
+                      </div>
+                    </div>
+                  )}
 
-                      return (
-                        <tr
-                          key={student.barcode}
-                          className="hover:bg-amber-50/50 transition-colors page-break-avoid"
-                        >
-                          <td className="p-2 border border-slate-300 font-mono text-center">
-                            {idx + 1}
-                          </td>
-                          <td className="p-2 border border-slate-300 font-mono font-bold text-center">
-                            #{student.barcode}
-                          </td>
-                          <td className="p-2 border border-slate-300 font-bold text-slate-900 text-[13px]">
-                            {student.name}
-                          </td>
-                          <td className="p-2 border border-slate-300 text-slate-600 text-[11px]">
-                            {student.groupDays}
-                          </td>
-                          {activeReportType === "attendance" ? (
-                            <>
-                              <td className="p-2 border border-slate-300 font-bold text-center">
-                                <span
-                                  className={
-                                    status === "حضور"
-                                      ? "text-emerald-700"
-                                      : status === "تأخير"
-                                      ? "text-amber-700"
-                                      : "text-rose-700"
-                                  }
-                                >
-                                  {status}
-                                </span>
-                              </td>
-                              <td className="p-2 border border-slate-300 text-center font-bold text-emerald-700">
-                                {attRate}%
-                              </td>
-                              <td className="p-2 border border-slate-300 text-center font-bold text-rose-700">
-                                {absRate}%
-                              </td>
-                            </>
-                          ) : activeReportType === "exams" ? (
-                            <>
-                              <td className="p-2 border border-slate-300 font-bold text-[#8c671b]">
-                                {student.lastExamScore || "لا يوجد"}
-                              </td>
-                              <td className="p-2 border border-slate-300 text-center font-black">
-                                {examAvg}%
-                              </td>
-                              <td className="p-2 border border-slate-300 text-center font-bold text-amber-700">
-                                {student.points || 0} ⭐
-                              </td>
-                            </>
-                          ) : (
-                            <>
-                              <td className="p-2 border border-slate-300 text-center font-mono font-bold text-slate-900">
-                                {fee} ج.م
-                              </td>
-                              <td className="p-2 border border-slate-300 text-center">
-                                <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-rose-100 text-rose-700 border border-rose-300 inline-block">
-                                  ❌ غير مسدد
-                                </span>
-                              </td>
-                            </>
-                          )}
-                          <td className="p-2 border border-slate-300 font-mono text-center text-slate-700">
-                            {student.parentPhone}
-                          </td>
-                          {activeReportType === "unpaid" && (
-                            <td className="p-2 border border-slate-300 text-xs text-slate-600">
-                              {student.discountReason ? `خصم: ${student.discountReason}` : "-"}
-                            </td>
-                          )}
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
+                  {/* Group 2: أحد - ثلاثاء - خميس */}
+                  {sunStudents.length > 0 && (
+                    <div className="page-break-avoid mt-5">
+                      <div className="flex items-center justify-between bg-emerald-100/90 border-r-4 border-emerald-700 px-3 py-2 rounded-lg mb-2 print:bg-slate-100 print:border-black">
+                        <div className="flex items-center gap-2">
+                          <span className="text-base">📅</span>
+                          <h4 className="font-black text-emerald-950 text-xs md:text-sm">
+                            مجموعة: أحد - ثلاثاء - خميس
+                          </h4>
+                          <span className="px-2 py-0.5 rounded-full text-[11px] font-bold bg-emerald-200 text-emerald-900 border border-emerald-300">
+                            {sunStudents.length} طالب
+                          </span>
+                        </div>
+                        {activeReportType === "unpaid" && (
+                          <span className="text-xs font-bold text-rose-800 font-mono">
+                            المتأخرات: {sunUnpaidMoney} ج.م
+                          </span>
+                        )}
+                      </div>
+                      <div className="overflow-x-auto">
+                        {renderStudentTable(sunStudents, 1)}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Group 3: Other days if any */}
+                  {otherStudents.length > 0 && (
+                    <div className="page-break-avoid mt-5">
+                      <div className="bg-slate-100 border-r-4 border-slate-600 px-3 py-2 rounded-lg mb-2">
+                        <h4 className="font-black text-slate-800 text-xs">
+                          مجموعات أخرى ({otherStudents.length} طالب)
+                        </h4>
+                      </div>
+                      <div className="overflow-x-auto">
+                        {renderStudentTable(otherStudents, 1)}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="page-break-avoid">
+                  <div className="flex items-center justify-between bg-slate-100 border-r-4 border-[#b38728] px-3 py-2 rounded-lg mb-2">
+                    <h4 className="font-black text-slate-900 text-xs md:text-sm flex items-center gap-2">
+                      <span>📅</span>
+                      <span>كشف طلاب مجموعة ({selectedGroupDays})</span>
+                      <span className="px-2 py-0.5 rounded-full text-[11px] font-bold bg-amber-200 text-amber-900">
+                        {gradeStudents.length} طالب
+                      </span>
+                    </h4>
+                    {activeReportType === "unpaid" && (
+                      <span className="text-xs font-bold text-rose-800 font-mono">
+                        إجمالي المتأخرات: {totalGradeUnpaidMoney} ج.م
+                      </span>
+                    )}
+                  </div>
+                  <div className="overflow-x-auto">
+                    {renderStudentTable(gradeStudents, 1)}
+                  </div>
+                </div>
+              )}
 
               {/* Grade Page Footer */}
               <div className="flex items-center justify-between pt-6 mt-4 border-t border-slate-200 text-xs text-slate-600">

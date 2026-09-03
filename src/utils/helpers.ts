@@ -204,39 +204,112 @@ export function normalizeBarcode(code: string | number | undefined | null): stri
 }
 
 /**
- * Robust payment lookup for a student within a month's payment map.
- * Checks raw barcode, normalized barcode, and "card_" prefixed variants.
+ * Checks if a payment record is specifically a card fee (e.g. 30 EGP barcode card)
+ * and NOT a monthly tuition subscription fee.
  */
-export function getStudentPayment(
+export function isCardFeeRecord(rec: PaymentRecord | undefined, key?: string): boolean {
+  if (!rec) return false;
+  if (rec.isCardFee) return true;
+  if (key && key.startsWith("card_")) return true;
+  if (rec.note && (rec.note.includes("كارت") || rec.note.includes("كارنيه") || rec.note.includes("استخراج كارت"))) {
+    return true;
+  }
+  return false;
+}
+
+/**
+ * Robust monthly tuition payment lookup for a student.
+ * EXCLUDES administrative card fees (30 EGP), returning only real monthly subscriptions.
+ */
+export function getStudentMonthlyPayment(
   monthPayments: Record<string, PaymentRecord> | undefined,
   barcode: string | number | undefined | null
 ): PaymentRecord | undefined {
   if (!monthPayments || barcode === undefined || barcode === null) return undefined;
   const rawKey = String(barcode).trim();
-  if (monthPayments[rawKey]) return monthPayments[rawKey];
+  const cleanKey = normalizeBarcode(rawKey);
+  if (!cleanKey) return undefined;
 
-  const normKey = normalizeBarcode(rawKey);
-  if (!normKey) return undefined;
-  if (monthPayments[normKey]) return monthPayments[normKey];
-  if (monthPayments[`card_${normKey}`]) return monthPayments[`card_${normKey}`];
+  // 1. Direct raw check (must not be a card fee)
+  const rawRec = monthPayments[rawKey];
+  if (rawRec && !isCardFeeRecord(rawRec, rawKey)) {
+    return rawRec;
+  }
 
-  // Fallback search across all keys
+  // 2. Direct cleanKey check
+  const cleanRec = monthPayments[cleanKey];
+  if (cleanRec && !isCardFeeRecord(cleanRec, cleanKey)) {
+    return cleanRec;
+  }
+
+  // 3. Fallback scan across all keys for this month
   for (const [k, rec] of Object.entries(monthPayments)) {
-    if (normalizeBarcode(k) === normKey) {
+    if (!rec) continue;
+    if (isCardFeeRecord(rec, k)) continue;
+    if (normalizeBarcode(k) === cleanKey) {
       return rec;
     }
   }
+
   return undefined;
 }
 
 /**
- * Checks whether a student has paid for the given month.
+ * Card fee payment lookup for a student (e.g. 30 EGP barcode card fee).
+ */
+export function getStudentCardPayment(
+  monthPayments: Record<string, PaymentRecord> | undefined,
+  barcode: string | number | undefined | null
+): PaymentRecord | undefined {
+  if (!monthPayments || barcode === undefined || barcode === null) return undefined;
+  const rawKey = String(barcode).trim();
+  const cleanKey = normalizeBarcode(rawKey);
+  if (!cleanKey) return undefined;
+
+  // Check card_ prefixed key
+  const cardKey = `card_${cleanKey}`;
+  if (monthPayments[cardKey]) return monthPayments[cardKey];
+
+  // Scan across keys for card fee
+  for (const [k, rec] of Object.entries(monthPayments)) {
+    if (!rec) continue;
+    if (isCardFeeRecord(rec, k) && normalizeBarcode(k) === cleanKey) {
+      return rec;
+    }
+  }
+
+  return undefined;
+}
+
+/**
+ * Standard alias for retrieving the student's monthly tuition payment record.
+ */
+export function getStudentPayment(
+  monthPayments: Record<string, PaymentRecord> | undefined,
+  barcode: string | number | undefined | null
+): PaymentRecord | undefined {
+  return getStudentMonthlyPayment(monthPayments, barcode);
+}
+
+/**
+ * Checks whether a student has paid their MONTHLY TUITION for the given month.
+ * Note: Having only paid the 30 EGP card fee does NOT count as paying the monthly tuition.
  */
 export function isStudentPaid(
   monthPayments: Record<string, PaymentRecord> | undefined,
   barcode: string | number | undefined | null
 ): boolean {
-  return !!getStudentPayment(monthPayments, barcode);
+  return !!getStudentMonthlyPayment(monthPayments, barcode);
+}
+
+/**
+ * Checks whether a student has paid their card fee for the given month.
+ */
+export function isStudentCardPaid(
+  monthPayments: Record<string, PaymentRecord> | undefined,
+  barcode: string | number | undefined | null
+): boolean {
+  return !!getStudentCardPayment(monthPayments, barcode);
 }
 
 /**
