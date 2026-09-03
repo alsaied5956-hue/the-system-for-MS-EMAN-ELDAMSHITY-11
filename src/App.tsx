@@ -223,7 +223,7 @@ export default function App() {
           if (cloudData.students) setStudents(cloudData.students);
           if (cloudData.attendanceToday) setAttendanceToday(cloudData.attendanceToday);
           if (cloudData.attendanceHistory) setAttendanceHistory(cloudData.attendanceHistory);
-          if (cloudData.scanLogOrder) setScanLogOrder(cloudData.scanLogOrder);
+          if (Array.isArray(cloudData.scanLogOrder)) setScanLogOrder(cloudData.scanLogOrder);
           if (cloudData.scanLogTimes) setScanLogTimes(cloudData.scanLogTimes);
           if (cloudData.payments) setPayments(cloudData.payments);
           if (cloudData.groupPrices) setGroupPrices(cloudData.groupPrices);
@@ -248,7 +248,7 @@ export default function App() {
         if (d.students) setStudents(d.students);
         if (d.attendanceToday) setAttendanceToday(d.attendanceToday);
         if (d.attendanceHistory) setAttendanceHistory(d.attendanceHistory);
-        if (d.scanLogOrder) setScanLogOrder(d.scanLogOrder);
+        if (Array.isArray(d.scanLogOrder)) setScanLogOrder(d.scanLogOrder);
         if (d.scanLogTimes) setScanLogTimes(d.scanLogTimes);
         if (d.payments) setPayments(d.payments);
         if (d.groupPrices) setGroupPrices(d.groupPrices);

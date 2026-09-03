@@ -9,6 +9,13 @@ const PENDING_SYNC_KEY = "center_pending_sync_v2";
 const LAST_SYNC_TIME_KEY = "center_last_sync_time";
 const BROADCAST_CHANNEL_NAME = "aiman_system_sync_bus";
 
+export const CLIENT_ID =
+  typeof window !== "undefined"
+    ? ((window as any).__AIMAN_CLIENT_ID ||
+      ((window as any).__AIMAN_CLIENT_ID =
+        Math.random().toString(36).substring(2, 11) + "_" + Date.now()))
+    : "server_instance";
+
 export interface SystemData {
   students: Student[];
   attendanceHistory: Record<string, Record<string, string>>; // { "2026-08-25": { "1001": "حضور" } }
@@ -23,6 +30,7 @@ export interface SystemData {
   activeScannerDays?: GroupDays;
   pendingWhatsAppMessages: PendingWhatsAppMessage[];
   deletedBarcodes?: string[]; // Track deleted student barcodes to prevent zombie resurrects
+  scanLogUpdatedAt?: number; // Exact timestamp when scanLog was modified
   updatedAt?: number; // Epoch timestamp in ms for conflict resolution
 }
 
@@ -80,6 +88,7 @@ export const INITIAL_SYSTEM_DATA: SystemData = {
   activeSessionSlotId: "auto",
   pendingWhatsAppMessages: [],
   deletedBarcodes: [],
+  scanLogUpdatedAt: Date.now(),
   updatedAt: Date.now(),
 };
 
@@ -341,18 +350,36 @@ export function loadLocalData(): SystemData {
     }
 
     const todayKey = getTodayKey();
+    let initialScanOrder: string[] = Array.isArray(parsed.scanLogOrder) ? parsed.scanLogOrder : [];
+    let initialScanTimes: Record<string, string> = parsed.scanLogTimes || {};
+
+    // Filter out scans that are from previous days so scanner always opens fresh for today
+    initialScanOrder = initialScanOrder.filter((b: string) => {
+      const timeIso = initialScanTimes[b];
+      if (typeof timeIso === "string" && timeIso.includes("T")) {
+        return timeIso.startsWith(todayKey);
+      }
+      return true;
+    });
+
+    const filteredScanTimes: Record<string, string> = {};
+    initialScanOrder.forEach((b: string) => {
+      if (initialScanTimes[b]) filteredScanTimes[b] = initialScanTimes[b];
+    });
+
     const loaded: SystemData = {
       students: Array.isArray(parsed.students) ? parsed.students : [],
       attendanceHistory: parsed.attendanceHistory || {},
       attendanceToday: parsed.attendanceHistory?.[todayKey] || parsed.attendanceToday || {},
-      scanLogTimes: parsed.scanLogTimes || {},
+      scanLogTimes: filteredScanTimes,
       payments: mergedPayments,
-      scanLogOrder: Array.isArray(parsed.scanLogOrder) ? parsed.scanLogOrder : [],
+      scanLogOrder: initialScanOrder,
       usersList: Array.isArray(parsed.usersList) && parsed.usersList.length > 0 ? parsed.usersList : DEFAULT_USERS,
       groupPrices: { ...DEFAULT_GRADE_PRICES, ...(parsed.groupPrices || {}) },
       activeSessionSlotId: parsed.activeSessionSlotId || "auto",
       pendingWhatsAppMessages: Array.isArray(parsed.pendingWhatsAppMessages) ? parsed.pendingWhatsAppMessages : [],
       deletedBarcodes: Array.isArray(parsed.deletedBarcodes) ? parsed.deletedBarcodes : [],
+      scanLogUpdatedAt: parseTimestamp(parsed.scanLogUpdatedAt) || 0,
       updatedAt: parseTimestamp(parsed.updatedAt) || Date.now(),
     };
     memoryCachedData = loaded;
@@ -461,44 +488,17 @@ export async function flushPendingSyncToCloud(forceManual: boolean = false): Pro
 
     const systemDocRef = doc(db, "system_state", "main_center_data");
 
-    // Fast check for concurrent remote updates from other devices before pushing
-    let dataToPush = localData;
-    try {
-      const snapshot = await withTimeout(getDoc(systemDocRef), 4000, "fast fetch");
-      if (snapshot && snapshot.exists()) {
-        const val = snapshot.data();
-        let cloudObj: Partial<SystemData> | null = null;
-        if (val?._compressedPayload && typeof val._compressedPayload === "string") {
-          try {
-            cloudObj = await decompressData<Partial<SystemData>>(val._compressedPayload);
-          } catch {}
-        } else if (val) {
-          cloudObj = val as Partial<SystemData>;
-        }
-        if (cloudObj) {
-          const merged = mergeCloudDataWithLocal(localData, cloudObj);
-          saveToLocalStorage(merged, false);
-          dataToPush = merged;
-
-          // If local had no new changes and data is identical to what is already on cloud, skip writing
-          const cloudBarcodes = new Set((cloudObj.students || []).map((s) => s.barcode));
-          const hasNewLocalStudents = (merged.students || []).some((s) => s.barcode && !cloudBarcodes.has(s.barcode));
-          const isPending = localStorage.getItem(PENDING_SYNC_KEY) === "true";
-
-          if (!hasNewLocalStudents && !isPending && (localData.updatedAt || 0) <= (cloudObj.updatedAt || 0)) {
-            isCurrentlySyncing = false;
-            notifySyncStatusChange();
-            return true;
-          }
-        }
-      }
-    } catch {
-      // In offline or slow mobile conditions, proceed with dataToPush = localData
-    }
+    // Do NOT perform a blocking getDoc fetch before write.
+    // That caused 4000ms UI thread delays (freezing/lag) and stale server snapshots resurrecting old scan queues!
+    const dataToPush = localData;
+    const nowTime = Date.now();
 
     const cleaned = cleanForFirestore({
       ...dataToPush,
-      updatedAt: Date.now(),
+      _lastClientId: CLIENT_ID,
+      _lastClientTimestamp: nowTime,
+      updatedAt: dataToPush.updatedAt || nowTime,
+      scanLogUpdatedAt: dataToPush.scanLogUpdatedAt || dataToPush.updatedAt || nowTime,
       syncedAtIso: new Date().toISOString(),
     });
 
@@ -513,7 +513,10 @@ export async function flushPendingSyncToCloud(forceManual: boolean = false): Pro
           compressedKB: compression.compressedSizeKB,
           ratioPercent: compression.compressionRatio,
         },
-        updatedAt: Date.now(),
+        _lastClientId: CLIENT_ID,
+        _lastClientTimestamp: nowTime,
+        updatedAt: dataToPush.updatedAt || nowTime,
+        scanLogUpdatedAt: dataToPush.scanLogUpdatedAt || dataToPush.updatedAt || nowTime,
         syncedAtIso: new Date().toISOString(),
         studentsCount: (dataToPush.students || []).length,
         paymentsCount: Object.values(dataToPush.payments || {}).reduce((acc, m) => acc + Object.keys(m || {}).length, 0),
@@ -779,24 +782,52 @@ export function mergeCloudDataWithLocal(local: SystemData, cloud: Partial<System
     ...mergedToday,
   };
 
-  // 3. Merge Scan Log Order & Times (preserve recent scans from all devices seamlessly)
+  // 3. Merge Scan Log Order & Times (authoritative by latest modification timestamp)
   const remoteOrder = Array.isArray(cloud.scanLogOrder) ? cloud.scanLogOrder : [];
   const localOrder = Array.isArray(local.scanLogOrder) ? local.scanLogOrder : [];
-  
-  const orderSet = new Set<string>();
-  const mergedOrder: string[] = [];
 
-  [...localOrder, ...remoteOrder].forEach((barcode) => {
+  const localScanTime = parseTimestamp(local.scanLogUpdatedAt || local.updatedAt);
+  const cloudScanTime = parseTimestamp(cloud.scanLogUpdatedAt || cloud.updatedAt);
+
+  let chosenOrder: string[];
+  let chosenScanTimes: Record<string, string>;
+
+  if (cloudScanTime > localScanTime) {
+    // Cloud has the newer scanner session state (e.g. session finished/cleared or students scanned on another device)
+    chosenOrder = [...remoteOrder];
+    chosenScanTimes = { ...(cloud.scanLogTimes || {}) };
+  } else {
+    // Local device has the newer or equal scanner session state
+    chosenOrder = [...localOrder];
+    chosenScanTimes = { ...(local.scanLogTimes || {}) };
+  }
+
+  // Deduplicate and filter out deleted barcodes
+  const orderSet = new Set<string>();
+  const preMergedOrder: string[] = [];
+
+  chosenOrder.forEach((barcode) => {
     if (barcode && !orderSet.has(barcode) && !deletedSet.has(barcode)) {
       orderSet.add(barcode);
-      mergedOrder.push(barcode);
+      preMergedOrder.push(barcode);
     }
   });
 
-  const mergedScanTimes: Record<string, string> = {
-    ...(local.scanLogTimes || {}),
-    ...(cloud.scanLogTimes || {}),
-  };
+  // Filter out any stale scans that are from a previous date so the scanner is always fresh for today
+  const mergedOrder = preMergedOrder.filter((barcode) => {
+    const timeIso = chosenScanTimes[barcode];
+    if (typeof timeIso === "string" && timeIso.includes("T")) {
+      return timeIso.startsWith(todayKey);
+    }
+    return true;
+  });
+
+  const mergedScanTimes: Record<string, string> = {};
+  mergedOrder.forEach((barcode) => {
+    if (chosenScanTimes[barcode]) {
+      mergedScanTimes[barcode] = chosenScanTimes[barcode];
+    }
+  });
 
   // 4. Merge Payments (deep merge all months and all student records within each month)
   const mergedPayments: Record<string, Record<string, PaymentRecord>> = {};
@@ -904,6 +935,7 @@ export function mergeCloudDataWithLocal(local: SystemData, cloud: Partial<System
     activeScannerDays: chosenScannerDays,
     pendingWhatsAppMessages: mergedWhatsApp,
     deletedBarcodes,
+    scanLogUpdatedAt: Math.max(localScanTime, cloudScanTime),
     updatedAt: Math.max(localTime, cloudTime),
   };
 }
@@ -995,10 +1027,14 @@ export async function syncAndMergeAllDevicesData(
     const nowIso = new Date().toLocaleTimeString("ar-EG", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
     localStorage.setItem(LAST_SYNC_TIME_KEY, nowIso);
 
+    const nowTime = Date.now();
     // 5. Compress and push unified data to Firestore with automatic compression
     const cleaned = cleanForFirestore({
       ...unifiedData,
-      updatedAt: Date.now(),
+      _lastClientId: CLIENT_ID,
+      _lastClientTimestamp: nowTime,
+      updatedAt: nowTime,
+      scanLogUpdatedAt: unifiedData.scanLogUpdatedAt || nowTime,
       syncedAtIso: new Date().toISOString(),
     });
 
@@ -1014,7 +1050,10 @@ export async function syncAndMergeAllDevicesData(
       docPayload = {
         _compressedPayload: compression.compressedString,
         _compressionStats: compressionStats,
-        updatedAt: Date.now(),
+        _lastClientId: CLIENT_ID,
+        _lastClientTimestamp: nowTime,
+        updatedAt: nowTime,
+        scanLogUpdatedAt: unifiedData.scanLogUpdatedAt || nowTime,
         syncedAtIso: new Date().toISOString(),
         studentsCount: unifiedData.students?.length || 0,
         paymentsCount: Object.values(unifiedData.payments || {}).reduce((acc, m) => acc + Object.keys(m || {}).length, 0),
@@ -1281,6 +1320,13 @@ function ensureActiveSnapshotListener() {
           if (snapshot.exists()) {
             const val = snapshot.data();
             if (val) {
+              // 1. Ignore echo from local client writes to prevent UI freezing, unnecessary decompressions, and infinite loops
+              if (val._lastClientId && val._lastClientId === CLIENT_ID) {
+                lastSyncedDataHash = JSON.stringify(loadLocalData());
+                localStorage.setItem(PENDING_SYNC_KEY, "false");
+                return;
+              }
+
               let cloudObj: Partial<SystemData> = val as Partial<SystemData>;
               if (val._compressedPayload && typeof val._compressedPayload === "string") {
                 try {
@@ -1288,6 +1334,7 @@ function ensureActiveSnapshotListener() {
                   if (decompressed) {
                     cloudObj = {
                       ...decompressed,
+                      scanLogUpdatedAt: typeof val.scanLogUpdatedAt === "number" ? val.scanLogUpdatedAt : decompressed.scanLogUpdatedAt,
                       updatedAt: typeof val.updatedAt === "number" ? val.updatedAt : decompressed.updatedAt,
                     };
                   }
@@ -1309,51 +1356,13 @@ function ensureActiveSnapshotListener() {
               lastSyncedDataHash = incomingHash;
               saveToLocalStorage(merged, false);
 
-              // Check if local device contributed any new records to merged that were missing in cloud
-              const cloudStudentBarcodes = new Set((cloudObj.students || []).map((s) => s.barcode));
-              const hasNewStudentsForCloud = (merged.students || []).some(
-                (s) => s.barcode && !cloudStudentBarcodes.has(s.barcode)
-              );
-
-              let hasNewPaymentsForCloud = false;
-              if (merged.payments) {
-                for (const [m, recs] of Object.entries(merged.payments)) {
-                  const cloudRecs = cloudObj.payments?.[m] || {};
-                  for (const [b, rec] of Object.entries(recs || {})) {
-                    if (Number(rec?.amount) > 0 && !(Number(cloudRecs[b]?.amount) > 0)) {
-                      hasNewPaymentsForCloud = true;
-                      break;
-                    }
-                  }
-                  if (hasNewPaymentsForCloud) break;
-                }
-              }
-
-              let hasNewAttendanceForCloud = false;
-              if (merged.attendanceHistory) {
-                for (const [d, dayMap] of Object.entries(merged.attendanceHistory)) {
-                  const cloudDayMap = cloudObj.attendanceHistory?.[d] || {};
-                  for (const [b, st] of Object.entries(dayMap || {})) {
-                    if ((st === "حضور" || st === "تأخير") && cloudDayMap[b] !== st) {
-                      hasNewAttendanceForCloud = true;
-                      break;
-                    }
-                  }
-                  if (hasNewAttendanceForCloud) break;
-                }
-              }
-
-              const localWasNewer = (currentLocal.updatedAt || 0) > (cloudObj.updatedAt || 0);
+              const cloudTime = parseTimestamp(cloudObj.updatedAt || val.updatedAt);
+              const localTime = parseTimestamp(currentLocal.updatedAt);
               const hasPendingSync = localStorage.getItem(PENDING_SYNC_KEY) === "true";
 
-              const shouldPushToCloud =
-                hasNewStudentsForCloud ||
-                hasNewPaymentsForCloud ||
-                hasNewAttendanceForCloud ||
-                (localWasNewer && hasPendingSync);
-
-              if (shouldPushToCloud) {
-                localStorage.setItem(PENDING_SYNC_KEY, "true");
+              // Only push to cloud if this device has pending unsynced offline changes
+              // and local is strictly newer than cloud. Never bounce back cloud updates!
+              if (hasPendingSync && localTime > cloudTime) {
                 flushPendingSyncToCloud(false).catch(() => {});
               } else {
                 localStorage.setItem(PENDING_SYNC_KEY, "false");
@@ -1522,6 +1531,7 @@ export function saveStudentsData(students: Student[], deletedBarcode?: string): 
 export function clearAllSystemData(): void {
   const current = loadLocalData();
   const allBarcodes = (current.students || []).map((s) => s.barcode);
+  const now = Date.now();
   const updated: SystemData = {
     ...current,
     students: [],
@@ -1529,25 +1539,21 @@ export function clearAllSystemData(): void {
     scanLogOrder: [],
     scanLogTimes: {},
     deletedBarcodes: Array.from(new Set([...(current.deletedBarcodes || []), ...allBarcodes])),
-    updatedAt: Date.now(),
+    scanLogUpdatedAt: now,
+    updatedAt: now,
   };
   syncDataToCloud(updated, true);
 }
 
 /**
- * Automatically inspects the local disk (localStorage) and immediately pushes all saved
- * students, attendance records, financial payments, and settings to Firestore Cloud Database.
+ * Automatically inspects the local disk (localStorage) and immediately pushes any pending
+ * unsynced local changes to Firestore Cloud Database.
  */
 export async function autoPushLocalDiskOnStartup(): Promise<boolean> {
   if (typeof window === "undefined") return false;
   try {
     const hasPending = localStorage.getItem(PENDING_SYNC_KEY) === "true";
-    const local = loadLocalData();
-    const hasLocalData =
-      (Array.isArray(local.students) && local.students.length > 0) ||
-      (local.payments && Object.keys(local.payments).length > 0);
-
-    if (hasPending || hasLocalData) {
+    if (hasPending) {
       return await flushPendingSyncToCloud(false);
     }
     return true;
@@ -1564,6 +1570,7 @@ export function saveAttendanceTodayData(
 ): void {
   const current = loadLocalData();
   const todayKey = getTodayKey();
+  const now = Date.now();
   const updated: SystemData = {
     ...current,
     attendanceToday,
@@ -1573,6 +1580,8 @@ export function saveAttendanceTodayData(
     },
     scanLogOrder: scanLogOrder !== undefined ? scanLogOrder : (current.scanLogOrder || []),
     scanLogTimes: scanLogTimes !== undefined ? scanLogTimes : (current.scanLogTimes || {}),
+    scanLogUpdatedAt: now,
+    updatedAt: now,
   };
   syncDataToCloud(updated, true);
 }
@@ -1589,6 +1598,7 @@ export function saveAttendanceAndStudentsBatch(
 ): void {
   const current = loadLocalData();
   const todayKey = getTodayKey();
+  const now = Date.now();
   const updated: SystemData = {
     ...current,
     students,
@@ -1599,7 +1609,8 @@ export function saveAttendanceAndStudentsBatch(
     },
     scanLogOrder,
     scanLogTimes,
-    updatedAt: Date.now(),
+    scanLogUpdatedAt: now,
+    updatedAt: now,
   };
   syncDataToCloud(updated, immediateSync);
 }
@@ -1646,13 +1657,15 @@ export function saveClearSessionScansForGrade(
     [todayKey]: updatedToday,
   };
 
+  const now = Date.now();
   const updated: SystemData = {
     ...current,
     scanLogOrder: remainingScanOrder,
     scanLogTimes: remainingScanTimes,
     attendanceToday: updatedToday,
     attendanceHistory: updatedHistory,
-    updatedAt: Date.now(),
+    scanLogUpdatedAt: now,
+    updatedAt: now,
   };
 
   syncDataToCloud(updated, true);
@@ -1664,10 +1677,13 @@ export function saveScanLogData(
   scanLogTimes: Record<string, string>
 ): void {
   const current = loadLocalData();
+  const now = Date.now();
   const updated: SystemData = {
     ...current,
     scanLogOrder,
     scanLogTimes,
+    scanLogUpdatedAt: now,
+    updatedAt: now,
   };
   syncDataToCloud(updated, true);
 }
