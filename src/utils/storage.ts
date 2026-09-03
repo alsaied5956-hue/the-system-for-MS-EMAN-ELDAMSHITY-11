@@ -742,7 +742,7 @@ export function mergeCloudDataWithLocal(local: SystemData, cloud: Partial<System
 
   const mergedStudents = Array.from(studentMap.values());
 
-  // 2. Merge Attendance History & Today (Presence & tardiness always preserved)
+  // 2. Merge Attendance History & Today
   const mergedHistory: Record<string, Record<string, string>> = {};
 
   if (local.attendanceHistory) {
@@ -756,27 +756,30 @@ export function mergeCloudDataWithLocal(local: SystemData, cloud: Partial<System
       if (!mergedHistory[dateKey]) {
         mergedHistory[dateKey] = {};
       }
+      if (dateKey === todayKey) {
+        continue;
+      }
       for (const [bCode, status] of Object.entries(remoteDayMap || {})) {
-        const localStatus = mergedHistory[dateKey][bCode];
-        if (status === "حضور" || status === "تأخير") {
-          mergedHistory[dateKey][bCode] = status;
-        } else if (!localStatus) {
+        if (!mergedHistory[dateKey][bCode] || cloudTime > localTime) {
           mergedHistory[dateKey][bCode] = status;
         }
       }
     }
   }
 
-  const mergedToday: Record<string, string> = {
-    ...(local.attendanceToday || {}),
-  };
-  if (cloud.attendanceToday) {
-    for (const [bCode, status] of Object.entries(cloud.attendanceToday)) {
-      if (status === "حضور" || status === "تأخير" || !mergedToday[bCode]) {
-        mergedToday[bCode] = status;
-      }
-    }
+  let mergedToday: Record<string, string>;
+  if (localTime >= cloudTime) {
+    mergedToday = {
+      ...(cloud.attendanceToday || {}),
+      ...(local.attendanceToday || {}),
+    };
+  } else {
+    mergedToday = {
+      ...(local.attendanceToday || {}),
+      ...(cloud.attendanceToday || {}),
+    };
   }
+
   mergedHistory[todayKey] = {
     ...(mergedHistory[todayKey] || {}),
     ...mergedToday,

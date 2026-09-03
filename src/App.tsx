@@ -342,13 +342,28 @@ export default function App() {
     );
 
     const updatedToday = { ...attendanceToday };
-    const absentBarcodes = absentList.map((a) => a.student.barcode);
+    const absentBarcodes = new Set((absentList || []).map((a) => String(a.student.barcode).trim()));
+    const lateBarcodes = new Set((lateList || []).map((l) => String(l.student.barcode).trim()));
     
-    // Ensure all absent students in this group are marked as "غائب"
+    // 1. Explicitly update status for EVERY student registered in this group:
+    // Anyone not in queue (absentBarcodes) becomes "غائب"
+    // Anyone in lateBarcodes becomes "تأخير"
+    // All scanned queue students in this group become "حضور"
     groupStudents.forEach((student) => {
-      if (absentBarcodes.includes(student.barcode) || !updatedToday[student.barcode]) {
-        updatedToday[student.barcode] = "غائب";
+      const b = String(student.barcode).trim();
+      if (absentBarcodes.has(b)) {
+        updatedToday[b] = "غائب";
+      } else if (lateBarcodes.has(b)) {
+        updatedToday[b] = "تأخير";
+      } else {
+        updatedToday[b] = "حضور";
       }
+    });
+
+    // 2. Also ensure makeup cross-day students are marked in today's attendance
+    (crossDayList || []).forEach((item) => {
+      const b = String(item.student.barcode).trim();
+      updatedToday[b] = attendanceToday[b] === "تأخير" ? "تأخير" : "حضور";
     });
 
     const todayKey = getTodayKey();
@@ -358,11 +373,17 @@ export default function App() {
     };
 
     const updatedStudents = students.map((s) => {
-      if (absentBarcodes.includes(s.barcode) && attendanceToday[s.barcode] !== "غائب") {
-        return {
-          ...s,
-          totalAbsentDays: (s.totalAbsentDays || 0) + 1,
-        };
+      const b = String(s.barcode).trim();
+      if (absentBarcodes.has(b)) {
+        const wasAbsent = attendanceToday[b] === "غائب";
+        const wasPresent = attendanceToday[b] === "حضور" || attendanceToday[b] === "تأخير";
+        if (!wasAbsent) {
+          return {
+            ...s,
+            totalAbsentDays: (s.totalAbsentDays || 0) + 1,
+            totalAttendanceDays: wasPresent ? Math.max(0, (s.totalAttendanceDays || 0) - 1) : (s.totalAttendanceDays || 0),
+          };
+        }
       }
       return s;
     });

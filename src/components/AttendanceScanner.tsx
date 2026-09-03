@@ -307,40 +307,61 @@ export const AttendanceScanner: React.FC<AttendanceScannerProps> = ({
     const crossDayList: { student: Student; message: string; type: "عكس_أيام" }[] = [];
     let presentCount = 0;
 
+    // طابور الحضور الفعلي بالقاعة الحالية (الطلاب الذين تم مسح كروت دخولهم)
+    const queueBarcodeSet = new Set((scanLogOrder || []).map((b) => String(b).trim()));
+
     groupStudents.forEach((student) => {
-      const currentStatus = attendanceToday?.[student.barcode];
-      const timeIso = scanLogTimes?.[student.barcode];
-      const timeStr = timeIso
-        ? new Date(timeIso).toLocaleTimeString("ar-EG", { hour: "2-digit", minute: "2-digit" })
-        : "الموعد المحدد";
+      const bCode = String(student.barcode).trim();
+      const isPresentInQueue = queueBarcodeSet.has(bCode);
 
-      if (currentStatus === "حضور") {
-        presentCount++;
-      } else if (currentStatus === "تأخير") {
-        const msg = `تنبيه من منظومة الأستاذة إيمان الدمشيتي 📐\nنفيدكم بعلم أن الطالب/ة: (${student.name})\nقد وصل متأخراً اليوم عن الموعد المحدد لحصة الرياضيات (${timeStr}).`;
-        lateList.push({ student, message: msg, type: "تأخير" });
-      } else {
-        // Unscanned or marked absent
-        const msg = `تنبيه من منظومة الأستاذة إيمان الدمشيتي 📐\nنفيدكم بعلم أن الطالب/ة: (${student.name})\nقد تغيب اليوم عن حضور حصة الرياضيات.`;
+      if (!isPresentInQueue) {
+        // الطالب مسجل بهذه المجموعة ولكنه لم يمر على الإسكانر ولم يدخل القاعة اليوم -> غائب حتماً
+        const msg =
+          `تنبيه من منظومة الأستاذة إيمان الدمشيتي 📐\n` +
+          `نفيدكم بعلم أن الطالب/ة: (${student.name})\n` +
+          `المقيد في الصف: [${student.groupGrade}] - مجموعة: [${student.groupDays}]\n` +
+          `قد تغيب اليوم عن حضور حصة الرياضيات (${new Date().toLocaleDateString("ar-EG")}).\n` +
+          `نرجو منكم المتابعة والاهتمام حرصاً على مستواه الدراسي وعدم تفويت المنهج.`;
         absentList.push({ student, message: msg, type: "غائب" });
-      }
-    });
-
-    // Find all cross-day makeup students (students in scanLogOrder belonging to this grade but different registered groupDays)
-    (scanLogOrder || []).forEach((barcode) => {
-      const st = (students || []).find((s) => s.barcode === barcode);
-      if (!st) return;
-      if (st.groupGrade === selectedGrade && st.groupDays !== selectedDays) {
-        const timeIso = scanLogTimes?.[barcode];
+      } else {
+        // الطالب موجود في طابور الحضور بالقاعة
+        const currentStatus = attendanceToday?.[student.barcode];
+        const timeIso = scanLogTimes?.[student.barcode];
         const timeStr = timeIso
           ? new Date(timeIso).toLocaleTimeString("ar-EG", { hour: "2-digit", minute: "2-digit" })
           : "";
-        const statusToday = attendanceToday?.[barcode] || "حضور";
 
-        const msg = `تنبيه من منظومة الأستاذة إيمان الدمشيتي 📐\n` +
+        if (currentStatus === "تأخير") {
+          const msg =
+            `تنبيه من منظومة الأستاذة إيمان الدمشيتي 📐\n` +
+            `نفيدكم بعلم أن الطالب/ة: (${student.name})\n` +
+            `المقيد في الصف: [${student.groupGrade}] - مجموعة: [${student.groupDays}]\n` +
+            `قد حضر اليوم متأخراً عن الموعد المحدد لحصة الرياضيات${timeStr ? ` في تمام الساعة (${timeStr})` : ""}.\n` +
+            `يرجى التنبيه على الالتزام بالحضور في الموعد لبدء الشرح في وقته.`;
+          lateList.push({ student, message: msg, type: "تأخير" });
+        } else {
+          presentCount++;
+        }
+      }
+    });
+
+    // الطلاب المسجلين لنفس الصف ولكن في أيام أخرى وحضروا اليوم تعويضياً ومسجلين بالقاعة
+    (scanLogOrder || []).forEach((barcode) => {
+      const bCode = String(barcode).trim();
+      const st = (students || []).find((s) => String(s.barcode).trim() === bCode);
+      if (!st) return;
+      if (st.groupGrade === selectedGrade && st.groupDays !== selectedDays) {
+        const timeIso = scanLogTimes?.[bCode];
+        const timeStr = timeIso
+          ? new Date(timeIso).toLocaleTimeString("ar-EG", { hour: "2-digit", minute: "2-digit" })
+          : "";
+        const statusToday = attendanceToday?.[bCode] === "تأخير" ? "تأخير" : "حضور";
+
+        const msg =
+          `تنبيه من منظومة الأستاذة إيمان الدمشيتي 📐\n` +
           `نفيدكم بعلم أن الطالب/ة: (${st.name})\n` +
           `المقيد في مجموعة: [${st.groupGrade} - ${st.groupDays}]\n` +
-          `قد حضر اليوم في مجموعة عكس الأيام: [${selectedGrade} - ${selectedDays}]\n` +
+          `قد حضر اليوم في مجموعة تعويض الأيام: [${selectedGrade} - ${selectedDays}]\n` +
           `حالة التسجيل: (${statusToday})${timeStr ? ` في تمام الساعة (${timeStr})` : ""}.\n` +
           `تم تسجيل حضوره تعويضياً بنجاح.`;
 
@@ -351,6 +372,25 @@ export const AttendanceScanner: React.FC<AttendanceScannerProps> = ({
         });
       }
     });
+
+    // تأكيد إنهاء الحصة مع توضيح الإحصائيات الدقيقة
+    const totalMessages = absentList.length + lateList.length + crossDayList.length;
+    const confirmPrompt =
+      `📋 فحص وتأكيد إنهاء حصة [${selectedGrade} - ${selectedDays}]:\n` +
+      `━━━━━━━━━━━━━━━━━━━━\n` +
+      `👥 إجمالي مقيدي المجموعة: ${groupStudents.length} طالب\n` +
+      `🟢 حاضرون في الموعد (بالطابور): ${presentCount} طالب\n` +
+      `🟡 متأخرون (بالطابور): ${lateList.length} طالب\n` +
+      `🔴 غائبون (غير موجودين في طابور الحضور): ${absentList.length} طالب\n` +
+      (crossDayList.length > 0 ? `🔄 طلاب تعويض أيام: ${crossDayList.length} طالب\n` : "") +
+      `━━━━━━━━━━━━━━━━━━━━\n` +
+      (totalMessages > 0
+        ? `سيتم تحويل غير الحاضرين فوراً إلى حالة (غائب)، وتجهيز عدد (${totalMessages}) رسالة واتساب للغياب والتأخير.\nهل تريد التأكيد واعتماد السجل؟`
+        : `جميع طلاب المجموعة حاضرون في الموعد! هل تريد اعتماد الحضور وتفريغ شاشة التحضير للحصة القادمة؟`);
+
+    if (!window.confirm(confirmPrompt)) {
+      return;
+    }
 
     // 1. Permanently record attendance in today's state and history, and clear group & cross-day from active scanner queue
     if (onFinishGroup) {
@@ -394,7 +434,7 @@ export const AttendanceScanner: React.FC<AttendanceScannerProps> = ({
         });
       } else {
         alert(
-          `⚡ أنت في وضع الأوفلاين (بدون نت):\nتم حفظ سجلات الحضور بنجاح، وتم حفظ عدد (${combinedQueue.length}) رسالة غياب وتأخير وحضور عكس الأيام في "طابور رسائل الواتساب المعلقة".\nعند عودة الإنترنت يمكنك الضغط على زرار (طابور الواتساب) في الشريط العلوي لإرسال الكل دفعة واحدة!`
+          `⚡ أنت في وضع الأوفلاين (بدون نت):\nتم حفظ سجلات الحضور بنجاح، وتم تحويل ${absentList.length} طالب غير متواجد إلى (غائب).\nتم حفظ عدد (${combinedQueue.length}) رسالة غياب وتأخير في "طابور رسائل الواتساب المعلقة".\nعند عودة الإنترنت يمكنك الضغط على زرار (طابور الواتساب) في الشريط العلوي لإرسال الكل دفعة واحدة!`
         );
       }
     } else {
