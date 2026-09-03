@@ -1584,7 +1584,8 @@ export function saveAttendanceAndStudentsBatch(
   attendanceToday: Record<string, string>,
   scanLogOrder: string[],
   scanLogTimes: Record<string, string>,
-  students: Student[]
+  students: Student[],
+  immediateSync: boolean = false
 ): void {
   const current = loadLocalData();
   const todayKey = getTodayKey();
@@ -1598,8 +1599,9 @@ export function saveAttendanceAndStudentsBatch(
     },
     scanLogOrder,
     scanLogTimes,
+    updatedAt: Date.now(),
   };
-  syncDataToCloud(updated, false); // Debounced cloud push to prevent scanner lag
+  syncDataToCloud(updated, immediateSync);
 }
 
 /**

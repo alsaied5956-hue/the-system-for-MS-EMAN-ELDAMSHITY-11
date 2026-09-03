@@ -173,37 +173,46 @@ export const AttendanceScanner: React.FC<AttendanceScannerProps> = ({
 
   const processAttendance = (
     student: Student,
-    overrideStatus?: "حضور" | "تأخير",
-    isMakeupAllowed = false
+    overrideStatus?: "حضور" | "تأخير"
   ) => {
     setFinishedBanner(null);
 
-    // 1. Strict Grade verification: MUST BE SAME GRADE
+    // 1. Strict Grade validation: MUST BE THE EXACT SAME GRADE
+    // وميدخلش غير الطلاب الي من نفس الصف الدراسي
     if (student.groupGrade !== selectedGrade) {
       playBeep("error");
       setScanAlert({
         type: "error",
-        title: "🚫 غير مسموح: صف دراسي مختلف!",
-        message: `الطالب (${student.name}) مقيد في [${student.groupGrade}]، بينما الحصة الحالية بالقاعة لـ [${selectedGrade}]. التحضير التعويضي متاح فقط لطلاب نفس الصف الدراسي.`,
+        title: "🚫 غير مسموح: طالب من صف دراسي مختلف!",
+        message: `الطالب (${student.name}) مقيد في [${student.groupGrade}]، بينما الحصة الحالية بالقاعة مخصصة لـ [${selectedGrade}]. غير مسموح بدخول طلاب من صفوف أخرى!`,
         student,
       });
       return;
     }
 
-    // 2. Cross-day attendance verification
-    const isCrossDay = student.groupDays !== selectedDays;
-    if (isCrossDay && !isMakeupAllowed) {
+    // 2. Prevent duplicate scan if student is already in the classroom presence list
+    const alreadyScanned = (scanLogOrder || []).some(
+      (b) => String(b).trim() === String(student.barcode).trim()
+    );
+    if (alreadyScanned && !overrideStatus) {
+      const existingIso = scanLogTimes?.[student.barcode];
+      const existingTimeStr = existingIso
+        ? new Date(existingIso).toLocaleTimeString("ar-EG", { hour: "2-digit", minute: "2-digit" })
+        : "";
+      const existingStatus = attendanceToday?.[student.barcode] || "حضور";
       playBeep("warning");
       setScanAlert({
         type: "warning",
-        title: "⚠️ تنبيه: طالب من أيام أخرى لنفس الصف",
-        message: `الطالب (${student.name}) مقيد في [${student.groupGrade} - ${student.groupDays}]. هل تود قبول تسجيل حضوره تعويضياً في حصة اليوم؟`,
+        title: `⚠️ مسجل بالفعل في القاعة: ${student.name}`,
+        message: `الطالب موجود بالقاعة بالفعل وتم تسجيل دخوله بحالة (${existingStatus})${existingTimeStr ? ` في تمام الساعة (${existingTimeStr})` : ""}.`,
         student,
-        canAcceptMakeup: true,
+        time: existingTimeStr,
+        status: existingStatus,
       });
       return;
     }
 
+    // 3. Record student at entry time & evaluate whether on-time (حضور) or late (تأخير)
     const now = new Date();
     const nowTimeStr = now.toLocaleTimeString("ar-EG", { hour: "2-digit", minute: "2-digit" });
     const calculatedStatus = overrideStatus || evaluateAttendanceStatus(now, activeSessionSlotId);
@@ -218,13 +227,14 @@ export const AttendanceScanner: React.FC<AttendanceScannerProps> = ({
     playBeep("success");
     speakArabicGreeting(student.name, voiceEnabled);
 
+    const isCrossDay = student.groupDays !== selectedDays;
     setScanAlert({
       type: "success",
-      title: isCrossDay
-        ? `🟢 تم تسجيل حضور تعويضي: ${student.name}`
-        : `🟢 أهلاً بك يا ${student.name}`,
+      title: calculatedStatus === "تأخير"
+        ? `🟡 تسجيل دخول متأخر: ${student.name}`
+        : `🟢 أهلاً بك يا ${student.name} (حضور في الموعد)`,
       message: isCrossDay
-        ? `🔄 طالب تعويض من مجموعة (${student.groupDays}) لنفس الصف (${student.groupGrade})`
+        ? `🔄 طالب تعويض أيام لنفس الصف (${student.groupGrade} - ${student.groupDays})`
         : `المجموعة: ${student.groupGrade} | ${student.groupDays}`,
       student,
       time: nowTimeStr,
@@ -274,7 +284,7 @@ export const AttendanceScanner: React.FC<AttendanceScannerProps> = ({
   const handleRecordManual = (status: "حضور" | "تأخير", studentToRecord?: Student) => {
     const target = studentToRecord || selectedManualStudent;
     if (!target) return;
-    processAttendance(target, status, true);
+    processAttendance(target, status);
     setIsManualModalOpen(false);
     setSelectedManualStudent(null);
     setManualSearchQuery("");
@@ -357,6 +367,8 @@ export const AttendanceScanner: React.FC<AttendanceScannerProps> = ({
       crossDay: crossDayList.length,
     });
     setScanAlert(null);
+    setTableSearch("");
+    setSelectedManualStudent(null);
 
     // 3. Persist messages to persistent WhatsApp Outbox Queue
     const combinedQueue = [...absentList, ...lateList, ...crossDayList];
@@ -615,15 +627,15 @@ export const AttendanceScanner: React.FC<AttendanceScannerProps> = ({
             </div>
             <div>
               <h3 className="text-base md:text-lg font-bold text-emerald-300 font-fancy">
-                ✅ تم حفظ وترحيل سجلات ({finishedBanner.grade} - {finishedBanner.days}) بالكامل!
+                ✅ تم حفظ وترحيل سجلات ({finishedBanner.grade} - {finishedBanner.days}) إلى تقرير الحضور اليومي والتقارير السابقة!
               </h3>
               <p className="text-xs md:text-sm text-slate-300 mt-0.5 font-tajawal">
                 تم تثبيت: <span className="text-emerald-400 font-bold">{finishedBanner.present} حاضر</span> •{" "}
                 <span className="text-amber-400 font-bold">{finishedBanner.late} متأخر</span> •{" "}
                 <span className="text-rose-400 font-bold">{finishedBanner.absent} غائب</span>
                 {finishedBanner.crossDay ? (
-                  <> • <span className="text-cyan-400 font-bold">{finishedBanner.crossDay} تعويض عكس أيام</span></>
-                ) : null}. الاسكانر مفرغ وجاهز الآن للمجموعة القادمة.
+                  <> • <span className="text-cyan-400 font-bold">{finishedBanner.crossDay} تعويض أيام</span></>
+                ) : null}. وتم مسح قائمة الحاضرين بالقاعة بنجاح لتكون فارغة وجاهزة للحصة القادمة.
               </p>
             </div>
           </div>
@@ -1099,7 +1111,7 @@ export const AttendanceScanner: React.FC<AttendanceScannerProps> = ({
                     type="button"
                     onClick={() => {
                       if (scanAlert.student) {
-                        processAttendance(scanAlert.student, "حضور", true);
+                        processAttendance(scanAlert.student, "حضور");
                       }
                     }}
                     className="px-4 py-2 rounded-2xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs flex items-center gap-1.5 shadow-lg shadow-emerald-600/30 cursor-pointer"
@@ -1111,7 +1123,7 @@ export const AttendanceScanner: React.FC<AttendanceScannerProps> = ({
                     type="button"
                     onClick={() => {
                       if (scanAlert.student) {
-                        processAttendance(scanAlert.student, "تأخير", true);
+                        processAttendance(scanAlert.student, "تأخير");
                       }
                     }}
                     className="px-4 py-2 rounded-2xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs flex items-center gap-1.5 shadow-lg shadow-amber-500/30 cursor-pointer"

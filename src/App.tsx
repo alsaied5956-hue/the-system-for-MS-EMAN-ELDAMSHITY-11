@@ -367,26 +367,24 @@ export default function App() {
       return s;
     });
 
-    // Clear the finished group's barcodes AND any makeup / cross-day students from the active scanner screen
-    const barcodesToRemove = new Set<string>();
-    groupStudents.forEach((s) => barcodesToRemove.add(s.barcode));
-    
-    // Add all students of this grade who were scanned (including cross-day attendees)
+    // Clear the finished group's barcodes AND all students of this grade from the active room scanner screen
+    const studentGradeMap = new Map<string, GradeName>();
     students.forEach((s) => {
-      if (s.groupGrade === grade && scanLogOrder.includes(s.barcode)) {
-        barcodesToRemove.add(s.barcode);
-      }
+      if (s?.barcode) studentGradeMap.set(String(s.barcode).trim(), s.groupGrade);
     });
 
-    // Also remove any explicitly passed cross-day attendees
-    if (crossDayList) {
-      crossDayList.forEach((c) => barcodesToRemove.add(c.student.barcode));
-    }
+    const remainingScanOrder = scanLogOrder.filter((b) => {
+      const g = studentGradeMap.get(String(b).trim());
+      // Remove all students belonging to this grade from the active scanner room
+      return g ? g !== grade : false;
+    });
 
-    const remainingScanOrder = scanLogOrder.filter((b) => !barcodesToRemove.has(b));
     const remainingScanTimes = { ...scanLogTimes };
-    barcodesToRemove.forEach((b) => {
-      delete remainingScanTimes[b];
+    scanLogOrder.forEach((b) => {
+      const g = studentGradeMap.get(String(b).trim());
+      if (g === grade) {
+        delete remainingScanTimes[b];
+      }
     });
 
     setScanLogOrder(remainingScanOrder);
@@ -396,7 +394,8 @@ export default function App() {
     setAttendanceHistory(updatedHistory);
     setStudents(updatedStudents);
 
-    saveAttendanceAndStudentsBatch(updatedToday, remainingScanOrder, remainingScanTimes, updatedStudents);
+    // Save and immediately sync to cloud and local storage
+    saveAttendanceAndStudentsBatch(updatedToday, remainingScanOrder, remainingScanTimes, updatedStudents, true);
   }, [students, attendanceToday, attendanceHistory, scanLogOrder, scanLogTimes]);
 
   // Handler: Remove single student from active scanner screen
