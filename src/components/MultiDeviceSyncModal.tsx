@@ -155,11 +155,11 @@ export const MultiDeviceSyncModal: React.FC<MultiDeviceSyncModalProps> = ({
       if (statusFilter === "UNPAID" && isPaid) return false;
 
       if (searchQuery.trim()) {
-        const matchesNameOrBarcode = matchStudentSearch(student, searchQuery);
+        const { match } = matchStudentSearch(student, searchQuery);
         const matchesPhone =
           (student.phone && student.phone.includes(searchQuery)) ||
           (student.parentPhone && student.parentPhone.includes(searchQuery));
-        return matchesNameOrBarcode || matchesPhone;
+        return match || matchesPhone;
       }
       return true;
     });

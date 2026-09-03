@@ -81,30 +81,20 @@ export async function ensureFirebaseAuth(): Promise<boolean> {
 // Start auth immediately in background
 ensureFirebaseAuth().catch(() => {});
 
-// Initialize Firestore Database instance with resilient fallback
+// Initialize Firestore Database instance with resilient in-memory cache
+// Using memoryLocalCache completely prevents IndexedDB multi-tab lock corruptions,
+// stale target watch streams (ID: ca9 / b815 / c050), and iframe persistence crashes.
 let dbInstance: Firestore;
 try {
   dbInstance = initializeFirestore(
     app,
     {
-      localCache: persistentLocalCache({
-        tabManager: persistentMultipleTabManager(),
-      }),
+      localCache: memoryLocalCache(),
     },
     config.firestoreDatabaseId || undefined
   );
-} catch (e1) {
-  try {
-    dbInstance = initializeFirestore(
-      app,
-      {
-        localCache: memoryLocalCache(),
-      },
-      config.firestoreDatabaseId || undefined
-    );
-  } catch (e2) {
-    dbInstance = getFirestore(app, config.firestoreDatabaseId || undefined);
-  }
+} catch {
+  dbInstance = getFirestore(app, config.firestoreDatabaseId || undefined);
 }
 
 export const db = dbInstance;

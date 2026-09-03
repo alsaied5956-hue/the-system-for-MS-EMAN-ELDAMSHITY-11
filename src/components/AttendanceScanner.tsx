@@ -10,6 +10,7 @@ import {
   getCurrentMonthKey,
   openWhatsApp,
   evaluateAttendanceStatus,
+  isStudentPaid,
 } from "../utils/helpers";
 import { playBeep, speakArabicGreeting } from "../utils/audio";
 import { StudentSearchBox } from "./StudentSearchBox";
@@ -204,7 +205,7 @@ export const AttendanceScanner: React.FC<AttendanceScannerProps> = ({
     const calculatedStatus = overrideStatus || evaluateAttendanceStatus(now, activeSessionSlotId);
 
     const monthKey = getCurrentMonthKey();
-    const isPaid = !!payments?.[monthKey]?.[student.barcode];
+    const isPaid = isStudentPaid(payments?.[monthKey], student.barcode);
 
     if (onRecordAttendance) {
       onRecordAttendance(student.barcode, calculatedStatus, now.toISOString(), student);
@@ -919,7 +920,7 @@ export const AttendanceScanner: React.FC<AttendanceScannerProps> = ({
                     filteredOtherDaysStudents.map((student) => {
                       const isAlreadyAttended = !!attendanceToday?.[student.barcode];
                       const currentStatus = attendanceToday?.[student.barcode];
-                      const isPaid = !!payments?.[currentMonthKey]?.[student.barcode];
+                      const isPaid = isStudentPaid(payments?.[currentMonthKey], student.barcode);
 
                       return (
                         <div
@@ -1190,7 +1191,7 @@ export const AttendanceScanner: React.FC<AttendanceScannerProps> = ({
                 filteredBarcodes.map((barcode, idx) => {
                   const student = studentMap.get(String(barcode).trim());
                   if (!student) return null;
-                  const isPaid = !!payments?.[currentMonthKey]?.[barcode];
+                  const isPaid = isStudentPaid(payments?.[currentMonthKey], barcode);
                   const statusToday = attendanceToday?.[barcode] || "حضور";
                   const orderNumber = filteredBarcodes.length - idx;
                   const scanTimeIso = scanLogTimes?.[barcode];

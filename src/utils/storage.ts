@@ -1,7 +1,7 @@
 import { Student, UserAccount, GradeName, GroupDays, PaymentRecord, PermissionKey, PendingWhatsAppMessage, WhatsAppMessageType } from "../types";
 import { DEFAULT_GRADE_PRICES, getTodayKey, formatTimeArabic } from "./helpers";
 import { db, ensureFirebaseAuth } from "./firebase";
-import { doc, setDoc, getDoc, onSnapshot, disableNetwork, enableNetwork } from "firebase/firestore";
+import { doc, setDoc, getDoc, onSnapshot } from "firebase/firestore";
 import { compressData, decompressData } from "./compression";
 
 const STORAGE_KEY = "center_data_v2";
@@ -455,10 +455,9 @@ export async function flushPendingSyncToCloud(forceManual: boolean = false): Pro
   notifySyncStatusChange();
 
   try {
-    // Ensure Auth session and Firestore network are ready
+    // Ensure Auth session is ready
     try {
       await ensureFirebaseAuth();
-      await enableNetwork(db);
     } catch {}
 
     const systemDocRef = doc(db, "system_state", "main_center_data");
@@ -570,9 +569,6 @@ export async function flushPendingSyncToCloud(forceManual: boolean = false): Pro
       quotaExceededUntil = Date.now() + 5 * 60 * 1000;
       setTimeout(() => {
         isQuotaExceeded = false;
-        try {
-          enableNetwork(db).catch(() => {});
-        } catch {}
         notifySyncStatusChange();
       }, 5 * 60 * 1000);
     } else {
@@ -938,7 +934,6 @@ export async function syncAndMergeAllDevicesData(
     // 1. Ensure Auth session and Firestore network are ready
     try {
       await ensureFirebaseAuth();
-      await enableNetwork(db);
     } catch {}
 
     const systemDocRef = doc(db, "system_state", "main_center_data");
@@ -1026,10 +1021,7 @@ export async function syncAndMergeAllDevicesData(
         );
       } catch (firstWriteErr) {
         console.warn("First cloud push attempt timed out or queued, retrying in background...", firstWriteErr);
-        try {
-          await enableNetwork(db);
-        } catch {}
-        // Firestore with persistent cache writes locally instantly and flushes to server in background
+        // Firestore writes locally instantly and flushes to server in background
         setDoc(systemDocRef, docPayload, { merge: true }).catch((e) => {
           console.warn("Background cloud setDoc sync notice:", e);
         });
@@ -1261,110 +1253,110 @@ export async function importAndMergeCompleteBackupJSON(file: File): Promise<{
   });
 }
 
-/**
- * Real-time continuous listener to Firestore cloud database for INSTANT multi-device syncing
- */
-export function subscribeToCloudData(
-  onUpdate: (data: SystemData) => void,
-  onError?: (err: unknown) => void
-): () => void {
-  cloudDataListeners.push(onUpdate);
+let activeSnapshotUnsubscribe: (() => void) | null = null;
+
+function ensureActiveSnapshotListener() {
+  if (activeSnapshotUnsubscribe) return;
 
   try {
     const systemDocRef = doc(db, "system_state", "main_center_data");
 
-    const unsubscribe = onSnapshot(
+    activeSnapshotUnsubscribe = onSnapshot(
       systemDocRef,
       async (snapshot) => {
-        if (snapshot.exists()) {
-          const val = snapshot.data();
-          if (val) {
-            let cloudObj: Partial<SystemData> = val as Partial<SystemData>;
-            if (val._compressedPayload && typeof val._compressedPayload === "string") {
-              try {
-                const decompressed = await decompressData<Partial<SystemData>>(val._compressedPayload);
-                if (decompressed) {
-                  cloudObj = {
-                    ...decompressed,
-                    updatedAt: typeof val.updatedAt === "number" ? val.updatedAt : decompressed.updatedAt,
-                  };
-                }
-              } catch (decompErr) {
-                console.warn("Decompression error in snapshot listener:", decompErr);
-              }
-            }
-
-            const currentLocal = loadLocalData();
-
-            // Perform intelligent multi-device 3-way merge
-            const merged = mergeCloudDataWithLocal(currentLocal, cloudObj);
-
-            const incomingHash = JSON.stringify(merged);
-            if (incomingHash === lastSyncedDataHash) {
-              return;
-            }
-
-            lastSyncedDataHash = incomingHash;
-            saveToLocalStorage(merged, false);
-
-            // Check if local device contributed any new records to merged that were missing in cloud
-            const cloudStudentBarcodes = new Set((cloudObj.students || []).map((s) => s.barcode));
-            const hasNewStudentsForCloud = (merged.students || []).some(
-              (s) => s.barcode && !cloudStudentBarcodes.has(s.barcode)
-            );
-
-            let hasNewPaymentsForCloud = false;
-            if (merged.payments) {
-              for (const [m, recs] of Object.entries(merged.payments)) {
-                const cloudRecs = cloudObj.payments?.[m] || {};
-                for (const [b, rec] of Object.entries(recs || {})) {
-                  if (Number(rec?.amount) > 0 && !(Number(cloudRecs[b]?.amount) > 0)) {
-                    hasNewPaymentsForCloud = true;
-                    break;
+        try {
+          if (snapshot.exists()) {
+            const val = snapshot.data();
+            if (val) {
+              let cloudObj: Partial<SystemData> = val as Partial<SystemData>;
+              if (val._compressedPayload && typeof val._compressedPayload === "string") {
+                try {
+                  const decompressed = await decompressData<Partial<SystemData>>(val._compressedPayload);
+                  if (decompressed) {
+                    cloudObj = {
+                      ...decompressed,
+                      updatedAt: typeof val.updatedAt === "number" ? val.updatedAt : decompressed.updatedAt,
+                    };
                   }
+                } catch (decompErr) {
+                  console.warn("Decompression error in snapshot listener:", decompErr);
                 }
-                if (hasNewPaymentsForCloud) break;
               }
-            }
 
-            let hasNewAttendanceForCloud = false;
-            if (merged.attendanceHistory) {
-              for (const [d, dayMap] of Object.entries(merged.attendanceHistory)) {
-                const cloudDayMap = cloudObj.attendanceHistory?.[d] || {};
-                for (const [b, st] of Object.entries(dayMap || {})) {
-                  if ((st === "حضور" || st === "تأخير") && cloudDayMap[b] !== st) {
-                    hasNewAttendanceForCloud = true;
-                    break;
-                  }
-                }
-                if (hasNewAttendanceForCloud) break;
+              const currentLocal = loadLocalData();
+
+              // Perform intelligent multi-device 3-way merge
+              const merged = mergeCloudDataWithLocal(currentLocal, cloudObj);
+
+              const incomingHash = JSON.stringify(merged);
+              if (incomingHash === lastSyncedDataHash) {
+                return;
               }
-            }
 
-            const localWasNewer = (currentLocal.updatedAt || 0) > (cloudObj.updatedAt || 0);
-            const hasPendingSync = localStorage.getItem(PENDING_SYNC_KEY) === "true";
+              lastSyncedDataHash = incomingHash;
+              saveToLocalStorage(merged, false);
 
-            const shouldPushToCloud =
-              hasNewStudentsForCloud ||
-              hasNewPaymentsForCloud ||
-              hasNewAttendanceForCloud ||
-              (localWasNewer && hasPendingSync);
-
-            if (shouldPushToCloud) {
-              localStorage.setItem(PENDING_SYNC_KEY, "true");
-              flushPendingSyncToCloud(false).catch(() => {});
-            } else {
-              localStorage.setItem(PENDING_SYNC_KEY, "false");
-            }
-
-            notifySyncStatusChange();
-            notifyCloudDataListeners(merged);
-            if (typeof window !== "undefined") {
-              window.dispatchEvent(
-                new CustomEvent("center-data-updated", { detail: merged })
+              // Check if local device contributed any new records to merged that were missing in cloud
+              const cloudStudentBarcodes = new Set((cloudObj.students || []).map((s) => s.barcode));
+              const hasNewStudentsForCloud = (merged.students || []).some(
+                (s) => s.barcode && !cloudStudentBarcodes.has(s.barcode)
               );
+
+              let hasNewPaymentsForCloud = false;
+              if (merged.payments) {
+                for (const [m, recs] of Object.entries(merged.payments)) {
+                  const cloudRecs = cloudObj.payments?.[m] || {};
+                  for (const [b, rec] of Object.entries(recs || {})) {
+                    if (Number(rec?.amount) > 0 && !(Number(cloudRecs[b]?.amount) > 0)) {
+                      hasNewPaymentsForCloud = true;
+                      break;
+                    }
+                  }
+                  if (hasNewPaymentsForCloud) break;
+                }
+              }
+
+              let hasNewAttendanceForCloud = false;
+              if (merged.attendanceHistory) {
+                for (const [d, dayMap] of Object.entries(merged.attendanceHistory)) {
+                  const cloudDayMap = cloudObj.attendanceHistory?.[d] || {};
+                  for (const [b, st] of Object.entries(dayMap || {})) {
+                    if ((st === "حضور" || st === "تأخير") && cloudDayMap[b] !== st) {
+                      hasNewAttendanceForCloud = true;
+                      break;
+                    }
+                  }
+                  if (hasNewAttendanceForCloud) break;
+                }
+              }
+
+              const localWasNewer = (currentLocal.updatedAt || 0) > (cloudObj.updatedAt || 0);
+              const hasPendingSync = localStorage.getItem(PENDING_SYNC_KEY) === "true";
+
+              const shouldPushToCloud =
+                hasNewStudentsForCloud ||
+                hasNewPaymentsForCloud ||
+                hasNewAttendanceForCloud ||
+                (localWasNewer && hasPendingSync);
+
+              if (shouldPushToCloud) {
+                localStorage.setItem(PENDING_SYNC_KEY, "true");
+                flushPendingSyncToCloud(false).catch(() => {});
+              } else {
+                localStorage.setItem(PENDING_SYNC_KEY, "false");
+              }
+
+              notifySyncStatusChange();
+              notifyCloudDataListeners(merged);
+              if (typeof window !== "undefined") {
+                window.dispatchEvent(
+                  new CustomEvent("center-data-updated", { detail: merged })
+                );
+              }
             }
           }
+        } catch (procErr) {
+          console.warn("Error processing snapshot update:", procErr);
         }
       },
       (error) => {
@@ -1374,46 +1366,41 @@ export function subscribeToCloudData(
           notifySyncStatusChange();
           setTimeout(() => {
             isQuotaExceeded = false;
-            try {
-              enableNetwork(db).catch(() => {});
-            } catch {}
             notifySyncStatusChange();
           }, 5 * 60 * 1000);
         } else {
           console.warn("Firestore snapshot listener notice:", error);
         }
-        if (onError) onError(error);
       }
     );
-
-    return () => {
-      unsubscribe();
-      const idx = cloudDataListeners.indexOf(onUpdate);
-      if (idx !== -1) {
-        cloudDataListeners.splice(idx, 1);
-      }
-    };
   } catch (err) {
-    if (isFirestoreQuotaError(err)) {
-      isQuotaExceeded = true;
-      quotaExceededUntil = Date.now() + 5 * 60 * 1000;
-      notifySyncStatusChange();
-      setTimeout(() => {
-        isQuotaExceeded = false;
-        try {
-          enableNetwork(db).catch(() => {});
-        } catch {}
-        notifySyncStatusChange();
-      }, 5 * 60 * 1000);
-    }
-    if (onError) onError(err);
-    return () => {
-      const idx = cloudDataListeners.indexOf(onUpdate);
-      if (idx !== -1) {
-        cloudDataListeners.splice(idx, 1);
-      }
-    };
+    console.warn("Failed to initialize snapshot listener:", err);
+    activeSnapshotUnsubscribe = null;
   }
+}
+
+/**
+ * Real-time continuous listener to Firestore cloud database for INSTANT multi-device syncing
+ */
+export function subscribeToCloudData(
+  onUpdate: (data: SystemData) => void,
+  onError?: (err: unknown) => void
+): () => void {
+  cloudDataListeners.push(onUpdate);
+  ensureActiveSnapshotListener();
+
+  return () => {
+    const idx = cloudDataListeners.indexOf(onUpdate);
+    if (idx !== -1) {
+      cloudDataListeners.splice(idx, 1);
+    }
+    if (cloudDataListeners.length === 0 && activeSnapshotUnsubscribe) {
+      try {
+        activeSnapshotUnsubscribe();
+      } catch {}
+      activeSnapshotUnsubscribe = null;
+    }
+  };
 }
 
 // -------------------------------------------------------------

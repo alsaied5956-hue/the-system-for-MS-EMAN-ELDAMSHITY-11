@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from "react";
 import { Student, PaymentRecord, GradeName, GRADE_ORDER } from "../types";
-import { getAttendanceRate, getAbsenceRate, getExamAverage, openWhatsApp, getCurrentMonthKey } from "../utils/helpers";
+import { getAttendanceRate, getAbsenceRate, getExamAverage, openWhatsApp, getCurrentMonthKey, isStudentPaid } from "../utils/helpers";
 import { matchStudentSearch } from "../utils/search";
 import { AlertTriangle, AlertOctagon, ShieldAlert, Send, Filter, CheckCircle, Search, X } from "lucide-react";
 
@@ -25,7 +25,7 @@ export const EarlyWarningTab: React.FC<EarlyWarningTabProps> = ({
       .map((student) => {
         const absRate = getAbsenceRate(student);
         const examAvg = getExamAverage(student);
-        const isUnpaid = !payments?.[currentMonthKey]?.[student.barcode];
+        const isUnpaid = !isStudentPaid(payments?.[currentMonthKey], student.barcode);
 
         const reasons: string[] = [];
         let severity: "high" | "medium" | "low" = "low";
