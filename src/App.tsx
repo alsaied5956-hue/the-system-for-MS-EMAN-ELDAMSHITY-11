@@ -13,6 +13,7 @@ import {
   saveStudentsData,
   saveAttendanceTodayData,
   saveAttendanceAndStudentsBatch,
+  saveClearSessionScansForGrade,
   saveScanLogData,
   savePaymentsData,
   saveGroupPricesData,
@@ -239,6 +240,10 @@ export default function App() {
     const handleLocalBroadcast = (e: Event) => {
       const customEvent = e as CustomEvent<any>;
       if (customEvent.detail) {
+        // Prevent infinite re-render loop on mutations initiated within the same window
+        if (customEvent.detail._originLocal) {
+          return;
+        }
         const d = customEvent.detail;
         if (d.students) setStudents(d.students);
         if (d.attendanceToday) setAttendanceToday(d.attendanceToday);
@@ -404,6 +409,21 @@ export default function App() {
     setScanLogTimes(updatedTimes);
     saveScanLogData(updatedOrder, updatedTimes);
   }, [scanLogOrder, scanLogTimes]);
+
+  // Handler: Clear current session scans for a grade with full isolation from previous classes
+  const handleClearSessionScans = useCallback((grade: GradeName, resetTodayAttendance = false) => {
+    const { updatedToday, remainingScanOrder, remainingScanTimes } = saveClearSessionScansForGrade(
+      grade,
+      resetTodayAttendance
+    );
+    setScanLogOrder(remainingScanOrder);
+    setScanLogTimes(remainingScanTimes);
+    if (resetTodayAttendance) {
+      setAttendanceToday(updatedToday);
+      const todayKey = getTodayKey();
+      setAttendanceHistory((prev) => ({ ...prev, [todayKey]: updatedToday }));
+    }
+  }, []);
 
   // Handler: Add Single Student
   const handleAddStudent = useCallback((newStudent: Student, cardFee = 0) => {
@@ -899,6 +919,7 @@ export default function App() {
                   onRecordAttendance={handleRecordAttendance}
                   onFinishGroup={handleFinishGroup}
                   onRemoveFromScanner={handleRemoveFromScanner}
+                  onClearSessionScans={handleClearSessionScans}
                   onChangeStatus={handleChangeAttendanceStatus}
                   onNavigateToReport={() => setActiveTab("stats")}
                 />

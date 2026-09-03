@@ -126,7 +126,7 @@ function broadcastLocalChange(data: SystemData): void {
     } catch {}
   }
   if (typeof window !== "undefined") {
-    window.dispatchEvent(new CustomEvent("center-data-updated", { detail: data }));
+    window.dispatchEvent(new CustomEvent("center-data-updated", { detail: { ...data, _originLocal: true } }));
   }
 }
 
@@ -606,13 +606,26 @@ export function syncDataToCloud(data: SystemData, immediate: boolean = false): v
     debounceSyncTimer = null;
   }
 
-  // 3. Push immediately with 0ms delay for instant multi-device responsiveness
-  if (typeof window !== "undefined" && navigator.onLine) {
-    if (!isCurrentlySyncing) {
-      flushPendingSyncToCloud(false).catch(() => {});
-    } else {
-      hasQueuedPendingSync = true;
+  // 3. Debounce background cloud push to prevent freezing the UI thread during active scanning
+  if (immediate) {
+    if (typeof window !== "undefined" && navigator.onLine) {
+      if (!isCurrentlySyncing) {
+        flushPendingSyncToCloud(false).catch(() => {});
+      } else {
+        hasQueuedPendingSync = true;
+      }
     }
+  } else {
+    debounceSyncTimer = setTimeout(() => {
+      debounceSyncTimer = null;
+      if (typeof window !== "undefined" && navigator.onLine) {
+        if (!isCurrentlySyncing) {
+          flushPendingSyncToCloud(false).catch(() => {});
+        } else {
+          hasQueuedPendingSync = true;
+        }
+      }
+    }, 600);
   }
 }
 
@@ -1586,7 +1599,62 @@ export function saveAttendanceAndStudentsBatch(
     scanLogOrder,
     scanLogTimes,
   };
+  syncDataToCloud(updated, false); // Debounced cloud push to prevent scanner lag
+}
+
+/**
+ * Clear the active scanner queue for a single grade to isolate the current session from previous classes
+ */
+export function saveClearSessionScansForGrade(
+  grade: GradeName,
+  resetTodayAttendance: boolean = false
+): { updatedToday: Record<string, string>; remainingScanOrder: string[]; remainingScanTimes: Record<string, string> } {
+  const current = loadLocalData();
+  const studentMap = new Map<string, Student>();
+  (current.students || []).forEach((s) => {
+    if (s.barcode) studentMap.set(String(s.barcode).trim(), s);
+  });
+
+  // Keep only barcodes that do NOT belong to this grade
+  const remainingScanOrder = (current.scanLogOrder || []).filter((barcode) => {
+    const s = studentMap.get(String(barcode).trim());
+    return s ? s.groupGrade !== grade : false;
+  });
+
+  const remainingScanTimes = { ...(current.scanLogTimes || {}) };
+  (current.scanLogOrder || []).forEach((barcode) => {
+    const s = studentMap.get(String(barcode).trim());
+    if (s && s.groupGrade === grade) {
+      delete remainingScanTimes[barcode];
+    }
+  });
+
+  const updatedToday = { ...(current.attendanceToday || {}) };
+  if (resetTodayAttendance) {
+    (current.students || []).forEach((s) => {
+      if (s.groupGrade === grade) {
+        delete updatedToday[s.barcode];
+      }
+    });
+  }
+
+  const todayKey = getTodayKey();
+  const updatedHistory = {
+    ...(current.attendanceHistory || {}),
+    [todayKey]: updatedToday,
+  };
+
+  const updated: SystemData = {
+    ...current,
+    scanLogOrder: remainingScanOrder,
+    scanLogTimes: remainingScanTimes,
+    attendanceToday: updatedToday,
+    attendanceHistory: updatedHistory,
+    updatedAt: Date.now(),
+  };
+
   syncDataToCloud(updated, true);
+  return { updatedToday, remainingScanOrder, remainingScanTimes };
 }
 
 export function saveScanLogData(

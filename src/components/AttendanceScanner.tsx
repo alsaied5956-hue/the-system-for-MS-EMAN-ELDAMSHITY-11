@@ -35,6 +35,7 @@ import {
   BookOpen,
   Phone,
   RefreshCw,
+  RotateCcw,
 } from "lucide-react";
 
 interface AttendanceScannerProps {
@@ -59,6 +60,7 @@ interface AttendanceScannerProps {
     crossDayList?: { student: Student; message: string; type: "عكس_أيام" }[]
   ) => void;
   onRemoveFromScanner?: (barcode: string) => void;
+  onClearSessionScans?: (grade: GradeName, resetTodayAttendance?: boolean) => void;
   onChangeStatus?: (barcode: string, dateKey: string, newStatus: string) => void;
   onNavigateToReport?: () => void;
 }
@@ -74,15 +76,16 @@ export const AttendanceScanner: React.FC<AttendanceScannerProps> = ({
   onRecordAttendance,
   onFinishGroup,
   onRemoveFromScanner,
+  onClearSessionScans,
   onChangeStatus,
   onNavigateToReport,
 }) => {
   const [selectedGrade, setSelectedGrade] = useState<GradeName>(() => {
     if (typeof window !== "undefined") {
       const saved = localStorage.getItem("aiman_scanner_grade") as GradeName;
-      if (saved && GRADE_ORDER.includes(saved)) return saved;
+      if (saved && GRADE_ORDER.includes(saved) && saved !== "الصف الخامس الابتدائي") return saved;
     }
-    return "الصف الخامس الابتدائي";
+    return "الصف الرابع الابتدائي";
   });
 
   const [selectedDays, setSelectedDays] = useState<GroupDays>(() => {
@@ -100,7 +103,8 @@ export const AttendanceScanner: React.FC<AttendanceScannerProps> = ({
   const [otherDaysSearchQuery, setOtherDaysSearchQuery] = useState("");
   const [selectedManualStudent, setSelectedManualStudent] = useState<Student | null>(null);
   const [tableSearch, setTableSearch] = useState("");
-  const [viewFilter, setViewFilter] = useState<"current_group" | "all_scanned">("current_group");
+  const [isNewSessionModalOpen, setIsNewSessionModalOpen] = useState(false);
+  const [sessionResetSuccessNotice, setSessionResetSuccessNotice] = useState<string | null>(null);
 
   // Success Notification after finishing group
   const [finishedBanner, setFinishedBanner] = useState<{
@@ -229,13 +233,30 @@ export const AttendanceScanner: React.FC<AttendanceScannerProps> = ({
     });
   };
 
+  const handleClearSessionForCurrentGrade = (resetTodayAttendance = false) => {
+    if (onClearSessionScans) {
+      onClearSessionScans(selectedGrade, resetTodayAttendance);
+    }
+    setScanAlert(null);
+    setFinishedBanner(null);
+    setIsNewSessionModalOpen(false);
+    setSessionResetSuccessNotice(
+      resetTodayAttendance
+        ? `✅ تم بدء حصة جديدة وتصفير شاشة التحضير وحضور اليوم لـ [${selectedGrade}] بنجاح!`
+        : `✅ تم تفريغ شاشة التحضير لـ [${selectedGrade}] وبدء حصة جديدة معزولة تماماً!`
+    );
+    setTimeout(() => {
+      setSessionResetSuccessNotice(null);
+    }, 4500);
+  };
+
   const handleScanSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     const barcode = barcodeInput.trim();
     setBarcodeInput("");
     if (!barcode) return;
 
-    const student = students.find((s) => String(s.barcode).trim() === barcode);
+    const student = studentMap.get(barcode) || students.find((s) => String(s.barcode).trim() === barcode);
 
     if (!student) {
       playBeep("error");
@@ -447,14 +468,13 @@ export const AttendanceScanner: React.FC<AttendanceScannerProps> = ({
 
   const totalAllScannedToday = (scanLogOrder || []).length;
 
-  // Active Scanned list in the scanner table
+  // Active Scanned list in the scanner table - strictly for the selected grade only
   const displayedBarcodes = useMemo(() => {
     return (scanLogOrder || []).filter((barcode) => {
-      if (viewFilter === "all_scanned") return true;
       const s = studentMap.get(String(barcode).trim());
       return s && s.groupGrade === selectedGrade;
     });
-  }, [scanLogOrder, viewFilter, studentMap, selectedGrade]);
+  }, [scanLogOrder, studentMap, selectedGrade]);
 
   const filteredBarcodes = useMemo(() => {
     if (!tableSearch.trim()) return displayedBarcodes;
@@ -480,7 +500,7 @@ export const AttendanceScanner: React.FC<AttendanceScannerProps> = ({
           <div className="flex items-center gap-2 bg-indigo-500/15 border border-indigo-400/30 px-4 py-2 rounded-2xl shadow-sm">
             <UserCheck className="w-4 h-4 text-indigo-400" />
             <span className="font-tajawal font-bold text-xs md:text-sm text-indigo-200">
-              المجموعة النشطة بالقاعة:
+              الصف والمجموعة الحالية:
             </span>
           </div>
 
@@ -515,57 +535,76 @@ export const AttendanceScanner: React.FC<AttendanceScannerProps> = ({
               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
               <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
             </span>
-            <span>بث مباشر متزامن مع كل الهواتف والأجهزة</span>
+            <span>بث مباشر متزامن</span>
           </div>
         </div>
 
-        {/* Finish Group and Bulk Send Button */}
-        <div className="flex items-center gap-2">
+        {/* Actions: Start New Session & Finish Group */}
+        <div className="flex flex-wrap items-center gap-2.5">
+          <button
+            type="button"
+            onClick={() => setIsNewSessionModalOpen(true)}
+            className="px-4 py-2.5 rounded-2xl bg-gradient-to-r from-amber-500 via-orange-500 to-amber-600 hover:from-amber-400 hover:to-orange-400 text-slate-950 text-xs md:text-sm font-black shadow-lg shadow-amber-500/20 flex items-center gap-2 transition-all transform hover:scale-[1.02] active:scale-95 cursor-pointer border border-amber-300/40 font-tajawal"
+            title="بدء حصة جديدة وتفريغ شاشة التحضير مع عزل تام عن الحصص السابقة"
+          >
+            <RotateCcw className="w-4 h-4" />
+            <span>🆕 بدء حصة جديدة ({selectedGrade})</span>
+          </button>
+
           <button
             type="button"
             onClick={handleFinishGroupClick}
-            className="px-5 py-3 rounded-2xl bg-gradient-to-r from-rose-600 via-rose-500 to-amber-500 hover:from-rose-500 hover:to-amber-400 text-white text-xs md:text-sm font-bold shadow-xl shadow-rose-600/25 flex items-center gap-2 transition-all transform hover:scale-[1.02] active:scale-95 cursor-pointer border border-rose-300/30 font-tajawal"
+            className="px-4 py-2.5 rounded-2xl bg-gradient-to-r from-rose-600 via-rose-500 to-amber-500 hover:from-rose-500 hover:to-amber-400 text-white text-xs md:text-sm font-bold shadow-xl shadow-rose-600/25 flex items-center gap-2 transition-all transform hover:scale-[1.02] active:scale-95 cursor-pointer border border-rose-300/30 font-tajawal"
           >
             <Send className="w-4 h-4" />
-            <span>🔒 حفظ وإرسال الغياب والتأخير للكل بضغطة واحدة</span>
+            <span>🔒 حفظ وإرسال الغياب للكل</span>
           </button>
         </div>
       </div>
 
-      {/* Cross-Grade Active Scans Real-time Alert (when scans happen in other grades from another device) */}
-      {otherGradesActiveScans.length > 0 && (
-        <div className="bg-gradient-to-r from-indigo-950/90 via-slate-900 to-indigo-950/90 border border-amber-400/40 p-4 rounded-3xl shadow-xl flex flex-wrap items-center justify-between gap-3 animate-in fade-in">
-          <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-2xl bg-amber-500/20 border border-amber-400/40 flex items-center justify-center text-amber-400 shrink-0">
-              <Sparkles className="w-5 h-5 animate-pulse" />
-            </div>
-            <div>
-              <p className="text-xs md:text-sm font-bold text-amber-300 font-tajawal">
-                ⚡ نشاط لحظي من جهاز آخر: يوجد طلاب مسجلون حالياً في صفوف أخرى بالقاعة
-              </p>
-              <div className="flex flex-wrap items-center gap-2 mt-1">
-                {otherGradesActiveScans.map((item) => (
-                  <button
-                    key={item.grade}
-                    type="button"
-                    onClick={() => handleGradeChange(item.grade)}
-                    className="text-[11px] bg-indigo-500/20 hover:bg-amber-500/30 text-slate-200 hover:text-amber-200 border border-indigo-400/30 px-2.5 py-1 rounded-xl font-bold font-tajawal transition-colors cursor-pointer"
-                  >
-                    🔍 الانتقال لـ {item.grade} ({item.count} حاضر)
-                  </button>
-                ))}
-              </div>
-            </div>
+      {/* Success Notice for Session Reset */}
+      {sessionResetSuccessNotice && (
+        <div className="bg-emerald-950/90 border border-emerald-500/50 p-4 rounded-3xl shadow-xl flex items-center justify-between gap-3 text-emerald-300 text-xs md:text-sm font-bold font-tajawal animate-in fade-in">
+          <div className="flex items-center gap-2.5">
+            <CheckCircle2 className="w-5 h-5 text-emerald-400 shrink-0" />
+            <span>{sessionResetSuccessNotice}</span>
           </div>
           <button
             type="button"
-            onClick={() => setViewFilter("all_scanned")}
-            className="px-3.5 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs transition-all shadow cursor-pointer font-tajawal"
+            onClick={() => setSessionResetSuccessNotice(null)}
+            className="p-1 text-emerald-400 hover:text-white"
           >
-            🌐 عرض بث كل الطلاب الحاضرين حالياً ({totalAllScannedToday})
+            <X className="w-4 h-4" />
           </button>
         </div>
       )}
+
+      {/* Active Class Session Isolation Bar */}
+      <div className="bg-[#0b1224] border border-indigo-500/30 p-3.5 rounded-3xl flex flex-wrap items-center justify-between gap-3 text-xs font-tajawal shadow-lg">
+        <div className="flex flex-wrap items-center gap-2.5">
+          <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse"></span>
+          <span className="font-bold text-slate-200">
+            الحصة النشطة بالقاعة: <span className="text-amber-300 font-black font-fancy text-sm">{selectedGrade}</span> • <span className="text-indigo-300">{selectedDays}</span>
+          </span>
+          <span className="bg-indigo-500/20 text-indigo-300 border border-indigo-400/30 px-2.5 py-0.5 rounded-full text-[11px] font-bold">
+            شاشة التحضير معزولة ومخصصة لهذا الصف فقط
+          </span>
+        </div>
+
+        <div className="flex items-center gap-2">
+          {displayedBarcodes.length > 0 && (
+            <button
+              type="button"
+              onClick={() => handleClearSessionForCurrentGrade(false)}
+              className="px-3.5 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-amber-300 border border-amber-400/30 text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 shadow-sm"
+              title="تفريغ شاشة الحضور الحالية لبدء الحصة بدون أي طلاب سابقين"
+            >
+              <RotateCcw className="w-3.5 h-3.5" />
+              <span>تفريغ شاشة الحصة ({displayedBarcodes.length} ظاهر)</span>
+            </button>
+          )}
+        </div>
+      </div>
 
       {/* Finished Group Banner Notice */}
       {finishedBanner && (
@@ -1133,31 +1172,26 @@ export const AttendanceScanner: React.FC<AttendanceScannerProps> = ({
               )}
             </div>
 
-            {/* View Filter Switcher */}
-            <div className="flex items-center gap-1.5 bg-[#080d1e] p-1 rounded-2xl border border-indigo-500/30 text-xs">
-              <button
-                type="button"
-                onClick={() => setViewFilter("current_group")}
-                className={`px-3.5 py-1.5 rounded-xl font-bold transition-all ${
-                  viewFilter === "current_group"
-                    ? "bg-amber-500 text-slate-950 shadow-md"
-                    : "text-slate-400 hover:text-white"
-                }`}
-              >
-                📌 طلاب {selectedGrade} ({displayedBarcodes.length})
-              </button>
-              <button
-                type="button"
-                onClick={() => setViewFilter("all_scanned")}
-                className={`px-3.5 py-1.5 rounded-xl font-bold transition-all ${
-                  viewFilter === "all_scanned"
-                    ? "bg-amber-500 text-slate-950 shadow-md"
-                    : "text-slate-400 hover:text-white"
-                }`}
-              >
-                🌐 بث كل الحاضرين بالسنتر اليوم ({(scanLogOrder || []).length})
-              </button>
+            {/* Isolated Grade Badge & Clear Session Action */}
+            <div className="flex items-center gap-2 bg-[#080d1e] px-3.5 py-1.5 rounded-2xl border border-indigo-500/30 text-xs">
+              <span className="w-2 h-2 rounded-full bg-amber-400"></span>
+              <span className="font-bold text-slate-300">
+                حاضرون حالياً في {selectedGrade}:
+              </span>
+              <span className="font-mono font-black text-amber-300 text-sm">
+                {displayedBarcodes.length}
+              </span>
             </div>
+
+            <button
+              type="button"
+              onClick={() => setIsNewSessionModalOpen(true)}
+              className="px-3 py-1.5 rounded-xl bg-amber-500/10 hover:bg-amber-500 text-amber-400 hover:text-slate-950 border border-amber-500/30 text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shadow-sm"
+              title="بدء حصة جديدة وتصفير الشاشة"
+            >
+              <RotateCcw className="w-3.5 h-3.5" />
+              <span>بدء حصة جديدة</span>
+            </button>
           </div>
         </div>
 
@@ -1320,6 +1354,95 @@ export const AttendanceScanner: React.FC<AttendanceScannerProps> = ({
           days={dispatchModal.days}
           initialItems={dispatchModal.items}
         />
+      )}
+
+      {/* New Session Modal - Full Class & Session Isolation */}
+      {isNewSessionModalOpen && (
+        <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4">
+          <div className="bg-[#0c1322] border-2 border-amber-500/50 w-full max-w-lg rounded-3xl p-6 shadow-2xl space-y-5 animate-in fade-in zoom-in-95 font-tajawal">
+            <div className="flex items-center justify-between pb-3 border-b border-amber-500/20">
+              <div className="flex items-center gap-2.5">
+                <div className="w-10 h-10 rounded-2xl bg-amber-500/20 border border-amber-500/40 flex items-center justify-center text-amber-400 shrink-0">
+                  <RotateCcw className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-black text-amber-300 font-fancy">
+                    بدء حصة جديدة لـ [{selectedGrade}]
+                  </h3>
+                  <p className="text-xs text-slate-400 font-tajawal">
+                    عزل تام لشاشة التحضير عن الحصص السابقة لتفادي أي تداخل أو تهنيج
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsNewSessionModalOpen(false)}
+                className="p-2 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="bg-slate-900/90 border border-indigo-500/30 p-4 rounded-2xl space-y-2 text-xs text-slate-300">
+              <p className="font-bold text-amber-300">
+                💡 كيف ترغب في تهيئة الحصة الحالية؟
+              </p>
+              <p>
+                اختر الإجراء المناسب لضبط شاشة الحضور الخاصة بـ <strong className="text-white">[{selectedGrade}]</strong>:
+              </p>
+            </div>
+
+            <div className="space-y-3">
+              {/* Option 1: Clear screen only */}
+              <button
+                type="button"
+                onClick={() => handleClearSessionForCurrentGrade(false)}
+                className="w-full p-4 rounded-2xl bg-gradient-to-r from-slate-900 via-indigo-950/60 to-slate-900 hover:from-slate-800 hover:to-indigo-900/80 border border-amber-400/40 text-right transition-all group cursor-pointer shadow-md"
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <div className="font-black text-amber-300 text-sm group-hover:text-amber-200">
+                    🧹 تفريغ شاشة التحضير للحصة الجديدة (موصى به)
+                  </div>
+                  <span className="text-[11px] font-bold bg-amber-500/20 text-amber-300 px-2.5 py-0.5 rounded-full">
+                    ابدأ من 0 طالب
+                  </span>
+                </div>
+                <p className="text-xs text-slate-400 mt-1">
+                  يفرغ قائمة الطلاب الحاضرين على الشاشة الحالية لتبدأ بتمرير كروت هذه الحصة من الصفر، مع بقاء كافة سجلات الحضور السابقة محفوظة بأمان في التقارير.
+                </p>
+              </button>
+
+              {/* Option 2: Full reset for group today */}
+              <button
+                type="button"
+                onClick={() => handleClearSessionForCurrentGrade(true)}
+                className="w-full p-4 rounded-2xl bg-gradient-to-r from-slate-900 via-rose-950/40 to-slate-900 hover:from-slate-800 hover:to-rose-900/60 border border-rose-500/40 text-right transition-all group cursor-pointer shadow-md"
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <div className="font-black text-rose-300 text-sm group-hover:text-rose-200">
+                    🔄 تصفير حضور اليوم لطلاب هذا الصف بالكامل
+                  </div>
+                  <span className="text-[11px] font-bold bg-rose-500/20 text-rose-300 px-2.5 py-0.5 rounded-full">
+                    إعادة تحضير
+                  </span>
+                </div>
+                <p className="text-xs text-slate-400 mt-1">
+                  يفرغ الشاشة ويعيد حالة جميع طلاب [{selectedGrade}] إلى "غير مسجل"، حتى يمكنك تسجيل حضورهم من جديد اليوم في حال إعادة الحصة أو تصحيحها.
+                </p>
+              </button>
+            </div>
+
+            <div className="flex justify-end pt-2">
+              <button
+                type="button"
+                onClick={() => setIsNewSessionModalOpen(false)}
+                className="px-5 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs transition-colors cursor-pointer"
+              >
+                إلغاء
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
     </div>
