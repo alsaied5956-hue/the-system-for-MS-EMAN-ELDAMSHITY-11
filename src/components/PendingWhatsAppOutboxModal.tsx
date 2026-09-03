@@ -179,6 +179,14 @@ export const PendingWhatsAppOutboxModal: React.FC<PendingWhatsAppOutboxModalProp
     };
   }, [isAutoSending, sendCurrentAndAdvance, dispatchDelay]);
 
+  // Cancel auto sending when modal closes
+  useEffect(() => {
+    if (!isOpen) {
+      setIsAutoSending(false);
+      if (autoIntervalRef.current) clearInterval(autoIntervalRef.current);
+    }
+  }, [isOpen]);
+
   const getTypeBadge = (type: WhatsAppMessageType) => {
     switch (type) {
       case "غياب":

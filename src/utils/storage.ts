@@ -419,9 +419,8 @@ function withTimeout<T>(promise: Promise<T>, ms: number, errorMsg: string): Prom
     timer = setTimeout(() => reject(new Error(errorMsg)), ms);
   });
   return Promise.race([
-    promise.then((res) => {
+    promise.finally(() => {
       clearTimeout(timer);
-      return res;
     }),
     timeoutPromise,
   ]);
@@ -1254,6 +1253,7 @@ export async function importAndMergeCompleteBackupJSON(file: File): Promise<{
 }
 
 let activeSnapshotUnsubscribe: (() => void) | null = null;
+const cloudErrorListeners: ((err: unknown) => void)[] = [];
 
 function ensureActiveSnapshotListener() {
   if (activeSnapshotUnsubscribe) return;
@@ -1360,6 +1360,13 @@ function ensureActiveSnapshotListener() {
         }
       },
       (error) => {
+        activeSnapshotUnsubscribe = null;
+        cloudErrorListeners.forEach((fn) => {
+          try {
+            fn(error);
+          } catch {}
+        });
+
         if (isFirestoreQuotaError(error)) {
           isQuotaExceeded = true;
           quotaExceededUntil = Date.now() + 5 * 60 * 1000;
@@ -1367,9 +1374,17 @@ function ensureActiveSnapshotListener() {
           setTimeout(() => {
             isQuotaExceeded = false;
             notifySyncStatusChange();
+            if (cloudDataListeners.length > 0) {
+              ensureActiveSnapshotListener();
+            }
           }, 5 * 60 * 1000);
         } else {
           console.warn("Firestore snapshot listener notice:", error);
+          setTimeout(() => {
+            if (cloudDataListeners.length > 0) {
+              ensureActiveSnapshotListener();
+            }
+          }, 5000);
         }
       }
     );
@@ -1387,12 +1402,21 @@ export function subscribeToCloudData(
   onError?: (err: unknown) => void
 ): () => void {
   cloudDataListeners.push(onUpdate);
+  if (onError) {
+    cloudErrorListeners.push(onError);
+  }
   ensureActiveSnapshotListener();
 
   return () => {
     const idx = cloudDataListeners.indexOf(onUpdate);
     if (idx !== -1) {
       cloudDataListeners.splice(idx, 1);
+    }
+    if (onError) {
+      const errIdx = cloudErrorListeners.indexOf(onError);
+      if (errIdx !== -1) {
+        cloudErrorListeners.splice(errIdx, 1);
+      }
     }
     if (cloudDataListeners.length === 0 && activeSnapshotUnsubscribe) {
       try {
@@ -1410,6 +1434,9 @@ if (typeof window !== "undefined") {
   // 1. Flush immediately when network connection is restored
   window.addEventListener("online", () => {
     notifySyncStatusChange();
+    if (cloudDataListeners.length > 0) {
+      ensureActiveSnapshotListener();
+    }
     if (!isQuotaExceeded || Date.now() >= quotaExceededUntil) {
       flushPendingSyncToCloud(false);
     }
@@ -1423,6 +1450,9 @@ if (typeof window !== "undefined") {
   // 3. Trigger sync when returning to tab/window
   document.addEventListener("visibilitychange", () => {
     if (document.visibilityState === "visible" && navigator.onLine) {
+      if (cloudDataListeners.length > 0) {
+        ensureActiveSnapshotListener();
+      }
       const hasPending = localStorage.getItem(PENDING_SYNC_KEY) === "true";
       if (hasPending && !isCurrentlySyncing && (!isQuotaExceeded || Date.now() >= quotaExceededUntil)) {
         flushPendingSyncToCloud(false);

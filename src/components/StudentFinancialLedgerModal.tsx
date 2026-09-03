@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from "react";
 import { Student, PaymentRecord, GradeName } from "../types";
 import { DEFAULT_GRADE_PRICES, openWhatsApp, isStudentPaid, getStudentPayment } from "../utils/helpers";
+import { printElement } from "../utils/print";
 import { EditPaymentModal } from "./EditPaymentModal";
 import {
   X,
@@ -128,7 +129,13 @@ export const StudentFinancialLedgerModal: React.FC<StudentFinancialLedgerModalPr
   const currentMonthKeyStr = `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, "0")}`;
 
   const handlePrintLedger = () => {
-    window.print();
+    if (student) {
+      printElement("student-ledger-table-print", {
+        title: `كشف حساب ومصروفات الطالب - ${student.name}`,
+      });
+    } else {
+      window.print();
+    }
   };
 
   const handleOpenReceipt = (monthKey: string) => {
@@ -298,7 +305,7 @@ export const StudentFinancialLedgerModal: React.FC<StudentFinancialLedgerModalPr
 
         {/* Content View 1: Detailed Monthly Ledger Table */}
         {activeSubTab === "ledger" && (
-          <div className="space-y-4 overflow-hidden flex flex-col flex-1">
+          <div id="student-ledger-table-print" className="space-y-4 overflow-hidden flex flex-col flex-1">
             <div className="overflow-y-auto flex-1 pr-1 border border-indigo-500/20 rounded-2xl bg-[#060b17]">
               <table className="w-full text-right border-collapse text-xs">
                 <thead className="sticky top-0 bg-slate-900 text-amber-300 font-bold border-b border-indigo-500/30 z-10">

@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { Student, GradeName, PaymentRecord } from "../types";
-import { getCurrentMonthKey, getTodayKey, openWhatsApp, DEFAULT_GRADE_PRICES } from "../utils/helpers";
+import { getCurrentMonthKey, getTodayKey, openWhatsApp, DEFAULT_GRADE_PRICES, getStudentPayment } from "../utils/helpers";
 import { enqueuePendingWhatsAppMessage, markWhatsAppMessageSent, exportPaidStudentsToCloud } from "../utils/storage";
 import { playBeep } from "../utils/audio";
 import { StudentSearchBox } from "./StudentSearchBox";
@@ -74,7 +74,9 @@ export const PayExpensesTab: React.FC<PayExpensesTabProps> = ({
     }
   };
 
-  const existingPayment = selectedStudent ? payments[selectedMonth]?.[selectedStudent.barcode] : undefined;
+  const existingPayment = selectedStudent
+    ? getStudentPayment(payments[selectedMonth], selectedStudent.barcode)
+    : undefined;
 
   const handleSelectStudent = (student: Student) => {
     setSelectedStudent(student);
