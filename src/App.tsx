@@ -13,6 +13,7 @@ import {
   saveStudentsData,
   saveAttendanceTodayData,
   saveAttendanceAndStudentsBatch,
+  saveAttendanceHistoryData,
   saveClearSessionScansForGrade,
   saveScanLogData,
   savePaymentsData,
@@ -564,7 +565,6 @@ export default function App() {
     if (isToday) {
       updatedToday = { ...attendanceToday, [barcode]: newStatus };
       setAttendanceToday(updatedToday);
-      saveAttendanceTodayData(updatedToday, scanLogOrder, scanLogTimes);
     }
 
     const updatedStudents = students.map((s) => {
@@ -596,7 +596,13 @@ export default function App() {
     });
 
     setStudents(updatedStudents);
-    saveStudentsData(updatedStudents);
+
+    // Save and sync atomically for both today and historical date changes
+    if (isToday) {
+      saveAttendanceAndStudentsBatch(updatedToday, scanLogOrder, scanLogTimes, updatedStudents, true);
+    } else {
+      saveAttendanceHistoryData(updatedHistory, updatedStudents);
+    }
   }, [attendanceToday, attendanceHistory, scanLogOrder, scanLogTimes, students]);
 
   // Handler: Record Payment

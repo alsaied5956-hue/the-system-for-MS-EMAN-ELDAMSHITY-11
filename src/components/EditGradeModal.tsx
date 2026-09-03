@@ -141,6 +141,11 @@ export const EditGradeModal: React.FC<EditGradeModalProps> = ({
       return;
     }
 
+    if (s < 0) {
+      setErrorMsg("⚠️ لا يمكن أن تكون درجة الطالب بالسالب!");
+      return;
+    }
+
     if (s > m) {
       setErrorMsg(`⚠️ درجة الطالب (${s}) لا يمكن أن تكون أكبر من الدرجة العظمى (${m})!`);
       return;

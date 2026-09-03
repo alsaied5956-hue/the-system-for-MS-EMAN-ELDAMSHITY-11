@@ -127,17 +127,18 @@ export const PayExpensesTab: React.FC<PayExpensesTabProps> = ({
     const isOnline = typeof navigator !== "undefined" ? navigator.onLine : true;
 
     // Enqueue message into persistent WhatsApp queue
+    const targetPhone = selectedStudent.parentPhone || selectedStudent.phone || "";
     const queuedMsg = enqueuePendingWhatsAppMessage({
       studentBarcode: selectedStudent.barcode,
       studentName: selectedStudent.name,
       grade: selectedStudent.groupGrade,
-      phone: selectedStudent.parentPhone,
+      phone: targetPhone,
       messageType: "مصاريف",
       message: receiptMsg,
     });
 
     if (isOnline) {
-      openWhatsApp(selectedStudent.parentPhone, receiptMsg);
+      openWhatsApp(targetPhone, receiptMsg);
       // Mark as sent immediately so it doesn't duplicate in the pending queue
       if (queuedMsg?.id) {
         markWhatsAppMessageSent(queuedMsg.id);

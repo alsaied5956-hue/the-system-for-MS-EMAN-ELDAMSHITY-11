@@ -159,7 +159,7 @@ export const StudentFinancialLedgerModal: React.FC<StudentFinancialLedgerModalPr
       (unpaidList ? `⚠️ الشهور المستحقة حتى تاريخه:\n${unpaidList}\n\n` : `🎉 جميع الشهور حتى الآن مسددة بالكامل!\n\n`) +
       `شاكرين لكم اهتمامكم وحرصكم الدائم ✨`;
 
-    openWhatsApp(student.parentPhone, message);
+    openWhatsApp(student.parentPhone || student.phone || "", message);
   };
 
   const activeReceiptRecord = selectedReceiptMonth

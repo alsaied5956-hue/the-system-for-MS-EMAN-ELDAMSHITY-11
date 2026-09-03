@@ -93,8 +93,29 @@ export const UsersTab: React.FC<UsersTabProps> = ({
     e.preventDefault();
     if (!editingUser) return;
 
+    const trimmedUsername = editingUser.username.trim();
+    const trimmedPass = editingUser.pass.trim();
+
+    if (!trimmedUsername || !trimmedPass) {
+      alert("⚠️ يرجى إدخال اسم المستخدم وكلمة المرور!");
+      return;
+    }
+
+    const isDuplicate = usersList.some(
+      (u) =>
+        u.username.toLowerCase() === trimmedUsername.toLowerCase() &&
+        u.username.toLowerCase() !== originalEditUsername.toLowerCase()
+    );
+
+    if (isDuplicate) {
+      alert(`⚠️ اسم المستخدم (${trimmedUsername}) مستخدم بالفعل لحساب آخر!`);
+      return;
+    }
+
     onUpdateUser(originalEditUsername, {
       ...editingUser,
+      username: trimmedUsername,
+      pass: trimmedPass,
       permissions:
         editingUser.role === "admin" ? [...ALL_PERMISSIONS] : editingUser.permissions || [],
     });
@@ -222,9 +243,21 @@ export const UsersTab: React.FC<UsersTabProps> = ({
               {usersList.map((user) => {
                 const isOnlyAdmin = user.role === "admin" && adminCount <= 1;
 
+                const isCurrentActive =
+                  user.username.trim().toLowerCase() === currentUser.username.trim().toLowerCase();
+
                 return (
                   <tr key={user.username} className="hover:bg-amber-500/5 transition-colors">
-                    <td className="p-3.5 font-bold text-slate-100 font-fancy">{user.username}</td>
+                    <td className="p-3.5 font-bold text-slate-100 font-fancy">
+                      <div className="flex items-center gap-2">
+                        <span>{user.username}</span>
+                        {isCurrentActive && (
+                          <span className="text-[10px] text-amber-400 font-bold bg-amber-500/15 border border-amber-500/30 px-2 py-0.5 rounded-full">
+                            حسابك الحالي
+                          </span>
+                        )}
+                      </div>
+                    </td>
                     <td className="p-3.5">
                       <span
                         className={`px-3 py-1 rounded-xl font-bold text-[11px] inline-flex items-center gap-1 ${
@@ -253,7 +286,7 @@ export const UsersTab: React.FC<UsersTabProps> = ({
                           <span>تعديل</span>
                         </button>
 
-                        {!isOnlyAdmin && (
+                        {!isOnlyAdmin && !isCurrentActive && (
                           <button
                             type="button"
                             onClick={() => {

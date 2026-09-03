@@ -157,7 +157,7 @@ export const PendingWhatsAppOutboxModal: React.FC<PendingWhatsAppOutboxModalProp
     }
   }, [pendingMessages, dispatchDelay, onMarkSent]);
 
-  // Countdown timer effect for auto dispatch
+  // Countdown timer effect for auto dispatch (pure timer, no side-effects in state setter)
   useEffect(() => {
     if (!isAutoSending) {
       if (autoIntervalRef.current) clearInterval(autoIntervalRef.current);
@@ -166,18 +166,24 @@ export const PendingWhatsAppOutboxModal: React.FC<PendingWhatsAppOutboxModalProp
 
     autoIntervalRef.current = setInterval(() => {
       setCountdown((prev) => {
-        if (prev <= 0.2) {
-          sendCurrentAndAdvance();
-          return dispatchDelay;
+        if (prev <= 0.1) {
+          return 0;
         }
-        return Math.max(0, Number((prev - 0.1).toFixed(1)));
+        return Number((prev - 0.1).toFixed(1));
       });
     }, 100);
 
     return () => {
       if (autoIntervalRef.current) clearInterval(autoIntervalRef.current);
     };
-  }, [isAutoSending, sendCurrentAndAdvance, dispatchDelay]);
+  }, [isAutoSending]);
+
+  // Safe side-effect execution when countdown reaches 0
+  useEffect(() => {
+    if (isAutoSending && countdown === 0) {
+      sendCurrentAndAdvance();
+    }
+  }, [isAutoSending, countdown, sendCurrentAndAdvance]);
 
   // Cancel auto sending when modal closes
   useEffect(() => {

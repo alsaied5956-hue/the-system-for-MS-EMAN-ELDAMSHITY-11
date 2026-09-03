@@ -84,7 +84,7 @@ export const EarlyWarningTab: React.FC<EarlyWarningTabProps> = ({
   const handleSendWarning = (student: Student, reasons: string[]) => {
     const reasonsText = reasons.map((r) => `• ${r}`).join("\n");
     const msg = `🚨 إنذار متابعة عاجل من منظومة الأستاذة إيمان الدمشيتي 📐\n\nنلفت عناية ولي أمر الطالب/ة: (${student.name})\nالمقيد في: ${student.groupGrade}\n\nنود إحاطتكم علماً بالملاحظات التالية:\n${reasonsText}\n\nنرجو التواصل الفوري والاهتمام لمصلحة الطالب ومستقبله التعليمي ✨`;
-    openWhatsApp(student.parentPhone, msg);
+    openWhatsApp(student.parentPhone || student.phone || "", msg);
   };
 
   const highCount = warningList.filter((w) => w.severity === "high").length;

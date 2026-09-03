@@ -114,7 +114,7 @@ export const CertificatesTab: React.FC<CertificatesTabProps> = ({ students }) =>
 
   const handleSendCertificateWhatsApp = (cert: CertificateData) => {
     const msg = `🌟 تهنئة وتكريم تفوق أكاديمي 🌟\n\nتتقدم الأستاذة إيمان الدمشيتي (أستاذة الرياضيات) بأسمى آيات التهاني والتبريكات للطالب/ة المتميز/ة:\n✨ (${cert.student.name}) ✨\nالمقيد بالصف: ${cert.student.groupGrade}\n\nنظراً لحصوله على: [${cert.scoreText}] في ${cert.examTitle}.\n\nتم إصدار شهادة تقدير رسمية تكريماً لجهوده وتفوقه الباهر، متمنين له دوام الريادة والنجاح 🌟📐`;
-    openWhatsApp(cert.student.parentPhone, msg);
+    openWhatsApp(cert.student.parentPhone || cert.student.phone || "", msg);
   };
 
   const handleCreateCustomCertificate = (e: React.FormEvent) => {

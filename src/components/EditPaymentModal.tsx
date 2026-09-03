@@ -33,6 +33,7 @@ export const EditPaymentModal: React.FC<EditPaymentModalProps> = ({
   const [newNote, setNewNote] = useState(payment.note || "");
   const [newDate, setNewDate] = useState(payment.date || new Date().toISOString().split("T")[0]);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   useEffect(() => {
     if (payment) {
@@ -41,6 +42,7 @@ export const EditPaymentModal: React.FC<EditPaymentModalProps> = ({
       setNewNote(payment.note || "");
       setNewDate(payment.date || new Date().toISOString().split("T")[0]);
       setConfirmDelete(false);
+      setErrorMsg(null);
     }
   }, [payment, monthKey, isOpen]);
 
@@ -48,11 +50,11 @@ export const EditPaymentModal: React.FC<EditPaymentModalProps> = ({
     e.preventDefault();
     const amt = Number(newAmount);
     if (isNaN(amt) || amt < 0) {
-      alert("يرجى إدخال مبلغ صحيح!");
+      setErrorMsg("⚠️ يرجى إدخال مبلغ صحيح!");
       return;
     }
     if (!newMonthKey.trim()) {
-      alert("يرجى تحديد شهر الاشتراك!");
+      setErrorMsg("⚠️ يرجى تحديد شهر الاشتراك!");
       return;
     }
 
@@ -100,6 +102,13 @@ export const EditPaymentModal: React.FC<EditPaymentModalProps> = ({
 
         {/* Modal Body */}
         <form onSubmit={handleSubmit} className="p-5 space-y-4 overflow-y-auto text-xs font-bold flex-1">
+          {errorMsg && (
+            <div className="p-3 rounded-2xl bg-rose-950/80 text-rose-300 border border-rose-500/40 font-bold flex items-center gap-2">
+              <AlertTriangle className="w-4 h-4 shrink-0" />
+              <span>{errorMsg}</span>
+            </div>
+          )}
+
           {/* Change Month Field */}
           <div className="space-y-1.5">
             <label className="text-slate-300 flex items-center justify-between">

@@ -4,7 +4,7 @@ import { openWhatsApp, SCHOOL_WHATSAPP_PHONE, sortStudentsByGradeAndName } from 
 import { enqueuePendingWhatsAppMessage } from "../utils/storage";
 import { playBeep } from "../utils/audio";
 import { StudentSearchBox } from "./StudentSearchBox";
-import { FileCheck2, Send, Sparkles, UserCheck, MessageSquare, Clock, CheckCircle2 } from "lucide-react";
+import { FileCheck2, Send, Sparkles, UserCheck, MessageSquare, Clock, CheckCircle2, Loader2 } from "lucide-react";
 
 interface ExamGradesTabProps {
   students: Student[];
@@ -27,6 +27,7 @@ export const ExamGradesTab: React.FC<ExamGradesTabProps> = ({
   const [searchInput, setSearchInput] = useState("");
   const [studentScore, setStudentScore] = useState<number | "">("");
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [feedback, setFeedback] = useState<{ type: "success" | "error"; message: string } | null>(null);
   const [lastRecordedInfo, setLastRecordedInfo] = useState<{
     studentName: string;
@@ -65,6 +66,8 @@ export const ExamGradesTab: React.FC<ExamGradesTabProps> = ({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (isSubmitting) return;
+
     if (!selectedStudent) {
       setFeedback({ type: "error", message: "⚠️ يرجى اختيار أو مسح باركود طالب مسجل أولاً!" });
       return;
@@ -78,10 +81,17 @@ export const ExamGradesTab: React.FC<ExamGradesTabProps> = ({
       return;
     }
 
+    if (scoreNum < 0) {
+      setFeedback({ type: "error", message: "⚠️ لا يمكن أن تكون درجة الطالب أقل من الصفر!" });
+      return;
+    }
+
     if (scoreNum > maxNum) {
       setFeedback({ type: "error", message: `⚠️ لا يمكن أن تكون درجة الطالب (${scoreNum}) أكبر من الدرجة العظمى (${maxNum})!` });
       return;
     }
+
+    setIsSubmitting(true);
 
     const currentTitle = examTitle.trim() || "التقييم الأول";
 
@@ -139,6 +149,7 @@ export const ExamGradesTab: React.FC<ExamGradesTabProps> = ({
     setSearchInput("");
     setSelectedStudent(null);
     setStudentScore("");
+    setIsSubmitting(false);
 
     setTimeout(() => {
       setFeedback(null);
@@ -295,15 +306,24 @@ export const ExamGradesTab: React.FC<ExamGradesTabProps> = ({
 
           <button
             type="submit"
-            disabled={!selectedStudent}
+            disabled={!selectedStudent || isSubmitting}
             className={`w-full py-3.5 rounded-2xl font-black text-sm transition-all flex items-center justify-center gap-2 shadow-xl ${
-              selectedStudent
+              selectedStudent && !isSubmitting
                 ? "bg-gradient-to-r from-amber-400 via-amber-300 to-yellow-200 hover:from-amber-300 hover:to-yellow-100 text-slate-950 shadow-amber-500/25 cursor-pointer active:scale-[0.99]"
                 : "bg-slate-800 text-slate-500 cursor-not-allowed opacity-50"
             }`}
           >
-            <Sparkles className="w-4 h-4 text-slate-950" />
-            <span>حفظ النتيجة وإرسالها المباشر لولي الأمر 📲</span>
+            {isSubmitting ? (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin text-slate-950" />
+                <span>جارٍ رصد النتيجة...</span>
+              </>
+            ) : (
+              <>
+                <Sparkles className="w-4 h-4 text-slate-950" />
+                <span>حفظ النتيجة وإرسالها المباشر لولي الأمر 📲</span>
+              </>
+            )}
           </button>
         </form>
 

@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from "react";
 import { Student, GradeName, GroupDays, GRADE_ORDER, PaymentRecord } from "../types";
-import { sortStudentsByGradeAndName, getExamAverage, getAbsenceRate, DEFAULT_GRADE_PRICES } from "../utils/helpers";
+import { sortStudentsByGradeAndName, getExamAverage, getAbsenceRate, DEFAULT_GRADE_PRICES, cleanPhoneNumber } from "../utils/helpers";
 import { matchStudentSearch } from "../utils/search";
 import { StudentFinancialLedgerModal } from "./StudentFinancialLedgerModal";
 import { Users2, Trash2, Edit3, Search, AlertTriangle, Tag, Sparkles, X, CreditCard, FileText } from "lucide-react";
@@ -73,16 +73,39 @@ export const ManageStudentsTab: React.FC<ManageStudentsTabProps> = ({
     e.preventDefault();
     if (!editingStudent) return;
 
+    const trimmedBarcode = editingStudent.barcode.trim();
+    const trimmedName = editingStudent.name.trim();
+
+    if (!trimmedBarcode || !trimmedName) {
+      setFeedback({ type: "error", message: "⚠️ يرجى التأكد من كتابة كود الباركود واسم الطالب!" });
+      return;
+    }
+
     if (
-      oldBarcode !== editingStudent.barcode &&
-      students.some((s) => s.barcode === editingStudent.barcode)
+      oldBarcode !== trimmedBarcode &&
+      students.some((s) => s.barcode === trimmedBarcode)
     ) {
       setFeedback({ type: "error", message: "⚠️ هذا الباركود الجديد مستخدم بالفعل لطالب آخر!" });
       return;
     }
 
-    onUpdateStudent(oldBarcode, editingStudent);
-    setFeedback({ type: "success", message: `✅ تم تحديث بيانات الطالب (${editingStudent.name}) بنجاح!` });
+    const normalizedPhone = cleanPhoneNumber(editingStudent.phone?.trim() || "");
+    const normalizedParentPhone = cleanPhoneNumber(editingStudent.parentPhone?.trim() || "");
+    const sanitizedFee = editingStudent.customMonthlyFee !== undefined
+      ? Math.max(0, isNaN(Number(editingStudent.customMonthlyFee)) ? 0 : Number(editingStudent.customMonthlyFee))
+      : undefined;
+
+    const studentToSave: Student = {
+      ...editingStudent,
+      barcode: trimmedBarcode,
+      name: trimmedName,
+      phone: normalizedPhone || normalizedParentPhone,
+      parentPhone: normalizedParentPhone || normalizedPhone,
+      customMonthlyFee: sanitizedFee,
+    };
+
+    onUpdateStudent(oldBarcode, studentToSave);
+    setFeedback({ type: "success", message: `✅ تم تحديث بيانات الطالب (${studentToSave.name}) بنجاح!` });
     setEditingStudent(null);
 
     setTimeout(() => {

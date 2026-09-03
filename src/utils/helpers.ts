@@ -67,11 +67,26 @@ export function cleanPhoneNumber(phone?: string): string {
     normalized = normalized.split(arabicDigits[i]).join(String(i));
   }
   let digits = normalized.replace(/\D/g, "");
+
+  // 1. Handle international prefix "0020" or "00"
+  if (digits.startsWith("0020")) {
+    digits = digits.substring(2);
+  } else if (digits.startsWith("00")) {
+    digits = digits.substring(2);
+  }
+
+  // 2. Handle redundant "200" typo (e.g. typing 20 then 010...)
+  if (digits.startsWith("200") && digits.length === 13) {
+    digits = "20" + digits.substring(3);
+  }
+
+  // 3. Handle Egyptian national format (e.g. 010..., 011..., 012..., 015...)
   if (digits.startsWith("0")) {
     digits = "2" + digits;
   } else if (!digits.startsWith("2") && digits.length === 10) {
     digits = "20" + digits;
   }
+
   return digits;
 }
 
@@ -109,8 +124,27 @@ export function openWhatsApp(phone: string, message: string, forceMode?: "web" |
     url = `https://wa.me/${cleanPhone}?text=${encodedMsg}`;
   }
 
-  // Open in a new Google Chrome tab
-  window.open(url, "_blank", "noopener,noreferrer");
+  // Safe opening with popup-blocker fallback
+  try {
+    const win = window.open(url, "_blank", "noopener,noreferrer");
+    if (!win || win.closed || typeof win.closed === "undefined") {
+      const a = document.createElement("a");
+      a.href = url;
+      a.target = "_blank";
+      a.rel = "noopener noreferrer";
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+    }
+  } catch {
+    const a = document.createElement("a");
+    a.href = url;
+    a.target = "_blank";
+    a.rel = "noopener noreferrer";
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+  }
 }
 
 export function getGradeIndex(grade: GradeName): number {

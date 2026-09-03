@@ -256,9 +256,21 @@ export function parseStudentsFromExcelFile(file: File): Promise<{ students: Part
       try {
         const data = new Uint8Array(e.target?.result as ArrayBuffer);
         const workbook = XLSX.read(data, { type: "array" });
+
+        if (!workbook.SheetNames || workbook.SheetNames.length === 0) {
+          throw new Error("ملف الإكسيل فارغ ولا يحتوي على أي أوراق عمل (Sheets).");
+        }
+
         const firstSheetName = workbook.SheetNames[0];
         const worksheet = workbook.Sheets[firstSheetName];
+        if (!worksheet) {
+          throw new Error("ورقة العمل المحددة في ملف الإكسيل تالفة أو غير مقروءة.");
+        }
+
         const jsonData = XLSX.utils.sheet_to_json<Record<string, unknown>>(worksheet);
+        if (!jsonData || jsonData.length === 0) {
+          throw new Error("ورقة العمل لا تحتوي على أي صفوف أو بيانات طلاب للاستيراد.");
+        }
 
         const parsedStudents: Partial<Student>[] = [];
         const errors: string[] = [];

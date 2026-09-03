@@ -78,7 +78,8 @@ export const CumulativeGradesReport: React.FC<CumulativeGradesReportProps> = ({
 
     onUpdateGradeRecord(barcode, examTitle, scoreFormatted, newPoints, updatedScores);
 
-    if (openChatWithParent && student.parentPhone) {
+    const targetPhone = student.parentPhone || student.phone || "";
+    if (openChatWithParent && targetPhone) {
       const msg =
         customMessage ||
         `تعديل وتحديث رصد درجة اختبار الرياضيات 📐\n\nالسادة أولياء الأمور الكرام،\nتم تعديل وتحديث رصد درجة الاختبار لدى الأستاذة إيمان الدمشيتي:\n\n🔹 اسم الطالب/ة: ${student.name}\n📚 الصف: ${student.groupGrade}\n📝 موضوع الاختبار: ${examTitle}\n📊 الدرجة بعد التعديل: ${scoreFormatted}\n⭐ إجمالي نقاط الطالب: ${newPoints}\n\nمع تحيات ميس إيمان الدمشيتي 📐`;
@@ -88,12 +89,12 @@ export const CumulativeGradesReport: React.FC<CumulativeGradesReportProps> = ({
         studentBarcode: student.barcode,
         studentName: student.name,
         grade: student.groupGrade,
-        phone: student.parentPhone,
+        phone: targetPhone,
         messageType: "درجات",
         message: msg,
       });
 
-      openWhatsApp(student.parentPhone, msg);
+      openWhatsApp(targetPhone, msg);
     }
 
     setFeedback({
@@ -270,8 +271,8 @@ export const CumulativeGradesReport: React.FC<CumulativeGradesReportProps> = ({
                             onClick={() => {
                               const reportMsg = `تقرير مستوى الطالب/ة: (${student.name})\nالصف: ${student.groupGrade}\nنسبة الحضور: ${attRate}%\nمتوسط درجات الامتحانات: ${examAvg}%\nآخر اختبار: ${
                                 student.lastExamScore || "لا يوجد"
-                              }\nإجمالي النقاط: ${student.points} ⭐\nمع تحيات ميس إيمان الدمشيتي 📐`;
-                              openWhatsApp(student.parentPhone, reportMsg);
+                              }\nإجمالي النقاط: ${student.points || 0} ⭐\nمع تحيات ميس إيمان الدمشيتي 📐`;
+                              openWhatsApp(student.parentPhone || student.phone || "", reportMsg);
                             }}
                             className="px-2.5 py-1.5 rounded-xl bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/30 text-emerald-300 text-[11px] font-bold cursor-pointer transition-all"
                           >

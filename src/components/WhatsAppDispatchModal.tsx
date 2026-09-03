@@ -83,7 +83,7 @@ export const WhatsAppDispatchModal: React.FC<WhatsAppDispatchModalProps> = ({
     if (!activeItem || activeItem.status === "sent") return;
 
     // 1. Open WhatsApp
-    openWhatsApp(activeItem.student.parentPhone, activeItem.message);
+    openWhatsApp(activeItem.student.parentPhone || activeItem.student.phone || "", activeItem.message);
     playBeep("success");
 
     // 2. Mark as sent in storage queue so it won't appear in pending outbox

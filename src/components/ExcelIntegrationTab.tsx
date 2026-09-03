@@ -1,6 +1,7 @@
 import React, { useState, useRef } from "react";
 import { Student, PaymentRecord, GradeName } from "../types";
 import { exportStudentsToExcel, exportAllExamsToExcel, parseStudentsFromExcelFile } from "../utils/excel";
+import { cleanPhoneNumber } from "../utils/helpers";
 import { FileSpreadsheet, Upload, Download, CheckCircle, AlertCircle, FileCheck, Users, Sparkles } from "lucide-react";
 
 interface ExcelIntegrationTabProps {
@@ -30,8 +31,9 @@ export const ExcelIntegrationTab: React.FC<ExcelIntegrationTabProps> = ({
       const result = await parseStudentsFromExcelFile(file);
       setImportPreview(result.students);
       setImportErrors(result.errors);
-    } catch (err) {
-      alert("❌ فشل قراءة ملف الإكسيل! تأكد من أن الملف بصيغة .xlsx أو .xls صالحة.");
+    } catch (err: unknown) {
+      const errMsg = err instanceof Error ? err.message : "❌ فشل قراءة ملف الإكسيل! تأكد من أن الملف بصيغة .xlsx أو .xls صالحة.";
+      alert(errMsg);
       console.error(err);
     } finally {
       setIsProcessing(false);
@@ -57,8 +59,8 @@ export const ExcelIntegrationTab: React.FC<ExcelIntegrationTabProps> = ({
       validNewStudents.push({
         barcode: b,
         name: p.name || "طالب جديد",
-        phone: p.phone || "",
-        parentPhone: p.parentPhone || p.phone || "",
+        phone: cleanPhoneNumber(p.phone || ""),
+        parentPhone: cleanPhoneNumber(p.parentPhone || p.phone || ""),
         groupGrade: (p.groupGrade as GradeName) || "الصف الرابع الابتدائي",
         groupDays: p.groupDays || "سبت - إثنين - أربعاء",
         customMonthlyFee: p.customMonthlyFee,

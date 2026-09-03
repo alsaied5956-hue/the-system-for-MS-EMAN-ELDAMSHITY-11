@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { Student, GradeName, GroupDays, GRADE_ORDER } from "../types";
-import { openWhatsApp, DEFAULT_GRADE_PRICES } from "../utils/helpers";
-import { UserPlus, Sparkles, Tag } from "lucide-react";
+import { openWhatsApp, DEFAULT_GRADE_PRICES, cleanPhoneNumber } from "../utils/helpers";
+import { UserPlus, Sparkles, Tag, Loader2 } from "lucide-react";
 
 interface AddStudentTabProps {
   students: Student[];
@@ -24,12 +24,15 @@ export const AddStudentTab: React.FC<AddStudentTabProps> = ({
   const [customMonthlyFee, setCustomMonthlyFee] = useState<number>(100);
   const [discountReason, setDiscountReason] = useState("");
   const [cardFeeAmount, setCardFeeAmount] = useState(30);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [feedback, setFeedback] = useState<{ type: "success" | "error"; message: string } | null>(null);
 
   const defaultGradePrice = groupPrices[groupGrade] ?? DEFAULT_GRADE_PRICES[groupGrade] ?? 100;
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (isSubmitting) return;
+
     const cleanBarcode = barcode.trim();
     const cleanName = name.trim();
 
@@ -43,14 +46,21 @@ export const AddStudentTab: React.FC<AddStudentTabProps> = ({
       return;
     }
 
+    const normalizedPhone = cleanPhoneNumber(phone.trim());
+    const normalizedParentPhone = cleanPhoneNumber(parentPhone.trim());
+    const safeCardFee = Math.max(0, isNaN(Number(cardFeeAmount)) ? 0 : Number(cardFeeAmount));
+    const safeCustomMonthlyFee = Math.max(0, isNaN(Number(customMonthlyFee)) ? defaultGradePrice : Number(customMonthlyFee));
+
+    setIsSubmitting(true);
+
     const newStudent: Student = {
       barcode: cleanBarcode,
       name: cleanName,
-      phone: phone.trim() || parentPhone.trim(),
-      parentPhone: parentPhone.trim() || phone.trim(),
+      phone: normalizedPhone || normalizedParentPhone,
+      parentPhone: normalizedParentPhone || normalizedPhone,
       groupGrade,
       groupDays,
-      customMonthlyFee: isCustomFee ? customMonthlyFee : undefined,
+      customMonthlyFee: isCustomFee ? safeCustomMonthlyFee : undefined,
       discountReason: isCustomFee ? discountReason.trim() : undefined,
       points: 0,
       totalAttendanceDays: 0,
@@ -59,18 +69,18 @@ export const AddStudentTab: React.FC<AddStudentTabProps> = ({
       createdAt: new Date().toISOString(),
     };
 
-    onAddStudent(newStudent, cardFeeAmount);
+    onAddStudent(newStudent, safeCardFee);
     setFeedback({
       type: "success",
       message: `✅ تم تسجيل الطالب (${cleanName}) بنجاح وإصدار كارت الباركود #${cleanBarcode}!`,
     });
 
     // Send WhatsApp Welcome & Card Fee receipt
-    const welcomeMsg = `تم تسجيل الطالب/ة: (${cleanName})\nمع ميس إيمان الدمشيتي - أستاذة الرياضيات 📐\nالصف: ${groupGrade} (${groupDays})\nقيمة استخراج الكارت: ${cardFeeAmount} ج.م\nالاشتراك الشهري: ${
-      isCustomFee ? customMonthlyFee : defaultGradePrice
+    const welcomeMsg = `تم تسجيل الطالب/ة: (${cleanName})\nمع ميس إيمان الدمشيتي - أستاذة الرياضيات 📐\nالصف: ${groupGrade} (${groupDays})\nقيمة استخراج الكارت: ${safeCardFee} ج.م\nالاشتراك الشهري: ${
+      isCustomFee ? safeCustomMonthlyFee : defaultGradePrice
     } ج.م\nنرحب بكم ونتمنى لأبنائنا دوام التوفيق والتميز 🌟`;
 
-    openWhatsApp(parentPhone || phone, welcomeMsg);
+    openWhatsApp(normalizedParentPhone || normalizedPhone, welcomeMsg);
 
     // Reset Form
     setBarcode("");
@@ -79,6 +89,7 @@ export const AddStudentTab: React.FC<AddStudentTabProps> = ({
     setParentPhone("");
     setIsCustomFee(false);
     setDiscountReason("");
+    setIsSubmitting(false);
 
     setTimeout(() => {
       setFeedback(null);
@@ -264,10 +275,22 @@ export const AddStudentTab: React.FC<AddStudentTabProps> = ({
 
           <button
             type="submit"
-            className="w-full py-3.5 bg-gradient-to-r from-amber-400 via-amber-300 to-yellow-200 hover:from-amber-300 hover:to-yellow-100 text-slate-950 font-black text-sm rounded-2xl shadow-xl shadow-amber-500/25 transition-all flex items-center justify-center gap-2 transform active:scale-98 cursor-pointer font-tajawal"
+            disabled={isSubmitting}
+            className={`w-full py-3.5 bg-gradient-to-r from-amber-400 via-amber-300 to-yellow-200 hover:from-amber-300 hover:to-yellow-100 text-slate-950 font-black text-sm rounded-2xl shadow-xl shadow-amber-500/25 transition-all flex items-center justify-center gap-2 transform active:scale-98 font-tajawal ${
+              isSubmitting ? "opacity-60 cursor-not-allowed" : "cursor-pointer"
+            }`}
           >
-            <Sparkles className="w-4 h-4 text-slate-950" />
-            <span>حفظ وتأكيد تسجيل الطالب وفتح واتساب ولي الأمر 📲</span>
+            {isSubmitting ? (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin text-slate-950" />
+                <span>جارٍ حفظ بيانات الطالب...</span>
+              </>
+            ) : (
+              <>
+                <Sparkles className="w-4 h-4 text-slate-950" />
+                <span>حفظ وتأكيد تسجيل الطالب وفتح واتساب ولي الأمر 📲</span>
+              </>
+            )}
           </button>
         </form>
       </div>

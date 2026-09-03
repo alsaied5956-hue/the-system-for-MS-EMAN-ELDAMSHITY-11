@@ -304,7 +304,7 @@ export const FinancialsTab: React.FC<FinancialsTabProps> = ({
         "تاريخ وساعة السداد": pay ? `${pay.date} ${pay.time}` : "-",
         "كافة الشهور المسددة للطالب": studentPaidMonths || "لا يوجد",
         "ملاحظات": pay?.note || (s.discountReason ? `خصم: ${s.discountReason}` : "-"),
-        "رقم ولي الأمر": s.parentPhone,
+        "رقم ولي الأمر": s.parentPhone || s.phone || "-",
       };
     });
 
@@ -806,7 +806,7 @@ export const FinancialsTab: React.FC<FinancialsTabProps> = ({
                               <button
                                 onClick={() => {
                                   const receiptMsg = `إيصال استلام اشتراك 🧾\nمنظومة الأستاذة إيمان الدمشيتي - رياضيات 📐\nاسم الطالب: ${student.name}\nالصف: ${student.groupGrade}\nعن شهر: ${selectedMonth}\nالمبلغ المسدد: ${pay.amount} ج.م\nالتاريخ: ${pay.date}\nمع تحيات ميس إيمان الدمشيتي ✨`;
-                                  openWhatsApp(student.parentPhone, receiptMsg);
+                                  openWhatsApp(student.parentPhone || student.phone || "", receiptMsg);
                                 }}
                                 className="px-2 py-1.5 rounded-xl bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/30 text-emerald-300 text-[11px] font-bold cursor-pointer transition-all"
                               >
@@ -842,7 +842,7 @@ export const FinancialsTab: React.FC<FinancialsTabProps> = ({
                               <button
                                 onClick={() => {
                                   const reminderMsg = `تذكير ودي بسداد الاشتراك 🔔\nمنظومة الأستاذة إيمان الدمشيتي - رياضيات 📐\nاسم الطالب: ${student.name}\nالصف: ${student.groupGrade}\nنود تذكيركم بسداد اشتراك شهر (${selectedMonth}) وقيمته: ${fee} ج.م.\nشاكرين لكم حسن تعاونكم واهتمامكم ✨`;
-                                  openWhatsApp(student.parentPhone, reminderMsg);
+                                  openWhatsApp(student.parentPhone || student.phone || "", reminderMsg);
                                 }}
                                 className="px-2 py-1.5 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 text-amber-300 text-[11px] font-bold cursor-pointer transition-all"
                               >

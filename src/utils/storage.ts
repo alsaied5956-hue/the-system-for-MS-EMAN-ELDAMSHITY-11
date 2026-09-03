@@ -1718,6 +1718,26 @@ export function saveAttendanceAndStudentsBatch(
 }
 
 /**
+ * Persist full attendance history (including historical dates) + updated student records
+ */
+export function saveAttendanceHistoryData(
+  attendanceHistory: Record<string, Record<string, string>>,
+  students?: Student[]
+): void {
+  const current = loadLocalData();
+  const todayKey = getTodayKey();
+  const now = Date.now();
+  const updated: SystemData = {
+    ...current,
+    attendanceHistory,
+    attendanceToday: attendanceHistory[todayKey] || current.attendanceToday || {},
+    students: students !== undefined ? students : current.students,
+    updatedAt: now,
+  };
+  syncDataToCloud(updated, true);
+}
+
+/**
  * Clear the active scanner queue for a single grade to isolate the current session from previous classes
  */
 export function saveClearSessionScansForGrade(

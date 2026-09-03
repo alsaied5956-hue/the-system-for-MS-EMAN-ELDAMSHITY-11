@@ -418,7 +418,7 @@ export const AttendanceScanner: React.FC<AttendanceScannerProps> = ({
           studentBarcode: item.student.barcode,
           studentName: item.student.name,
           grade: item.student.groupGrade,
-          phone: item.student.parentPhone,
+          phone: item.student.parentPhone || item.student.phone || "",
           messageType: item.type === "غائب" ? "غياب" : item.type === "تأخير" ? "تأخير" : "عكس_أيام",
           message: item.message,
         }))

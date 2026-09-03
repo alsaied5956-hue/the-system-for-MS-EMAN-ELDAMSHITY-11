@@ -239,7 +239,7 @@ export const DailyAttendanceReport: React.FC<DailyAttendanceReportProps> = ({
                           <button
                             onClick={() =>
                               openWhatsApp(
-                                student.parentPhone,
+                                student.parentPhone || student.phone || "",
                                 `تنبيه من منظومة الأستاذة إيمان الدمشيتي 📐\nنفيدكم بأن حالة الطالب/ة (${student.name}) بتاريخ ${selectedDate} هي: (${status}).`
                               )
                             }

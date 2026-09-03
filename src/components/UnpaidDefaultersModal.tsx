@@ -188,7 +188,7 @@ export const UnpaidDefaultersModal: React.FC<UnpaidDefaultersModalProps> = ({
         studentBarcode: s.barcode,
         studentName: s.name,
         grade: s.groupGrade,
-        phone: s.parentPhone,
+        phone: s.parentPhone || s.phone || "",
         messageType: "مصاريف" as const,
         message: reminderMsg,
       };
@@ -568,7 +568,7 @@ export const UnpaidDefaultersModal: React.FC<UnpaidDefaultersModalProps> = ({
                                     {pay ? `${pay.date}` : "-"}
                                   </td>
                                   <td className="p-2 border border-slate-300 text-center font-mono text-slate-700">
-                                    {student.parentPhone}
+                                    {student.parentPhone || student.phone || "-"}
                                   </td>
                                 </tr>
                               );
@@ -649,7 +649,7 @@ export const UnpaidDefaultersModal: React.FC<UnpaidDefaultersModalProps> = ({
                                   </span>
                                 </td>
                                 <td className="p-2 border border-slate-300 text-center font-mono text-slate-700">
-                                  {student.parentPhone}
+                                  {student.parentPhone || student.phone || "-"}
                                 </td>
                                 <td className="p-2 border border-slate-300 text-center no-print">
                                   <div className="flex items-center justify-center gap-1">
@@ -680,7 +680,7 @@ export const UnpaidDefaultersModal: React.FC<UnpaidDefaultersModalProps> = ({
                                           `الصف: ${student.groupGrade}\n` +
                                           `نود تذكيركم بسداد اشتراك شهر (${selectedMonth}) وقيمته: ${fee} ج.م.\n` +
                                           `شاكرين حسن تعاونكم واهتمامكم ✨`;
-                                        openWhatsApp(student.parentPhone, msg);
+                                        openWhatsApp(student.parentPhone || student.phone || "", msg);
                                       }}
                                       className="p-1 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 text-amber-800 border border-amber-400 cursor-pointer"
                                       title="إرسال تذكير واتساب فوري"

@@ -203,11 +203,12 @@ export const WhatsAppDirectTab: React.FC<WhatsAppDirectTabProps> = ({
       return;
     }
 
+    const targetPhone = selectedStudent.parentPhone || selectedStudent.phone || "";
     enqueuePendingWhatsAppMessage({
       studentBarcode: selectedStudent.barcode,
       studentName: selectedStudent.name,
       grade: selectedStudent.groupGrade,
-      phone: selectedStudent.parentPhone,
+      phone: targetPhone,
       messageType: activeMessageType,
       message: customMessage.trim(),
     });
@@ -228,19 +229,20 @@ export const WhatsAppDirectTab: React.FC<WhatsAppDirectTabProps> = ({
     }
 
     const isOnline = typeof navigator !== "undefined" ? navigator.onLine : true;
+    const targetPhone = selectedStudent.parentPhone || selectedStudent.phone || "";
 
     // Enqueue message into persistent WhatsApp queue
     const queuedMsg = enqueuePendingWhatsAppMessage({
       studentBarcode: selectedStudent.barcode,
       studentName: selectedStudent.name,
       grade: selectedStudent.groupGrade,
-      phone: selectedStudent.parentPhone,
+      phone: targetPhone,
       messageType: activeMessageType,
       message: customMessage.trim(),
     });
 
     if (isOnline) {
-      openWhatsApp(selectedStudent.parentPhone, customMessage.trim());
+      openWhatsApp(targetPhone, customMessage.trim());
       if (queuedMsg?.id) {
         markWhatsAppMessageSent(queuedMsg.id);
       }
