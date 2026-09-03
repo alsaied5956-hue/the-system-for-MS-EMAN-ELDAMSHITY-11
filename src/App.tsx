@@ -27,6 +27,8 @@ import {
   flushPendingSyncToCloud,
   forceCloudFullRefresh,
   getSyncStatus,
+  clearAllSystemData,
+  autoPushLocalDiskOnStartup,
   SyncStatus,
 } from "./utils/storage";
 import {
@@ -148,7 +150,7 @@ export default function App() {
     type: "all",
   });
 
-  // 1. Initial Local Data Load (Instant Speed 0ms)
+  // 1. Initial Local Data Load (Instant Speed 0ms) + Guaranteed Auto-Push of Local Disk Data to Cloud
   useEffect(() => {
     const data = loadInitialData();
     if (data) {
@@ -165,6 +167,9 @@ export default function App() {
         setActiveSessionSlotId(data.activeSessionSlotId);
       }
     }
+
+    // Automatically send whatever was saved on local disk to Cloud immediately
+    autoPushLocalDiskOnStartup().catch(() => {});
   }, []);
 
   // 2. Subscribe to sync status & offline/online events
@@ -474,7 +479,7 @@ export default function App() {
   const handleDeleteStudent = useCallback((barcode: string) => {
     const updated = students.filter((s) => s.barcode !== barcode);
     setStudents(updated);
-    saveStudentsData(updated);
+    saveStudentsData(updated, barcode);
   }, [students]);
 
   // Handler: Clear All Data
@@ -483,9 +488,8 @@ export default function App() {
     setAttendanceToday({});
     setScanLogOrder([]);
     setScanLogTimes({});
-    saveStudentsData([]);
-    saveAttendanceTodayData({});
-    alert("تم مسح كافة البيانات بنجاح.");
+    clearAllSystemData();
+    alert("تم مسح كافة البيانات بنجاح وتحديث السحابة.");
   }, []);
 
   // Handler: Manual Status Change in Attendance Report or Scanner

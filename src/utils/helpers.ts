@@ -1,4 +1,4 @@
-import { GradeName, GRADE_ORDER, Student, SessionSlot } from "../types";
+import { GradeName, GRADE_ORDER, Student, SessionSlot, PaymentRecord } from "../types";
 
 export const SCHOOL_WHATSAPP_PHONE = "201070642904";
 export const TEACHER_NAME = "الأستاذة إيمان الدمشيتي";
@@ -189,3 +189,107 @@ export function evaluateAttendanceStatus(now: Date, slotId: string): "حضور" 
   }
   return "تأخير";
 }
+
+/**
+ * Normalizes barcode strings by trimming, stripping legacy prefixes (e.g. "card_"),
+ * and removing Arabic diacritics / invisible formatting characters.
+ */
+export function normalizeBarcode(code: string | number | undefined | null): string {
+  if (code === undefined || code === null) return "";
+  return String(code)
+    .trim()
+    .replace(/^card_/i, "")
+    .replace(/[\u064B-\u065F\u0670\u200E\u200F\u202A-\u202E\s]/g, "")
+    .trim();
+}
+
+/**
+ * Robust payment lookup for a student within a month's payment map.
+ * Checks raw barcode, normalized barcode, and "card_" prefixed variants.
+ */
+export function getStudentPayment(
+  monthPayments: Record<string, PaymentRecord> | undefined,
+  barcode: string | number | undefined | null
+): PaymentRecord | undefined {
+  if (!monthPayments || barcode === undefined || barcode === null) return undefined;
+  const rawKey = String(barcode).trim();
+  if (monthPayments[rawKey]) return monthPayments[rawKey];
+
+  const normKey = normalizeBarcode(rawKey);
+  if (!normKey) return undefined;
+  if (monthPayments[normKey]) return monthPayments[normKey];
+  if (monthPayments[`card_${normKey}`]) return monthPayments[`card_${normKey}`];
+
+  // Fallback search across all keys
+  for (const [k, rec] of Object.entries(monthPayments)) {
+    if (normalizeBarcode(k) === normKey) {
+      return rec;
+    }
+  }
+  return undefined;
+}
+
+/**
+ * Checks whether a student has paid for the given month.
+ */
+export function isStudentPaid(
+  monthPayments: Record<string, PaymentRecord> | undefined,
+  barcode: string | number | undefined | null
+): boolean {
+  return !!getStudentPayment(monthPayments, barcode);
+}
+
+/**
+ * Returns a normalized payments map where all keys are indexed by clean barcodes,
+ * while preserving legacy keys so lookup never fails.
+ */
+export function normalizePaymentMap(
+  payments: Record<string, Record<string, PaymentRecord>> | undefined
+): Record<string, Record<string, PaymentRecord>> {
+  if (!payments || typeof payments !== "object") return {};
+  const normalized: Record<string, Record<string, PaymentRecord>> = {};
+
+  for (const [monthKey, recMap] of Object.entries(payments)) {
+    if (!recMap || typeof recMap !== "object") continue;
+    normalized[monthKey] = {};
+    for (const [rawK, rec] of Object.entries(recMap)) {
+      if (!rec) continue;
+      const cleanK = normalizeBarcode(rawK);
+      if (cleanK) {
+        normalized[monthKey][cleanK] = {
+          ...rec,
+          barcode: cleanK,
+        };
+      }
+      if (rawK !== cleanK) {
+        normalized[monthKey][rawK] = rec;
+      }
+    }
+  }
+  return normalized;
+}
+
+/**
+ * Returns the latest month that actually has recorded payments,
+ * preventing an empty month like (2026-09) from opening when all records are in (2026-08).
+ */
+export function getLatestActiveMonthKey(
+  payments: Record<string, Record<string, PaymentRecord>> | undefined
+): string {
+  if (!payments || typeof payments !== "object") return getCurrentMonthKey();
+  const monthsWithRecords = Object.entries(payments)
+    .filter(([_, recMap]) => recMap && Object.keys(recMap).length > 0)
+    .map(([mKey]) => mKey)
+    .sort()
+    .reverse();
+
+  if (monthsWithRecords.length > 0) {
+    const cur = getCurrentMonthKey();
+    if (payments[cur] && Object.keys(payments[cur]).length > 0) {
+      return cur;
+    }
+    return monthsWithRecords[0];
+  }
+  return getCurrentMonthKey();
+}
+

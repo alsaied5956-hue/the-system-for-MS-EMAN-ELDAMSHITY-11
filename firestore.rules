@@ -1,8 +1,16 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
+    // Designated system state document for school management and multi-device sync
+    match /system_state/{docId} {
+      allow read: if true;
+      allow write: if docId == "main_center_data"
+                   && (request.resource.data.keys().hasAny(['_compressedPayload', 'students', 'updatedAt', 'attendanceHistory', 'payments']));
+    }
+
+    // Deny access to any other arbitrary paths
     match /{document=**} {
-      allow read, write: if true;
+      allow read, write: if false;
     }
   }
 }

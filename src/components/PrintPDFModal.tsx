@@ -9,6 +9,8 @@ import {
   getAbsenceRate,
   getExamAverage,
   DEFAULT_GRADE_PRICES,
+  isStudentPaid,
+  getLatestActiveMonthKey,
 } from "../utils/helpers";
 import { printElement, downloadPrintableHtml } from "../utils/print";
 import { Printer, X, FileText, Download, Info, CheckCircle2, AlertTriangle, Calendar } from "lucide-react";
@@ -33,12 +35,21 @@ export const PrintPDFModal: React.FC<PrintPDFModalProps> = ({
   const [activeReportType, setActiveReportType] = useState<"attendance" | "exams" | "unpaid">(
     initialType === "unpaid" ? "unpaid" : initialType === "exams" ? "exams" : "attendance"
   );
-  const [selectedMonth, setSelectedMonth] = useState<string>(getCurrentMonthKey());
+  const [selectedMonth, setSelectedMonth] = useState<string>(() => getLatestActiveMonthKey(payments));
 
   const todayKey = getTodayKey();
   const formattedDate = formatArabicDate(todayKey);
 
   const monthPayments = payments[selectedMonth] || {};
+
+  const availableMonths = useMemo(() => {
+    const set = new Set<string>();
+    set.add(getCurrentMonthKey());
+    Object.keys(payments || {}).forEach((m) => {
+      if (Object.keys(payments[m] || {}).length > 0) set.add(m);
+    });
+    return Array.from(set).sort().reverse();
+  }, [payments]);
 
   const reportTitle =
     activeReportType === "attendance"
@@ -165,6 +176,33 @@ export const PrintPDFModal: React.FC<PrintPDFModalProps> = ({
           )}
         </div>
 
+        {/* Available Months Quick Selector when on Unpaid tab */}
+        {activeReportType === "unpaid" && availableMonths.length > 1 && (
+          <div className="flex items-center gap-2 flex-wrap w-full bg-[#080d1e] p-2 rounded-2xl border border-rose-500/30 text-xs">
+            <span className="text-xs font-bold text-slate-400 shrink-0">الشهور المتوفرة:</span>
+            {availableMonths.map((m) => {
+              const countPaid = Object.keys(payments[m] || {}).length;
+              return (
+                <button
+                  key={m}
+                  type="button"
+                  onClick={() => setSelectedMonth(m)}
+                  className={`px-3 py-1 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                    selectedMonth === m
+                      ? "bg-rose-500 text-white font-black shadow-md"
+                      : "bg-slate-800 text-slate-300 hover:bg-slate-700"
+                  }`}
+                >
+                  <span>{m}</span>
+                  {countPaid > 0 && (
+                    <span className="text-[10px] opacity-80 font-mono">({countPaid} مسدد)</span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        )}
+
         {/* Tip for Saving PDF */}
         <div className="w-full bg-amber-500/10 border border-amber-500/30 rounded-2xl p-2.5 flex items-center gap-2 text-xs text-amber-300">
           <Info className="w-4 h-4 text-amber-400 shrink-0" />
@@ -182,9 +220,9 @@ export const PrintPDFModal: React.FC<PrintPDFModalProps> = ({
         {GRADE_ORDER.map((grade) => {
           let gradeStudents = students.filter((s) => s.groupGrade === grade);
 
-          // If report is for unpaid only, filter out any student who has paid
+          // If report is for unpaid only, filter out any student who has paid (using normalized barcode lookup)
           if (activeReportType === "unpaid") {
-            gradeStudents = gradeStudents.filter((s) => !monthPayments[s.barcode]);
+            gradeStudents = gradeStudents.filter((s) => !isStudentPaid(monthPayments, s.barcode));
           }
 
           if (gradeStudents.length === 0) return null;

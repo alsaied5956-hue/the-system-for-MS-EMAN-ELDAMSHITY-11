@@ -8,6 +8,9 @@ import {
   DEFAULT_GRADE_PRICES,
   sortStudentsByGradeAndName,
   openWhatsApp,
+  isStudentPaid,
+  getStudentPayment,
+  getLatestActiveMonthKey,
 } from "../utils/helpers";
 import { printElement, downloadPrintableHtml } from "../utils/print";
 import { enqueuePendingWhatsAppMessagesBatch } from "../utils/storage";
@@ -46,16 +49,27 @@ export const UnpaidDefaultersModal: React.FC<UnpaidDefaultersModalProps> = ({
   onClose,
   onRecordPayment,
 }) => {
-  const [selectedMonth, setSelectedMonth] = useState(getCurrentMonthKey());
+  const [selectedMonth, setSelectedMonth] = useState(() => getLatestActiveMonthKey(payments));
   const [selectedGrade, setSelectedGrade] = useState<string>("ALL");
   const [selectedDays, setSelectedDays] = useState<string>("ALL");
   const [searchQuery, setSearchQuery] = useState("");
-  const [displayMode, setDisplayMode] = useState<"PAID_THEN_UNPAID" | "UNPAID_ONLY">("PAID_THEN_UNPAID");
+  // Default to UNPAID_ONLY so clicking "كشف غير المسددين" immediately shows ONLY those who haven't paid
+  const [displayMode, setDisplayMode] = useState<"PAID_THEN_UNPAID" | "UNPAID_ONLY">("UNPAID_ONLY");
   const [batchActionNotice, setBatchActionNotice] = useState<string | null>(null);
 
   const todayKey = getTodayKey();
   const formattedToday = formatArabicDate(todayKey);
   const monthPayments = payments[selectedMonth] || {};
+
+  // Extract all available months that have recorded payments
+  const availableMonths = useMemo(() => {
+    const set = new Set<string>();
+    set.add(getCurrentMonthKey());
+    Object.keys(payments || {}).forEach((m) => {
+      if (Object.keys(payments[m] || {}).length > 0) set.add(m);
+    });
+    return Array.from(set).sort().reverse();
+  }, [payments]);
 
   // Extract all relevant students based on current filters
   const filteredStudentsList = useMemo(() => {
@@ -81,14 +95,14 @@ export const UnpaidDefaultersModal: React.FC<UnpaidDefaultersModalProps> = ({
     return sortStudentsByGradeAndName(list);
   }, [students, selectedGrade, selectedDays, searchQuery]);
 
-  // Extract all unpaid students for the selected month
+  // Extract all unpaid students for the selected month (using normalized barcode lookup)
   const unpaidStudentsList = useMemo(() => {
-    return filteredStudentsList.filter((s) => !monthPayments[s.barcode]);
+    return filteredStudentsList.filter((s) => !isStudentPaid(monthPayments, s.barcode));
   }, [filteredStudentsList, monthPayments]);
 
-  // Extract all paid students for the selected month
+  // Extract all paid students for the selected month (using normalized barcode lookup)
   const paidStudentsList = useMemo(() => {
-    return filteredStudentsList.filter((s) => !!monthPayments[s.barcode]);
+    return filteredStudentsList.filter((s) => isStudentPaid(monthPayments, s.barcode));
   }, [filteredStudentsList, monthPayments]);
 
   // Calculate metrics
@@ -105,7 +119,7 @@ export const UnpaidDefaultersModal: React.FC<UnpaidDefaultersModalProps> = ({
 
   const totalPaidAmount = useMemo(() => {
     return paidStudentsList.reduce((sum, s) => {
-      const pay = monthPayments[s.barcode];
+      const pay = getStudentPayment(monthPayments, s.barcode);
       const fee =
         s.customMonthlyFee ??
         groupPrices[s.groupGrade] ??
@@ -116,7 +130,10 @@ export const UnpaidDefaultersModal: React.FC<UnpaidDefaultersModalProps> = ({
   }, [paidStudentsList, monthPayments, groupPrices]);
 
   const handlePrintPDF = () => {
-    const title = `كشف_الاشتراكات_والمتأخرين_${selectedMonth}_${selectedGrade !== "ALL" ? selectedGrade : "كافة_الصفوف"}`;
+    const title =
+      displayMode === "UNPAID_ONLY"
+        ? `كشف_الطلاب_غير_المسددين_${selectedMonth}_${selectedGrade !== "ALL" ? selectedGrade : "كافة_الصفوف"}`
+        : `كشف_الاشتراكات_والمتأخرين_${selectedMonth}_${selectedGrade !== "ALL" ? selectedGrade : "كافة_الصفوف"}`;
     printElement("printable-unpaid-defaulters-doc", {
       title: `${title} - منظومة ${TEACHER_NAME}`,
       orientation: "portrait",
@@ -124,7 +141,10 @@ export const UnpaidDefaultersModal: React.FC<UnpaidDefaultersModalProps> = ({
   };
 
   const handleDownloadHtml = () => {
-    const title = `كشف_الاشتراكات_والمتأخرين_${selectedMonth}_${selectedGrade !== "ALL" ? selectedGrade : "كافة_الصفوف"}`;
+    const title =
+      displayMode === "UNPAID_ONLY"
+        ? `كشف_الطلاب_غير_المسددين_${selectedMonth}_${selectedGrade !== "ALL" ? selectedGrade : "كافة_الصفوف"}`
+        : `كشف_الاشتراكات_والمتأخرين_${selectedMonth}_${selectedGrade !== "ALL" ? selectedGrade : "كافة_الصفوف"}`;
     downloadPrintableHtml("printable-unpaid-defaulters-doc", `${title}.html`, {
       title: `${title} - منظومة ${TEACHER_NAME}`,
       orientation: "portrait",
@@ -204,10 +224,14 @@ export const UnpaidDefaultersModal: React.FC<UnpaidDefaultersModalProps> = ({
             </div>
             <div>
               <h3 className="text-lg md:text-xl font-black text-amber-300 font-fancy">
-                كشف الاشتراكات وغير الدافعين (مقسم لكل صف: المسددون أولاً ثم غير المسددين)
+                {displayMode === "UNPAID_ONLY"
+                  ? "كشف الطلاب غير المسددين (الذين لم يدفعوا فقط)"
+                  : "كشف الاشتراكات والمتأخرين (المسددون أولاً ثم غير المسددين)"}
               </h3>
               <p className="text-xs text-slate-300">
-                تصدير Excel وشيتات منفصلة لكل صف دراسي مع ترتيب الطلاب (الذين سددوا أولاً ثم المتأخرين) وطباعة PDF رسمية
+                {displayMode === "UNPAID_ONLY"
+                  ? "حصر دقيق وحصري للطلاب الذين لم يسددوا الاشتراك مع استبعاد أي طالب دفع، وطباعة PDF وإكسيل رسمي"
+                  : "تصدير Excel وشيتات منفصلة لكل صف دراسي مع ترتيب الطلاب (الذين سددوا أولاً ثم المتأخرين) وطباعة PDF رسمية"}
               </p>
             </div>
           </div>
@@ -217,7 +241,7 @@ export const UnpaidDefaultersModal: React.FC<UnpaidDefaultersModalProps> = ({
               type="button"
               onClick={handleExportExcel}
               className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-500 hover:from-emerald-500 hover:to-teal-400 text-slate-950 font-black text-xs shadow-lg shadow-emerald-500/30 flex items-center gap-2 cursor-pointer transition-all transform active:scale-95"
-              title="تصدير شيت إكسيل مقسم لكل صف دراسي (المسددون أولاً ثم غير المسددين)"
+              title="تصدير شيت إكسيل مقسم لكل صف دراسي"
             >
               <FileSpreadsheet className="w-4 h-4 text-slate-950" />
               <span>📊 تصدير Excel مقسم لكل صف</span>
@@ -229,7 +253,7 @@ export const UnpaidDefaultersModal: React.FC<UnpaidDefaultersModalProps> = ({
               className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-yellow-400 hover:from-amber-400 text-slate-950 font-black text-xs shadow-lg shadow-amber-500/30 flex items-center gap-2 cursor-pointer transition-all transform active:scale-95"
             >
               <Printer className="w-4 h-4 text-slate-950" />
-              <span>طباعة وتصدير PDF (A4)</span>
+              <span>{displayMode === "UNPAID_ONLY" ? "🖨️ طباعة كشف غير المسددين فقط (PDF)" : "طباعة وتصدير PDF (A4)"}</span>
             </button>
 
             <button
@@ -306,15 +330,42 @@ export const UnpaidDefaultersModal: React.FC<UnpaidDefaultersModalProps> = ({
               onChange={(e) => setDisplayMode(e.target.value as "PAID_THEN_UNPAID" | "UNPAID_ONLY")}
               className="bg-transparent text-emerald-300 font-bold outline-none cursor-pointer w-full text-xs"
             >
-              <option value="PAID_THEN_UNPAID" className="bg-slate-900 text-white">
-                المسددون أولاً ثم غير المسددين ✅❌
-              </option>
               <option value="UNPAID_ONLY" className="bg-slate-900 text-white">
-                غير المسددين فقط ❌
+                غير المسددين فقط ❌ (المتأخرين عن الدفع فقط)
+              </option>
+              <option value="PAID_THEN_UNPAID" className="bg-slate-900 text-white">
+                المسددون أولاً ثم غير المسددين ✅❌ (كشف مجمع)
               </option>
             </select>
           </div>
         </div>
+
+        {/* Available Months Quick Selector */}
+        {availableMonths.length > 1 && (
+          <div className="flex items-center gap-2 flex-wrap w-full bg-[#070c1b] p-2 rounded-2xl border border-indigo-500/20 text-xs">
+            <span className="text-xs font-bold text-slate-400 shrink-0">الشهور المتوفرة:</span>
+            {availableMonths.map((m) => {
+              const countPaid = Object.keys(payments[m] || {}).length;
+              return (
+                <button
+                  key={m}
+                  type="button"
+                  onClick={() => setSelectedMonth(m)}
+                  className={`px-3 py-1 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                    selectedMonth === m
+                      ? "bg-amber-500 text-slate-950 font-black shadow-md"
+                      : "bg-slate-800 text-slate-300 hover:bg-slate-700"
+                  }`}
+                >
+                  <span>{m}</span>
+                  {countPaid > 0 && (
+                    <span className="text-[10px] opacity-80 font-mono">({countPaid} مسدد)</span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        )}
 
         {/* Batch Reminder WhatsApp Blast & Notice */}
         <div className="flex items-center justify-between gap-3 flex-wrap pt-2 border-t border-indigo-500/20">
@@ -367,14 +418,14 @@ export const UnpaidDefaultersModal: React.FC<UnpaidDefaultersModalProps> = ({
             const gradeStudents = filteredStudentsList.filter((s) => s.groupGrade === grade);
             if (gradeStudents.length === 0) return null;
 
-            const gradePaid = gradeStudents.filter((s) => !!monthPayments[s.barcode]);
-            const gradeUnpaid = gradeStudents.filter((s) => !monthPayments[s.barcode]);
+            const gradePaid = gradeStudents.filter((s) => isStudentPaid(monthPayments, s.barcode));
+            const gradeUnpaid = gradeStudents.filter((s) => !isStudentPaid(monthPayments, s.barcode));
 
             // If in UNPAID_ONLY mode and no unpaid in this grade, skip
             if (displayMode === "UNPAID_ONLY" && gradeUnpaid.length === 0) return null;
 
             const gradePaidMoney = gradePaid.reduce((sum, s) => {
-              const pay = monthPayments[s.barcode];
+              const pay = getStudentPayment(monthPayments, s.barcode);
               const fee =
                 s.customMonthlyFee ??
                 groupPrices[s.groupGrade] ??
@@ -418,7 +469,9 @@ export const UnpaidDefaultersModal: React.FC<UnpaidDefaultersModalProps> = ({
                       {grade}
                     </span>
                     <p className="text-xs text-slate-800 font-black mt-1">
-                      كشف اشتراكات ومصروفات شهر ({selectedMonth})
+                      {displayMode === "UNPAID_ONLY"
+                        ? `كشف الطلاب غير المسددين (المتأخرين عن الدفع) لشهر (${selectedMonth})`
+                        : `كشف اشتراكات ومصروفات شهر (${selectedMonth})`}
                     </p>
                   </div>
 
@@ -476,7 +529,7 @@ export const UnpaidDefaultersModal: React.FC<UnpaidDefaultersModalProps> = ({
                           </thead>
                           <tbody>
                             {gradePaid.map((student, idx) => {
-                              const pay = monthPayments[student.barcode];
+                              const pay = getStudentPayment(monthPayments, student.barcode);
                               const fee =
                                 student.customMonthlyFee ??
                                 groupPrices[student.groupGrade] ??
@@ -532,7 +585,11 @@ export const UnpaidDefaultersModal: React.FC<UnpaidDefaultersModalProps> = ({
                   <div className="flex items-center justify-between bg-rose-100/80 border border-rose-300 px-3 py-1.5 rounded-xl text-xs font-black text-rose-900">
                     <div className="flex items-center gap-1.5">
                       <XCircle className="w-4 h-4 text-rose-700" />
-                      <span>ثانياً: الطلاب المتأخرين عن السداد ({gradeUnpaid.length} طالب)</span>
+                      <span>
+                        {displayMode === "UNPAID_ONLY"
+                          ? `كشف الطلاب المتأخرين عن السداد (${gradeUnpaid.length} طالب)`
+                          : `ثانياً: الطلاب المتأخرين عن السداد (${gradeUnpaid.length} طالب)`}
+                      </span>
                     </div>
                     <span className="font-mono">{gradeUnpaidMoney} ج.م متبقية</span>
                   </div>

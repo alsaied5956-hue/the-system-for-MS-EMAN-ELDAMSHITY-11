@@ -7,6 +7,8 @@ import {
   getTodayKey,
   DEFAULT_GRADE_PRICES,
   sortStudentsByGradeAndName,
+  isStudentPaid,
+  getStudentPayment,
 } from "./helpers";
 
 export interface ExportFinancialOptions {
@@ -56,7 +58,7 @@ export function exportDefaultersAndPaidExcel({
     const unpaidList: Student[] = [];
 
     studentList.forEach((s) => {
-      if (monthPayments[s.barcode]) {
+      if (isStudentPaid(monthPayments, s.barcode)) {
         paidList.push(s);
       } else {
         unpaidList.push(s);
@@ -72,7 +74,7 @@ export function exportDefaultersAndPaidExcel({
 
     // 1. All Paid Students FIRST
     paidList.forEach((s) => {
-      const pay = monthPayments[s.barcode];
+      const pay = getStudentPayment(monthPayments, s.barcode);
       const fee =
         s.customMonthlyFee ??
         groupPrices[s.groupGrade] ??

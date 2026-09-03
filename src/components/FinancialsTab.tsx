@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from "react";
 import { Student, PaymentRecord, GradeName, GRADE_ORDER } from "../types";
-import { getCurrentMonthKey, getTodayKey, sortStudentsByGradeAndName, DEFAULT_GRADE_PRICES, openWhatsApp } from "../utils/helpers";
+import { getCurrentMonthKey, getTodayKey, sortStudentsByGradeAndName, DEFAULT_GRADE_PRICES, openWhatsApp, isStudentPaid, getStudentPayment } from "../utils/helpers";
 import { matchStudentSearch } from "../utils/search";
 import { forceCloudFullRefresh, exportPaidStudentsToCloud } from "../utils/storage";
 import { playBeep } from "../utils/audio";
@@ -184,13 +184,15 @@ export const FinancialsTab: React.FC<FinancialsTabProps> = ({
 
       if (isAllMonthsMode) {
         // In all months mode, check if student has paid in any month
-        const hasAnyPayment = Object.values(payments || {}).some((recMap) => !!recMap[s.barcode]);
+        const hasAnyPayment = Object.values(payments || {}).some((recMap) =>
+          isStudentPaid(recMap as Record<string, PaymentRecord>, s.barcode)
+        );
         if (filterStatus === "PAID" && !hasAnyPayment) return false;
         if (filterStatus === "UNPAID" && hasAnyPayment) return false;
         return true;
       }
 
-      const isPaid = !!monthPayments[s.barcode];
+      const isPaid = isStudentPaid(monthPayments, s.barcode);
       if (filterStatus === "PAID" && !isPaid) return false;
       if (filterStatus === "UNPAID" && isPaid) return false;
       return true;
@@ -229,7 +231,7 @@ export const FinancialsTab: React.FC<FinancialsTabProps> = ({
       if (isAllMonthsMode) {
         let studentTotal = 0;
         Object.values(payments || {}).forEach((recMap) => {
-          const p = recMap[s.barcode];
+          const p = getStudentPayment(recMap as Record<string, PaymentRecord>, s.barcode);
           if (p) {
             studentTotal += p.amount;
             if (p.date === todayKey) todayTot += p.amount;
@@ -239,7 +241,7 @@ export const FinancialsTab: React.FC<FinancialsTabProps> = ({
         else unpaid++;
         monthTot += studentTotal;
       } else {
-        const pay = monthPayments[s.barcode];
+        const pay = getStudentPayment(monthPayments, s.barcode);
         if (pay) {
           paid++;
           monthTot += pay.amount;
@@ -275,7 +277,7 @@ export const FinancialsTab: React.FC<FinancialsTabProps> = ({
     }
 
     const rows = filteredStudents.map((s, idx) => {
-      const pay = monthPayments[s.barcode];
+      const pay = getStudentPayment(monthPayments, s.barcode);
       const fee =
         s.customMonthlyFee ??
         groupPrices[s.groupGrade] ??
@@ -284,8 +286,11 @@ export const FinancialsTab: React.FC<FinancialsTabProps> = ({
 
       // Find all paid months for this student
       const studentPaidMonths = Object.entries(payments || {})
-        .filter(([_, recMap]) => !!recMap[s.barcode])
-        .map(([mKey, recMap]) => `${mKey} (${recMap[s.barcode].amount}ج)`)
+        .filter(([_, recMap]) => isStudentPaid(recMap as Record<string, PaymentRecord>, s.barcode))
+        .map(([mKey, recMap]) => {
+          const p = getStudentPayment(recMap as Record<string, PaymentRecord>, s.barcode);
+          return `${mKey} (${p?.amount || 0}ج)`;
+        })
         .join("، ");
 
       return {
@@ -678,7 +683,7 @@ export const FinancialsTab: React.FC<FinancialsTabProps> = ({
                 </tr>
               ) : (
                 filteredStudents.map((student, idx) => {
-                  const pay = monthPayments[student.barcode];
+                  const pay = getStudentPayment(monthPayments, student.barcode);
                   const fee =
                     student.customMonthlyFee ??
                     groupPrices[student.groupGrade] ??
@@ -687,14 +692,14 @@ export const FinancialsTab: React.FC<FinancialsTabProps> = ({
 
                   // Get all payments recorded for this student across all months
                   const studentAllPayments = Object.entries(payments || {})
-                    .filter(([_, recMap]) => !!recMap[student.barcode])
+                    .filter(([_, recMap]) => isStudentPaid(recMap as Record<string, PaymentRecord>, student.barcode))
                     .map(([mKey, recMap]) => ({
                       monthKey: mKey,
-                      record: recMap[student.barcode],
+                      record: getStudentPayment(recMap as Record<string, PaymentRecord>, student.barcode)!,
                     }));
 
                   const totalPaidByStudent = studentAllPayments.reduce(
-                    (sum, item) => sum + item.record.amount,
+                    (sum, item) => sum + (item.record?.amount || 0),
                     0
                   );
 

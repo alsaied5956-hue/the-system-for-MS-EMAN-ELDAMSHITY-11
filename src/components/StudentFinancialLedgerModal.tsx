@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from "react";
 import { Student, PaymentRecord, GradeName } from "../types";
-import { DEFAULT_GRADE_PRICES, openWhatsApp } from "../utils/helpers";
+import { DEFAULT_GRADE_PRICES, openWhatsApp, isStudentPaid, getStudentPayment } from "../utils/helpers";
 import { EditPaymentModal } from "./EditPaymentModal";
 import {
   X,
@@ -81,7 +81,7 @@ export const StudentFinancialLedgerModal: React.FC<StudentFinancialLedgerModalPr
 
     // Include any additional months found in payments history that might be outside standard 12 months
     Object.keys(payments || {}).forEach((mKey) => {
-      if (payments[mKey]?.[student?.barcode || ""] && !list.some((item) => item.key === mKey)) {
+      if (student && isStudentPaid(payments[mKey] || {}, student.barcode) && !list.some((item) => item.key === mKey)) {
         list.push({
           key: mKey,
           label: mKey,
@@ -102,7 +102,7 @@ export const StudentFinancialLedgerModal: React.FC<StudentFinancialLedgerModalPr
 
   // Compute ledger entries
   const ledgerEntries = academicMonths.map((m) => {
-    const pay = student ? payments[m.key]?.[student.barcode] : undefined;
+    const pay = student ? getStudentPayment(payments[m.key] || {}, student.barcode) : undefined;
     const isPaid = !!pay;
     const paidAmount = pay ? pay.amount : 0;
     const requiredAmount = standardFee;

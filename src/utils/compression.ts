@@ -4,17 +4,17 @@
  * Achieves 85% - 95% payload reduction for instant multi-device syncing over slow networks.
  */
 
-// Convert ArrayBuffer to Base64 efficiently
+// Convert ArrayBuffer to Base64 efficiently without call stack overflow on WebKit / iOS Safari
 function arrayBufferToBase64(buffer: ArrayBuffer): string {
   let binary = "";
   const bytes = new Uint8Array(buffer);
   const len = bytes.byteLength;
-  const chunkSize = 0x8000; // 32KB chunks to avoid call stack limits
+  const chunkSize = 0x1000; // 4KB chunk size safe across all JavaScript runtimes
   for (let i = 0; i < len; i += chunkSize) {
-    binary += String.fromCharCode.apply(
-      null,
-      bytes.subarray(i, Math.min(i + chunkSize, len)) as unknown as number[]
-    );
+    const chunk = bytes.subarray(i, Math.min(i + chunkSize, len));
+    for (let j = 0; j < chunk.length; j++) {
+      binary += String.fromCharCode(chunk[j]);
+    }
   }
   return btoa(binary);
 }
