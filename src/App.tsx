@@ -353,7 +353,7 @@ export default function App() {
     };
 
     const updatedStudents = students.map((s) => {
-      if (absentBarcodes.includes(s.barcode)) {
+      if (absentBarcodes.includes(s.barcode) && attendanceToday[s.barcode] !== "غائب") {
         return {
           ...s,
           totalAbsentDays: (s.totalAbsentDays || 0) + 1,

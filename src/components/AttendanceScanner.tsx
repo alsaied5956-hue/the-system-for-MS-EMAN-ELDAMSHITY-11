@@ -276,17 +276,15 @@ export const AttendanceScanner: React.FC<AttendanceScannerProps> = ({
     let presentCount = 0;
 
     groupStudents.forEach((student) => {
-      const isScanned = (scanLogOrder || []).includes(student.barcode);
+      const currentStatus = attendanceToday?.[student.barcode];
       const timeIso = scanLogTimes?.[student.barcode];
       const timeStr = timeIso
         ? new Date(timeIso).toLocaleTimeString("ar-EG", { hour: "2-digit", minute: "2-digit" })
         : "الموعد المحدد";
 
-      const currentStatus = attendanceToday?.[student.barcode];
-
-      if (isScanned && currentStatus === "حضور") {
+      if (currentStatus === "حضور") {
         presentCount++;
-      } else if (isScanned && currentStatus === "تأخير") {
+      } else if (currentStatus === "تأخير") {
         const msg = `تنبيه من منظومة الأستاذة إيمان الدمشيتي 📐\nنفيدكم بعلم أن الطالب/ة: (${student.name})\nقد وصل متأخراً اليوم عن الموعد المحدد لحصة الرياضيات (${timeStr}).`;
         lateList.push({ student, message: msg, type: "تأخير" });
       } else {

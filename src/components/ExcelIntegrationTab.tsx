@@ -76,7 +76,9 @@ export const ExcelIntegrationTab: React.FC<ExcelIntegrationTabProps> = ({
       return;
     }
 
-    onBulkImportStudents(validNewStudents);
+    if (onBulkImportStudents) {
+      onBulkImportStudents(validNewStudents);
+    }
     alert(
       `🎉 تم استيراد (${validNewStudents.length}) طالب جديد بنجاح! ${
         duplicatesCount > 0 ? `(تم تجاهل ${duplicatesCount} كود مكرر مسبقاً)` : ""

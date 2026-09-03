@@ -368,24 +368,29 @@ export function loadLocalData(): SystemData {
 /**
  * Save data to browser LocalStorage SYNCHRONOUSLY and IMMEDIATELY (guaranteed persistence)
  */
-export function saveToLocalStorage(data: SystemData): void {
+export function saveToLocalStorage(data: SystemData, updateTimestamp: boolean = true): void {
   const todayKey = getTodayKey();
-  if (!data.attendanceHistory) data.attendanceHistory = {};
-  data.attendanceHistory[todayKey] = data.attendanceToday || {};
-  data.updatedAt = Date.now();
+  const clonedData: SystemData = {
+    ...data,
+    attendanceHistory: {
+      ...(data.attendanceHistory || {}),
+      [todayKey]: data.attendanceToday || {},
+    },
+    updatedAt: updateTimestamp ? Date.now() : (data.updatedAt || Date.now()),
+  };
 
-  memoryCachedData = data;
+  memoryCachedData = clonedData;
 
   if (typeof window === "undefined") return;
 
   try {
-    const serialized = JSON.stringify(data);
+    const serialized = JSON.stringify(clonedData);
     localStorage.setItem(STORAGE_KEY, serialized);
   } catch (e) {
     console.error("Local storage synchronous save error:", e);
   }
 
-  broadcastLocalChange(data);
+  broadcastLocalChange(clonedData);
 }
 
 /**
@@ -809,7 +814,7 @@ export function mergeCloudDataWithLocal(local: SystemData, cloud: Partial<System
     activeScannerDays: chosenScannerDays,
     pendingWhatsAppMessages: mergedWhatsApp,
     deletedBarcodes,
-    updatedAt: Math.max(localTime, cloudTime, Date.now()),
+    updatedAt: Math.max(localTime, cloudTime),
   };
 }
 
@@ -1218,19 +1223,15 @@ export function subscribeToCloudData(
             }
 
             lastSyncedDataHash = incomingHash;
-            saveToLocalStorage(merged);
+            saveToLocalStorage(merged, false);
 
-            // If local disk had updates that were not present in cloud (e.g. while other devices were closed),
-            // trigger an automatic push to Firestore immediately to update the cloud.
-            const cloudPayloadString = JSON.stringify(cleanForFirestore(cloudObj));
-            const mergedPayloadString = JSON.stringify(cleanForFirestore(merged));
-            const hasLocalUnsyncedData =
-              cloudPayloadString !== mergedPayloadString ||
-              localStorage.getItem(PENDING_SYNC_KEY) === "true";
+            // If local disk had newer updates that were truly unsynced (pending offline edits),
+            // trigger an automatic push to Firestore; otherwise mark as fully in-sync.
+            const localWasNewer = (currentLocal.updatedAt || 0) > (cloudObj.updatedAt || 0);
+            const hasPendingSync = localStorage.getItem(PENDING_SYNC_KEY) === "true";
 
-            if (hasLocalUnsyncedData) {
-              localStorage.setItem(PENDING_SYNC_KEY, "true");
-              flushPendingSyncToCloud(true).catch(() => {});
+            if (localWasNewer && hasPendingSync) {
+              flushPendingSyncToCloud(false).catch(() => {});
             } else {
               localStorage.setItem(PENDING_SYNC_KEY, "false");
             }
@@ -1381,16 +1382,9 @@ export function clearAllSystemData(): void {
 export async function autoPushLocalDiskOnStartup(): Promise<boolean> {
   if (typeof window === "undefined") return false;
   try {
-    const local = loadLocalData();
-    const hasData =
-      (Array.isArray(local.students) && local.students.length > 0) ||
-      (local.payments && Object.keys(local.payments).length > 0) ||
-      (local.attendanceHistory && Object.keys(local.attendanceHistory).length > 0) ||
-      (Array.isArray(local.scanLogOrder) && local.scanLogOrder.length > 0);
-
-    if (hasData || localStorage.getItem(PENDING_SYNC_KEY) === "true") {
-      console.log("Auto-pushing all local disk data to Firestore Cloud Database now...");
-      localStorage.setItem(PENDING_SYNC_KEY, "true");
+    const hasPending = localStorage.getItem(PENDING_SYNC_KEY) === "true";
+    if (hasPending) {
+      console.log("Auto-pushing pending local disk data to Firestore Cloud Database now...");
       notifySyncStatusChange();
       return await flushPendingSyncToCloud(true);
     }
