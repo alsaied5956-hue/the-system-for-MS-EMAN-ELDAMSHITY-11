@@ -463,8 +463,43 @@ export async function flushPendingSyncToCloud(forceManual: boolean = false): Pro
 
     const systemDocRef = doc(db, "system_state", "main_center_data");
 
+    // Fast check for concurrent remote updates from other devices before pushing
+    let dataToPush = localData;
+    try {
+      const snapshot = await withTimeout(getDoc(systemDocRef), 4000, "fast fetch");
+      if (snapshot && snapshot.exists()) {
+        const val = snapshot.data();
+        let cloudObj: Partial<SystemData> | null = null;
+        if (val?._compressedPayload && typeof val._compressedPayload === "string") {
+          try {
+            cloudObj = await decompressData<Partial<SystemData>>(val._compressedPayload);
+          } catch {}
+        } else if (val) {
+          cloudObj = val as Partial<SystemData>;
+        }
+        if (cloudObj) {
+          const merged = mergeCloudDataWithLocal(localData, cloudObj);
+          saveToLocalStorage(merged, false);
+          dataToPush = merged;
+
+          // If local had no new changes and data is identical to what is already on cloud, skip writing
+          const cloudBarcodes = new Set((cloudObj.students || []).map((s) => s.barcode));
+          const hasNewLocalStudents = (merged.students || []).some((s) => s.barcode && !cloudBarcodes.has(s.barcode));
+          const isPending = localStorage.getItem(PENDING_SYNC_KEY) === "true";
+
+          if (!hasNewLocalStudents && !isPending && (localData.updatedAt || 0) <= (cloudObj.updatedAt || 0)) {
+            isCurrentlySyncing = false;
+            notifySyncStatusChange();
+            return true;
+          }
+        }
+      }
+    } catch {
+      // In offline or slow mobile conditions, proceed with dataToPush = localData
+    }
+
     const cleaned = cleanForFirestore({
-      ...localData,
+      ...dataToPush,
       updatedAt: Date.now(),
       syncedAtIso: new Date().toISOString(),
     });
@@ -482,8 +517,8 @@ export async function flushPendingSyncToCloud(forceManual: boolean = false): Pro
         },
         updatedAt: Date.now(),
         syncedAtIso: new Date().toISOString(),
-        studentsCount: (localData.students || []).length,
-        paymentsCount: Object.values(localData.payments || {}).reduce((acc, m) => acc + Object.keys(m || {}).length, 0),
+        studentsCount: (dataToPush.students || []).length,
+        paymentsCount: Object.values(dataToPush.payments || {}).reduce((acc, m) => acc + Object.keys(m || {}).length, 0),
       };
     } catch {
       docPayload = cleaned as Record<string, unknown>;
@@ -532,9 +567,16 @@ export async function flushPendingSyncToCloud(forceManual: boolean = false): Pro
   } catch (e) {
     if (isFirestoreQuotaError(e)) {
       isQuotaExceeded = true;
-      quotaExceededUntil = Date.now() + 15 * 60 * 1000;
+      quotaExceededUntil = Date.now() + 5 * 60 * 1000;
+      setTimeout(() => {
+        isQuotaExceeded = false;
+        try {
+          enableNetwork(db).catch(() => {});
+        } catch {}
+        notifySyncStatusChange();
+      }, 5 * 60 * 1000);
     } else {
-      console.warn("Cloud sync to Firestore background update:", e);
+      console.warn("Cloud sync to Firestore background update notice:", e);
     }
     
     // Retain pending sync flag so that retry mechanisms and reconnect listeners will flush it
@@ -624,7 +666,7 @@ export function mergeCloudDataWithLocal(local: SystemData, cloud: Partial<System
   // Check if local student database was explicitly cleared on this machine
   const isLocalExplicitlyEmpty = (local.students?.length === 0 && (local.deletedBarcodes?.length || 0) > 0);
 
-  // Merge remote students from cloud
+  // Merge remote students from cloud without ever dropping any student!
   if (Array.isArray(cloud.students) && !isLocalExplicitlyEmpty) {
     cloud.students.forEach((remoteStudent) => {
       if (!remoteStudent?.barcode) return;
@@ -641,45 +683,47 @@ export function mergeCloudDataWithLocal(local: SystemData, cloud: Partial<System
 
       const existing = studentMap.get(existingKey);
       if (!existing) {
-        // If local is newer or has edits while other devices are closed, only add remote student if cloud is distinctly newer or local was empty
-        if (cloudTime > localTime + 2000 || !local.students || local.students.length === 0) {
-          studentMap.set(bKey, { ...remoteStudent });
-          if (normName) {
-            nameToBarcodeMap.set(nameKey, bKey);
-          }
+        // Safe addition: retain remote student created on any other device
+        studentMap.set(bKey, { ...remoteStudent });
+        if (normName) {
+          nameToBarcodeMap.set(nameKey, bKey);
         }
       } else {
-        // Merge student properties: if localTime >= cloudTime, local properties take priority
+        // Merge student properties intelligently with CRDT union rules
         const localScores = Array.isArray(existing.totalExamScores) ? existing.totalExamScores : [];
         const remoteScores = Array.isArray(remoteStudent.totalExamScores) ? remoteStudent.totalExamScores : [];
+        const mergedScores = Array.from(new Set([...localScores, ...remoteScores]));
+
+        const points = Math.max(existing.points || 0, remoteStudent.points || 0);
+        const totalAttendanceDays = Math.max(existing.totalAttendanceDays || 0, remoteStudent.totalAttendanceDays || 0);
+        const totalAbsentDays = Math.max(existing.totalAbsentDays || 0, remoteStudent.totalAbsentDays || 0);
+
+        const phone = existing.phone || remoteStudent.phone || "";
+        const parentPhone = existing.parentPhone || remoteStudent.parentPhone || "";
+        const notes = existing.notes || remoteStudent.notes || "";
+        const groupDays = existing.groupDays || remoteStudent.groupDays;
+        const discountReason = existing.discountReason || remoteStudent.discountReason;
+        const customMonthlyFee = existing.customMonthlyFee !== undefined ? existing.customMonthlyFee : remoteStudent.customMonthlyFee;
         
-        let mergedScores: number[];
-        if (localTime >= cloudTime) {
-          mergedScores = localScores.length > 0 ? [...localScores] : [...remoteScores];
-        } else {
-          mergedScores = remoteScores.length >= localScores.length ? [...remoteScores] : [...localScores];
-        }
-
-        const chosenLastTitle = localTime >= cloudTime
-          ? (existing.lastExamTitle || remoteStudent.lastExamTitle || "")
-          : (remoteStudent.lastExamTitle || existing.lastExamTitle || "");
-        const chosenLastScore = localTime >= cloudTime
-          ? (existing.lastExamScore || remoteStudent.lastExamScore || "")
-          : (remoteStudent.lastExamScore || existing.lastExamScore || "");
-
-        const baseObj = localTime >= cloudTime
-          ? { ...remoteStudent, ...existing }
-          : { ...existing, ...remoteStudent };
+        const lastExamTitle = (localTime >= cloudTime ? existing.lastExamTitle : remoteStudent.lastExamTitle) || existing.lastExamTitle || remoteStudent.lastExamTitle || "";
+        const lastExamScore = (localTime >= cloudTime ? existing.lastExamScore : remoteStudent.lastExamScore) || existing.lastExamScore || remoteStudent.lastExamScore || "";
 
         studentMap.set(existingKey, {
-          ...baseObj,
+          ...remoteStudent,
+          ...existing,
           barcode: existing.barcode || remoteStudent.barcode,
-          totalExamScores: mergedScores,
-          points: Math.max(existing.points || 0, remoteStudent.points || 0),
-          totalAttendanceDays: Math.max(existing.totalAttendanceDays || 0, remoteStudent.totalAttendanceDays || 0),
-          totalAbsentDays: Math.max(existing.totalAbsentDays || 0, remoteStudent.totalAbsentDays || 0),
-          lastExamTitle: chosenLastTitle,
-          lastExamScore: chosenLastScore,
+          phone,
+          parentPhone,
+          notes,
+          groupDays,
+          discountReason,
+          customMonthlyFee,
+          points,
+          totalAttendanceDays,
+          totalAbsentDays,
+          totalExamScores: mergedScores.length > 0 ? mergedScores : (localScores.length > 0 ? localScores : remoteScores),
+          lastExamTitle,
+          lastExamScore,
         });
       }
     });
@@ -687,52 +731,59 @@ export function mergeCloudDataWithLocal(local: SystemData, cloud: Partial<System
 
   const mergedStudents = Array.from(studentMap.values());
 
-  // 2. Merge Attendance History & Today
-  const mergedHistory: Record<string, Record<string, string>> = {
-    ...(local.attendanceHistory || {}),
-  };
+  // 2. Merge Attendance History & Today (Presence & tardiness always preserved)
+  const mergedHistory: Record<string, Record<string, string>> = {};
+
+  if (local.attendanceHistory) {
+    for (const [dateKey, dayMap] of Object.entries(local.attendanceHistory)) {
+      mergedHistory[dateKey] = { ...(dayMap || {}) };
+    }
+  }
 
   if (cloud.attendanceHistory) {
-    for (const [dateKey, dayMap] of Object.entries(cloud.attendanceHistory)) {
-      mergedHistory[dateKey] = {
-        ...(mergedHistory[dateKey] || {}),
-        ...(dayMap || {}),
-      };
+    for (const [dateKey, remoteDayMap] of Object.entries(cloud.attendanceHistory)) {
+      if (!mergedHistory[dateKey]) {
+        mergedHistory[dateKey] = {};
+      }
+      for (const [bCode, status] of Object.entries(remoteDayMap || {})) {
+        const localStatus = mergedHistory[dateKey][bCode];
+        if (status === "حضور" || status === "تأخير") {
+          mergedHistory[dateKey][bCode] = status;
+        } else if (!localStatus) {
+          mergedHistory[dateKey][bCode] = status;
+        }
+      }
     }
   }
 
   const mergedToday: Record<string, string> = {
     ...(local.attendanceToday || {}),
-    ...(cloud.attendanceToday || {}),
-    ...(mergedHistory[todayKey] || {}),
   };
-  mergedHistory[todayKey] = mergedToday;
+  if (cloud.attendanceToday) {
+    for (const [bCode, status] of Object.entries(cloud.attendanceToday)) {
+      if (status === "حضور" || status === "تأخير" || !mergedToday[bCode]) {
+        mergedToday[bCode] = status;
+      }
+    }
+  }
+  mergedHistory[todayKey] = {
+    ...(mergedHistory[todayKey] || {}),
+    ...mergedToday,
+  };
 
   // 3. Merge Scan Log Order & Times (preserve recent scans from all devices seamlessly)
   const remoteOrder = Array.isArray(cloud.scanLogOrder) ? cloud.scanLogOrder : [];
   const localOrder = Array.isArray(local.scanLogOrder) ? local.scanLogOrder : [];
   
-  let mergedOrder: string[];
-  if (cloudTime > localTime + 2000) {
-    // Cloud is newer (e.g. scans or group clearing on another device)
-    mergedOrder = [...remoteOrder];
-    // If local has very recent scans that might have occurred concurrently, retain them
-    localOrder.forEach((b) => {
-      if (b && !mergedOrder.includes(b) && local.scanLogTimes?.[b]) {
-        mergedOrder.push(b);
-      }
-    });
-  } else {
-    // Local is newer or concurrent: combine prioritizing local then remote
-    const orderSet = new Set<string>();
-    mergedOrder = [];
-    [...localOrder, ...remoteOrder].forEach((barcode) => {
-      if (barcode && !orderSet.has(barcode)) {
-        orderSet.add(barcode);
-        mergedOrder.push(barcode);
-      }
-    });
-  }
+  const orderSet = new Set<string>();
+  const mergedOrder: string[] = [];
+
+  [...localOrder, ...remoteOrder].forEach((barcode) => {
+    if (barcode && !orderSet.has(barcode) && !deletedSet.has(barcode)) {
+      orderSet.add(barcode);
+      mergedOrder.push(barcode);
+    }
+  });
 
   const mergedScanTimes: Record<string, string> = {
     ...(local.scanLogTimes || {}),
@@ -756,12 +807,31 @@ export function mergeCloudDataWithLocal(local: SystemData, cloud: Partial<System
         mergedPayments[mKey] = {};
       }
       if (remoteRecords && typeof remoteRecords === "object") {
-        for (const [recKey, rec] of Object.entries(remoteRecords)) {
-          if (rec) {
-            mergedPayments[mKey][recKey] = {
-              ...(mergedPayments[mKey][recKey] || {}),
-              ...rec,
-            };
+        for (const [bCode, remoteRec] of Object.entries(remoteRecords)) {
+          if (!remoteRec) continue;
+          const localRec = mergedPayments[mKey][bCode];
+          if (!localRec) {
+            mergedPayments[mKey][bCode] = { ...remoteRec };
+          } else {
+            const localAmt = Number(localRec.amount) || 0;
+            const remoteAmt = Number(remoteRec.amount) || 0;
+            if (remoteAmt > 0 && localAmt === 0) {
+              mergedPayments[mKey][bCode] = { ...localRec, ...remoteRec };
+            } else if (localAmt > 0 && remoteAmt === 0) {
+              mergedPayments[mKey][bCode] = { ...remoteRec, ...localRec };
+            } else {
+              const chosen = remoteAmt > localAmt ? remoteRec : localRec;
+              const combinedNote = [localRec.note, remoteRec.note]
+                .filter(Boolean)
+                .filter((v, i, a) => a.indexOf(v) === i)
+                .join(" | ");
+              mergedPayments[mKey][bCode] = {
+                ...localRec,
+                ...remoteRec,
+                ...chosen,
+                note: combinedNote,
+              };
+            }
           }
         }
       }
@@ -779,18 +849,30 @@ export function mergeCloudDataWithLocal(local: SystemData, cloud: Partial<System
     ...(cloud.groupPrices || {}),
   };
 
-  // 6. Merge WhatsApp Outbox Messages
-  const localMsgs = local.pendingWhatsAppMessages || [];
+  // 6. Merge WhatsApp Outbox Messages (deduplicated by message key)
+  const messageMap = new Map<string, PendingWhatsAppMessage>();
+  const localMsgs = Array.isArray(local.pendingWhatsAppMessages) ? local.pendingWhatsAppMessages : [];
   const cloudMsgs = Array.isArray(cloud.pendingWhatsAppMessages) ? cloud.pendingWhatsAppMessages : [];
-  
-  let mergedWhatsApp: PendingWhatsAppMessage[];
-  if (typeof cloud.updatedAt === "number" && cloud.updatedAt > (local.updatedAt || 0)) {
-    mergedWhatsApp = cloudMsgs;
-  } else if (local.pendingWhatsAppMessages !== undefined) {
-    mergedWhatsApp = localMsgs;
-  } else {
-    mergedWhatsApp = cloudMsgs;
-  }
+
+  const getMsgKey = (m: PendingWhatsAppMessage) => m.id || `${m.studentBarcode || m.studentName}_${m.messageType}_${m.createdAt}`;
+
+  localMsgs.forEach((m) => {
+    if (m) messageMap.set(getMsgKey(m), { ...m });
+  });
+
+  cloudMsgs.forEach((m) => {
+    if (m) {
+      const key = getMsgKey(m);
+      const existing = messageMap.get(key);
+      if (!existing) {
+        messageMap.set(key, { ...m });
+      } else if (m.status === "sent" && existing.status !== "sent") {
+        messageMap.set(key, { ...m });
+      }
+    }
+  });
+
+  const mergedWhatsApp = Array.from(messageMap.values());
 
   const chosenScannerGrade = cloudTime > localTime && cloud.activeScannerGrade 
     ? cloud.activeScannerGrade 
@@ -1225,12 +1307,51 @@ export function subscribeToCloudData(
             lastSyncedDataHash = incomingHash;
             saveToLocalStorage(merged, false);
 
-            // If local disk had newer updates that were truly unsynced (pending offline edits),
-            // trigger an automatic push to Firestore; otherwise mark as fully in-sync.
+            // Check if local device contributed any new records to merged that were missing in cloud
+            const cloudStudentBarcodes = new Set((cloudObj.students || []).map((s) => s.barcode));
+            const hasNewStudentsForCloud = (merged.students || []).some(
+              (s) => s.barcode && !cloudStudentBarcodes.has(s.barcode)
+            );
+
+            let hasNewPaymentsForCloud = false;
+            if (merged.payments) {
+              for (const [m, recs] of Object.entries(merged.payments)) {
+                const cloudRecs = cloudObj.payments?.[m] || {};
+                for (const [b, rec] of Object.entries(recs || {})) {
+                  if (Number(rec?.amount) > 0 && !(Number(cloudRecs[b]?.amount) > 0)) {
+                    hasNewPaymentsForCloud = true;
+                    break;
+                  }
+                }
+                if (hasNewPaymentsForCloud) break;
+              }
+            }
+
+            let hasNewAttendanceForCloud = false;
+            if (merged.attendanceHistory) {
+              for (const [d, dayMap] of Object.entries(merged.attendanceHistory)) {
+                const cloudDayMap = cloudObj.attendanceHistory?.[d] || {};
+                for (const [b, st] of Object.entries(dayMap || {})) {
+                  if ((st === "حضور" || st === "تأخير") && cloudDayMap[b] !== st) {
+                    hasNewAttendanceForCloud = true;
+                    break;
+                  }
+                }
+                if (hasNewAttendanceForCloud) break;
+              }
+            }
+
             const localWasNewer = (currentLocal.updatedAt || 0) > (cloudObj.updatedAt || 0);
             const hasPendingSync = localStorage.getItem(PENDING_SYNC_KEY) === "true";
 
-            if (localWasNewer && hasPendingSync) {
+            const shouldPushToCloud =
+              hasNewStudentsForCloud ||
+              hasNewPaymentsForCloud ||
+              hasNewAttendanceForCloud ||
+              (localWasNewer && hasPendingSync);
+
+            if (shouldPushToCloud) {
+              localStorage.setItem(PENDING_SYNC_KEY, "true");
               flushPendingSyncToCloud(false).catch(() => {});
             } else {
               localStorage.setItem(PENDING_SYNC_KEY, "false");
@@ -1249,11 +1370,15 @@ export function subscribeToCloudData(
       (error) => {
         if (isFirestoreQuotaError(error)) {
           isQuotaExceeded = true;
-          quotaExceededUntil = Date.now() + 15 * 60 * 1000;
-          try {
-            disableNetwork(db);
-          } catch {}
+          quotaExceededUntil = Date.now() + 5 * 60 * 1000;
           notifySyncStatusChange();
+          setTimeout(() => {
+            isQuotaExceeded = false;
+            try {
+              enableNetwork(db).catch(() => {});
+            } catch {}
+            notifySyncStatusChange();
+          }, 5 * 60 * 1000);
         } else {
           console.warn("Firestore snapshot listener notice:", error);
         }
@@ -1271,11 +1396,15 @@ export function subscribeToCloudData(
   } catch (err) {
     if (isFirestoreQuotaError(err)) {
       isQuotaExceeded = true;
-      quotaExceededUntil = Date.now() + 15 * 60 * 1000;
-      try {
-        disableNetwork(db);
-      } catch {}
+      quotaExceededUntil = Date.now() + 5 * 60 * 1000;
       notifySyncStatusChange();
+      setTimeout(() => {
+        isQuotaExceeded = false;
+        try {
+          enableNetwork(db).catch(() => {});
+        } catch {}
+        notifySyncStatusChange();
+      }, 5 * 60 * 1000);
     }
     if (onError) onError(err);
     return () => {
@@ -1383,10 +1512,13 @@ export async function autoPushLocalDiskOnStartup(): Promise<boolean> {
   if (typeof window === "undefined") return false;
   try {
     const hasPending = localStorage.getItem(PENDING_SYNC_KEY) === "true";
-    if (hasPending) {
-      console.log("Auto-pushing pending local disk data to Firestore Cloud Database now...");
-      notifySyncStatusChange();
-      return await flushPendingSyncToCloud(true);
+    const local = loadLocalData();
+    const hasLocalData =
+      (Array.isArray(local.students) && local.students.length > 0) ||
+      (local.payments && Object.keys(local.payments).length > 0);
+
+    if (hasPending || hasLocalData) {
+      return await flushPendingSyncToCloud(false);
     }
     return true;
   } catch (err) {

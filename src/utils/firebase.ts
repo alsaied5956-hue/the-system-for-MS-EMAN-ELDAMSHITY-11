@@ -27,14 +27,27 @@ let isAuthReady = false;
 let authPromise: Promise<boolean> | null = null;
 
 export async function ensureFirebaseAuth(): Promise<boolean> {
-  if (isAuthReady && auth.currentUser) return true;
+  if (auth.currentUser) {
+    isAuthReady = true;
+    return true;
+  }
   if (authPromise) return authPromise;
 
   authPromise = new Promise<boolean>((resolve) => {
-    // Check if already signed in
+    let resolved = false;
+    const safeResolve = (success: boolean) => {
+      if (!resolved) {
+        resolved = true;
+        if (!success) {
+          authPromise = null; // Clear so subsequent calls can retry!
+        }
+        resolve(success);
+      }
+    };
+
     if (auth.currentUser) {
       isAuthReady = true;
-      resolve(true);
+      safeResolve(true);
       return;
     }
 
@@ -42,25 +55,24 @@ export async function ensureFirebaseAuth(): Promise<boolean> {
       if (user) {
         isAuthReady = true;
         unsub();
-        resolve(true);
+        safeResolve(true);
       }
     });
 
     signInAnonymously(auth)
       .then(() => {
         isAuthReady = true;
-        resolve(true);
+        safeResolve(true);
       })
       .catch((err) => {
         console.warn("Anonymous sign in notice:", err);
-        // Resolve true anyway so firestore can still proceed
-        resolve(false);
+        safeResolve(false);
       });
 
-    // Safety timeout after 3s
+    // Mobile networks may take longer for TLS/OAuth handshake
     setTimeout(() => {
-      resolve(!!auth.currentUser);
-    }, 3000);
+      safeResolve(!!auth.currentUser);
+    }, 6000);
   });
 
   return authPromise;
