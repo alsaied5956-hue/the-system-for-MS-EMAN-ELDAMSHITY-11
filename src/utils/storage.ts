@@ -531,7 +531,7 @@ export async function flushPendingSyncToCloud(forceManual: boolean = false): Pro
     // and streams to cloud server in background even on slow / unstable networks
     await withTimeout(
       setDoc(systemDocRef, docPayload, { merge: true }),
-      35000,
+      10000,
       "Write timeout"
     );
 
@@ -630,7 +630,7 @@ export function syncDataToCloud(data: SystemData, immediate: boolean = false): v
           hasQueuedPendingSync = true;
         }
       }
-    }, 600);
+    }, 2500);
   }
 }
 
@@ -711,19 +711,26 @@ export function mergeCloudDataWithLocal(local: SystemData, cloud: Partial<System
         const totalAttendanceDays = Math.max(existing.totalAttendanceDays || 0, remoteStudent.totalAttendanceDays || 0);
         const totalAbsentDays = Math.max(existing.totalAbsentDays || 0, remoteStudent.totalAbsentDays || 0);
 
-        const phone = existing.phone || remoteStudent.phone || "";
-        const parentPhone = existing.parentPhone || remoteStudent.parentPhone || "";
-        const notes = existing.notes || remoteStudent.notes || "";
-        const groupDays = existing.groupDays || remoteStudent.groupDays;
-        const discountReason = existing.discountReason || remoteStudent.discountReason;
-        const customMonthlyFee = existing.customMonthlyFee !== undefined ? existing.customMonthlyFee : remoteStudent.customMonthlyFee;
-        
+        const isCloudNewer = cloudTime > localTime;
+        const baseStudent = isCloudNewer ? { ...existing, ...remoteStudent } : { ...remoteStudent, ...existing };
+        const phone = (isCloudNewer ? remoteStudent.phone : existing.phone) || remoteStudent.phone || existing.phone || "";
+        const parentPhone = (isCloudNewer ? remoteStudent.parentPhone : existing.parentPhone) || remoteStudent.parentPhone || existing.parentPhone || "";
+        const notes = (isCloudNewer ? remoteStudent.notes : existing.notes) || remoteStudent.notes || existing.notes || "";
+        const groupDays = (isCloudNewer ? remoteStudent.groupDays : existing.groupDays) || remoteStudent.groupDays || existing.groupDays;
+        const discountReason = (isCloudNewer ? remoteStudent.discountReason : existing.discountReason) || remoteStudent.discountReason || existing.discountReason;
+        const customMonthlyFee = isCloudNewer
+          ? (remoteStudent.customMonthlyFee !== undefined ? remoteStudent.customMonthlyFee : existing.customMonthlyFee)
+          : (existing.customMonthlyFee !== undefined ? existing.customMonthlyFee : remoteStudent.customMonthlyFee);
+        const name = (isCloudNewer ? remoteStudent.name : existing.name) || remoteStudent.name || existing.name;
+        const groupGrade = (isCloudNewer ? remoteStudent.groupGrade : existing.groupGrade) || remoteStudent.groupGrade || existing.groupGrade;
+
         const lastExamTitle = (localTime >= cloudTime ? existing.lastExamTitle : remoteStudent.lastExamTitle) || existing.lastExamTitle || remoteStudent.lastExamTitle || "";
         const lastExamScore = (localTime >= cloudTime ? existing.lastExamScore : remoteStudent.lastExamScore) || existing.lastExamScore || remoteStudent.lastExamScore || "";
 
         studentMap.set(existingKey, {
-          ...remoteStudent,
-          ...existing,
+          ...baseStudent,
+          name,
+          groupGrade,
           barcode: existing.barcode || remoteStudent.barcode,
           phone,
           parentPhone,
@@ -1316,7 +1323,87 @@ export async function importAndMergeCompleteBackupJSON(file: File): Promise<{
 }
 
 let activeSnapshotUnsubscribe: (() => void) | null = null;
+let lastSnapshotReceivedAt: number = 0;
 const cloudErrorListeners: ((err: unknown) => void)[] = [];
+
+/**
+ * Restart the cloud listener cleanly to recover from dormant mobile browser connections
+ */
+export function restartCloudListener(): void {
+  if (activeSnapshotUnsubscribe) {
+    try {
+      activeSnapshotUnsubscribe();
+    } catch {}
+    activeSnapshotUnsubscribe = null;
+  }
+  ensureActiveSnapshotListener();
+}
+
+/**
+ * Proactively and immediately pulls the latest state from Firestore Cloud Database,
+ * decompresses it, merges it seamlessly with local disk data, and notifies all screens.
+ * Especially crucial when a sleeping or powered-off device wakes up or opens the application!
+ */
+export async function pullLatestCloudDataImmediately(): Promise<boolean> {
+  if (typeof window === "undefined" || !navigator.onLine) return false;
+
+  try {
+    try {
+      await ensureFirebaseAuth();
+    } catch {}
+
+    const systemDocRef = doc(db, "system_state", "main_center_data");
+    const snapshot = await withTimeout(getDoc(systemDocRef), 7000, "Timeout pulling cloud data");
+
+    if (snapshot && snapshot.exists()) {
+      const val = snapshot.data();
+      if (val) {
+        let cloudObj: Partial<SystemData> = val as Partial<SystemData>;
+        if (val._compressedPayload && typeof val._compressedPayload === "string") {
+          try {
+            const decompressed = await decompressData<Partial<SystemData>>(val._compressedPayload);
+            if (decompressed) {
+              cloudObj = {
+                ...decompressed,
+                scanLogUpdatedAt: typeof val.scanLogUpdatedAt === "number" ? val.scanLogUpdatedAt : decompressed.scanLogUpdatedAt,
+                updatedAt: typeof val.updatedAt === "number" ? val.updatedAt : decompressed.updatedAt,
+              };
+            }
+          } catch (e) {
+            console.warn("Decompression error during immediate pull:", e);
+          }
+        }
+
+        const currentLocal = loadLocalData();
+        const merged = mergeCloudDataWithLocal(currentLocal, cloudObj);
+
+        const incomingHash = JSON.stringify(merged);
+        if (incomingHash !== lastSyncedDataHash) {
+          lastSyncedDataHash = incomingHash;
+          saveToLocalStorage(merged, false);
+          notifySyncStatusChange();
+          notifyCloudDataListeners(merged);
+          if (typeof window !== "undefined") {
+            window.dispatchEvent(new CustomEvent("center-data-updated", { detail: merged }));
+          }
+        }
+
+        lastSnapshotReceivedAt = Date.now();
+
+        // If this device had pending unsynced changes created while offline, flush them now
+        const hasPending = localStorage.getItem(PENDING_SYNC_KEY) === "true";
+        if (hasPending && !isCurrentlySyncing && (!isQuotaExceeded || Date.now() >= quotaExceededUntil)) {
+          flushPendingSyncToCloud(false).catch(() => {});
+        }
+
+        return true;
+      }
+    }
+  } catch (err) {
+    console.warn("Notice: Fast cloud pull on wake-up completed with fallback:", err);
+  }
+  return false;
+}
 
 function ensureActiveSnapshotListener() {
   if (activeSnapshotUnsubscribe) return;
@@ -1331,6 +1418,8 @@ function ensureActiveSnapshotListener() {
           if (snapshot.exists()) {
             const val = snapshot.data();
             if (val) {
+              lastSnapshotReceivedAt = Date.now();
+
               // 1. Ignore echo from local client writes to prevent UI freezing, unnecessary decompressions, and infinite loops
               if (val._lastClientId && val._lastClientId === CLIENT_ID) {
                 lastSyncedDataHash = JSON.stringify(loadLocalData());
@@ -1371,13 +1460,9 @@ function ensureActiveSnapshotListener() {
               const localTime = parseTimestamp(currentLocal.updatedAt);
               const hasPendingSync = localStorage.getItem(PENDING_SYNC_KEY) === "true";
 
-              // Only push to cloud if this device has pending unsynced offline changes
-              // and local is strictly newer than cloud. Never bounce back cloud updates!
-              if (hasPendingSync && localTime > cloudTime) {
-                flushPendingSyncToCloud(false).catch(() => {});
-              } else {
-                localStorage.setItem(PENDING_SYNC_KEY, "false");
-              }
+              // Successfully absorbed cloud data into local storage.
+              // Mark pending sync as false and NEVER bounce back writes to Firestore inside onSnapshot!
+              localStorage.setItem(PENDING_SYNC_KEY, "false");
 
               notifySyncStatusChange();
               notifyCloudDataListeners(merged);
@@ -1461,18 +1546,14 @@ export function subscribeToCloudData(
 }
 
 // -------------------------------------------------------------
-// Auto-Sync Event Handlers: Online, Visibility, Storage & Heartbeat
+// Auto-Sync Event Handlers: Online, Visibility, Focus, Storage & Heartbeat
 // -------------------------------------------------------------
 if (typeof window !== "undefined") {
-  // 1. Flush immediately when network connection is restored
+  // 1. Flush & pull immediately when network connection is restored
   window.addEventListener("online", () => {
     notifySyncStatusChange();
-    if (cloudDataListeners.length > 0) {
-      ensureActiveSnapshotListener();
-    }
-    if (!isQuotaExceeded || Date.now() >= quotaExceededUntil) {
-      flushPendingSyncToCloud(false);
-    }
+    restartCloudListener();
+    pullLatestCloudDataImmediately().catch(() => {});
   });
 
   // 2. Notify when offline
@@ -1480,20 +1561,25 @@ if (typeof window !== "undefined") {
     notifySyncStatusChange();
   });
 
-  // 3. Trigger sync when returning to tab/window
+  // 3. Instant pull and listener recovery when returning to tab/window or unlocking phone
   document.addEventListener("visibilitychange", () => {
     if (document.visibilityState === "visible" && navigator.onLine) {
-      if (cloudDataListeners.length > 0) {
-        ensureActiveSnapshotListener();
-      }
-      const hasPending = localStorage.getItem(PENDING_SYNC_KEY) === "true";
-      if (hasPending && !isCurrentlySyncing && (!isQuotaExceeded || Date.now() >= quotaExceededUntil)) {
-        flushPendingSyncToCloud(false);
+      restartCloudListener();
+      pullLatestCloudDataImmediately().catch(() => {});
+    }
+  });
+
+  // 4. Window focus event (e.g. switching back to the browser tab or app on mobile/desktop)
+  window.addEventListener("focus", () => {
+    if (navigator.onLine) {
+      if (Date.now() - lastSnapshotReceivedAt > 15000) {
+        restartCloudListener();
+        pullLatestCloudDataImmediately().catch(() => {});
       }
     }
   });
 
-  // 4. Guaranteed flush on tab close / reload
+  // 5. Guaranteed flush on tab close / reload
   window.addEventListener("beforeunload", () => {
     if (memoryCachedData) {
       try {
@@ -1502,22 +1588,27 @@ if (typeof window !== "undefined") {
     }
   });
 
-  // 5. Fast periodic background sync check every 10 seconds
+  // 6. Periodic background sync check every 25 seconds
   setInterval(() => {
-    if (navigator.onLine) {
+    if (navigator.onLine && document.visibilityState === "visible") {
       const hasPending = localStorage.getItem(PENDING_SYNC_KEY) === "true";
       if (hasPending && !isCurrentlySyncing && (!isQuotaExceeded || Date.now() >= quotaExceededUntil)) {
         flushPendingSyncToCloud(false);
       }
+      // If snapshot has been quiet for > 60 seconds while online, do a swift background check
+      if (Date.now() - lastSnapshotReceivedAt > 60000) {
+        pullLatestCloudDataImmediately().catch(() => {});
+      }
     }
-  }, 10000);
+  }, 25000);
 
-  // 6. Automatic push of whatever is saved on local disk to Cloud immediately on startup
+  // 7. Immediate pull and sync on startup (zero delay)
   setTimeout(() => {
     if (navigator.onLine) {
+      pullLatestCloudDataImmediately().catch(() => {});
       autoPushLocalDiskOnStartup().catch(() => {});
     }
-  }, 300);
+  }, 100);
 }
 
 // -------------------------------------------------------------

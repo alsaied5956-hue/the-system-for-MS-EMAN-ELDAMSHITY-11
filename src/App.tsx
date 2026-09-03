@@ -31,6 +31,7 @@ import {
   getSyncStatus,
   clearAllSystemData,
   autoPushLocalDiskOnStartup,
+  pullLatestCloudDataImmediately,
   SyncStatus,
 } from "./utils/storage";
 import {
@@ -172,7 +173,9 @@ export default function App() {
       }
     }
 
-    // Automatically send whatever was saved on local disk to Cloud immediately
+    // 1. Immediately pull latest cloud state if device was turned off/offline
+    pullLatestCloudDataImmediately().catch(() => {});
+    // 2. Automatically send whatever was saved on local disk to Cloud if pending
     autoPushLocalDiskOnStartup().catch(() => {});
   }, []);
 

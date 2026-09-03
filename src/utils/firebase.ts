@@ -21,64 +21,30 @@ try {
 // Initialize Firebase App
 export const app = getApps().length === 0 ? initializeApp(config) : getApp();
 
-// Initialize Auth and ensure anonymous session is established
+// Initialize Auth and ensure anonymous session is established if supported
 export const auth: Auth = getAuth(app);
-let isAuthReady = false;
-let authPromise: Promise<boolean> | null = null;
+let isAuthAttempted = false;
 
 export async function ensureFirebaseAuth(): Promise<boolean> {
   if (auth.currentUser) {
-    isAuthReady = true;
     return true;
   }
-  if (authPromise) return authPromise;
+  if (isAuthAttempted) {
+    return !!auth.currentUser;
+  }
+  isAuthAttempted = true;
 
-  authPromise = new Promise<boolean>((resolve) => {
-    let resolved = false;
-    const safeResolve = (success: boolean) => {
-      if (!resolved) {
-        resolved = true;
-        if (!success) {
-          authPromise = null; // Clear so subsequent calls can retry!
-        }
-        resolve(success);
-      }
-    };
-
-    if (auth.currentUser) {
-      isAuthReady = true;
-      safeResolve(true);
-      return;
-    }
-
-    const unsub = onAuthStateChanged(auth, (user) => {
-      if (user) {
-        isAuthReady = true;
-        unsub();
-        safeResolve(true);
-      }
-    });
-
-    signInAnonymously(auth)
-      .then(() => {
-        isAuthReady = true;
-        safeResolve(true);
-      })
-      .catch((err) => {
-        console.warn("Anonymous sign in notice:", err);
-        safeResolve(false);
-      });
-
-    // Mobile networks may take longer for TLS/OAuth handshake
-    setTimeout(() => {
-      safeResolve(!!auth.currentUser);
-    }, 6000);
-  });
-
-  return authPromise;
+  try {
+    await signInAnonymously(auth);
+    return true;
+  } catch (err) {
+    // Anonymous auth may be disabled or restricted on project;
+    // Database rules allow direct access to system_state so app continues seamlessly.
+    return false;
+  }
 }
 
-// Start auth immediately in background
+// Attempt background auth once without blocking startup
 ensureFirebaseAuth().catch(() => {});
 
 // Initialize Firestore Database instance with resilient in-memory cache
